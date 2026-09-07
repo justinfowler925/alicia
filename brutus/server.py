@@ -76,7 +76,12 @@ log = logging.getLogger("brutus.server")
 
 
 def _deployment_manifest() -> dict[str, Any]:
-    path = Path(__file__).resolve().parent.parent / ".brutus-deploy.json"
+    configured = os.environ.get("BRUTUS_DEPLOY_MANIFEST", "").strip()
+    path = (
+        Path(configured).expanduser()
+        if configured
+        else Path(__file__).resolve().parent.parent / ".brutus-deploy.json"
+    )
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, ValueError, OSError):

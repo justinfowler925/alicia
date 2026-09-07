@@ -32,6 +32,9 @@ voice = [
     "livekit-plugins-elevenlabs>=1.7,<2",
     "livekit-plugins-silero>=1.7,<2",
     "speechbrain>=1.1,<2",
+    # Keep the audio extension ABI exactly aligned with its Torch runtime.
+    "torch==2.11.0",
+    "torchaudio==2.11.0",
 ]
 # Platform-neutral subset used by CI and the browser voice worker. PyAudio is
 # a local hotkey/microphone dependency and requires PortAudio system headers.

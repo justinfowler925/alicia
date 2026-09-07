@@ -25,6 +25,7 @@ MODEL_ID = "speechbrain/spkrec-ecapa-voxceleb"
 PROFILE_NAME = "voice-owner.json"
 MIN_SAMPLES = 3
 MIN_SECONDS = 2.0
+MIN_VERIFY_SECONDS = 0.75
 # ECAPA embeddings from the browser enrollment recorder and LiveKit's Opus
 # stream are the same speaker through two different acoustic pipelines. The
 # conservative cross-pipeline operating point is lower than same-file scoring;
@@ -76,7 +77,7 @@ class VoiceIdentity:
         if not profile:
             return {"accepted": False, "reason": "Voice enrollment is required."}
         enrolled = np.frombuffer(base64.b64decode(profile["embedding"]), dtype=np.float32)
-        observed = self._embedding(wav_sample)
+        observed = self._embedding(wav_sample, min_seconds=MIN_VERIFY_SECONDS)
         score = float(np.dot(enrolled, observed))
         return {"accepted": score >= MATCH_THRESHOLD, "score": round(score, 4)}
 
@@ -99,10 +100,10 @@ class VoiceIdentity:
         except (FileNotFoundError, OSError, ValueError, TypeError):
             return None
 
-    def _embedding(self, wav_data: bytes) -> np.ndarray:
+    def _embedding(self, wav_data: bytes, *, min_seconds: float = MIN_SECONDS) -> np.ndarray:
         waveform, sample_rate = self._decode_wav(wav_data)
-        if len(waveform) / sample_rate < MIN_SECONDS:
-            raise EnrollmentError(f"Each sample must be at least {MIN_SECONDS:g} seconds.")
+        if len(waveform) / sample_rate < min_seconds:
+            raise EnrollmentError(f"Each sample must be at least {min_seconds:g} seconds.")
         classifier = self._speaker_model()
         import torch
         import torchaudio

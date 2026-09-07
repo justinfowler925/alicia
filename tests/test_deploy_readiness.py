@@ -15,7 +15,7 @@ def test_deploy_waits_for_the_replacement_actor_before_probing_surfaces():
     assert 'pid != "$old_pid"' not in source  # the executable comparison is POSIX `[ ... ]`
     assert '[ "$pid" != "$old_pid" ]' in source
     assert 'stable="$((stable + 1))"' not in source
-    assert 'stable=$((stable + 1))' in source
+    assert "stable=$((stable + 1))" in source
     assert '[ "$stable" -ge 2 ]' in source
     assert "/api/healthz" in source
 
@@ -26,7 +26,7 @@ def test_user_facing_endpoints_retry_after_actor_stability():
     assert 'wait_for_http_200 "http://127.0.0.1:$PORT/session"' in source
     assert 'wait_for_http_200 "http://127.0.0.1:$PORT/mobile"' in source
     assert "if wait_for_todos; then" in source
-    assert 'if not isinstance(t, list): raise SystemExit(1)' in source
+    assert "if not isinstance(t, list): raise SystemExit(1)" in source
 
 
 def test_deploy_script_is_valid_bash():
@@ -38,3 +38,14 @@ def test_deploy_script_is_valid_bash():
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_deploy_builds_locked_immutable_runtime_and_recycles_voice():
+    source = DEPLOY.read_text()
+
+    assert "uv.lock" in source and "--locked" in source
+    assert 'RUNTIME_ROOT="$APP/.venvs/$TARGET_SHA"' in source
+    assert 'ln -sfn ".venvs/$TARGET_SHA" "$APP/.runtime-venv.next"' in source
+    assert 'unload_job "$VOICE_AGENT_LABEL"' in source
+    assert 'wait_for_voice_actor "$PRE_VOICE_PID"' in source
+    assert "left running; restart separately" not in source

@@ -17,6 +17,10 @@ cd "$BRUTUS_APP_DIR"
 # Where the STATE lives — outside every checkout, so a redeploy, a branch
 # switch or a fresh clone cannot empty Brutus's memory.
 export BRUTUS_STATE_DIR="${BRUTUS_STATE_DIR:-$HOME/.brutus/state}"
+export BRUTUS_CONFIG="${BRUTUS_CONFIG:-$BRUTUS_APP_DIR/config.yaml}"
+export BRUTUS_DEPLOY_MANIFEST="${BRUTUS_DEPLOY_MANIFEST:-$BRUTUS_APP_DIR/.brutus-deploy.json}"
+RUNTIME_VENV="${BRUTUS_RUNTIME_VENV:-$BRUTUS_APP_DIR/.runtime-venv}"
+[ -x "$RUNTIME_VENV/bin/brutus" ] || RUNTIME_VENV="$BRUTUS_APP_DIR/.venv"
 
 # This venv belongs to THIS directory and is editable-installed against it.
 # Sharing the checkout's venv silently imported brutus from the checkout — its
@@ -27,4 +31,4 @@ export BRUTUS_STATE_DIR="${BRUTUS_STATE_DIR:-$HOME/.brutus/state}"
 [[ -s "$HOME/.brutus/livekit.env" ]] && source "$HOME/.brutus/livekit.env"
 
 exec "$BRUTUS_APP_DIR/scripts/run-with-credential-backoff.sh" \
-  brutus-core -- "$BRUTUS_APP_DIR/.venv/bin/brutus" serve
+  brutus-core -- "$RUNTIME_VENV/bin/brutus" serve

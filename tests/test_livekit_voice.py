@@ -74,7 +74,9 @@ def test_livekit_agent_calls_canonical_session_endpoint():
     client.__aenter__.return_value = client
 
     with patch("brutus.livekit_agent.httpx.AsyncClient", return_value=client):
-        reply = asyncio.run(BrutusVoiceAgent("123456abcdef", OwnerVoiceGate()).llm_node(chat_ctx, [], MagicMock()))
+        reply = asyncio.run(
+            BrutusVoiceAgent("123456abcdef", OwnerVoiceGate()).llm_node(chat_ctx, [], MagicMock())
+        )
 
     assert reply == "Two decisions need you."
     client.post.assert_awaited_once_with(
@@ -96,7 +98,8 @@ def test_launchers_start_real_worker_and_deploy_installs_both_jobs():
     deploy = (root / "scripts/deploy.sh").read_text()
     assert "$HOME/fowler-brain/scripts/credential-run" in agent
     assert "brutus-core" in agent
-    assert '"$BRUTUS_APP_DIR/.venv/bin/python" -m brutus.livekit_agent start' in agent
+    assert '"$RUNTIME_VENV/bin/python" -m brutus.livekit_agent start' in agent
+    assert 'BRUTUS_CONFIG="${BRUTUS_CONFIG:-$BRUTUS_APP_DIR/config.yaml}"' in agent
     assert "run-with-credential-backoff.sh" in agent
     assert "run-with-credential-backoff.sh" in server
     assert "secrets_softload" not in agent + server
@@ -177,8 +180,7 @@ def test_launchd_helper_loads_service_account_from_keychain(tmp_path: Path):
     security.chmod(0o755)
     credential_run = tmp_path / "credential-run"
     credential_run.write_text(
-        "#!/usr/bin/env bash\n"
-        "[[ \"$OP_SERVICE_ACCOUNT_TOKEN\" == test-service-account-token ]]\n"
+        '#!/usr/bin/env bash\n[[ "$OP_SERVICE_ACCOUNT_TOKEN" == test-service-account-token ]]\n'
     )
     credential_run.chmod(0o755)
     env = os.environ.copy()
@@ -205,7 +207,7 @@ def test_launchd_helper_loads_service_account_from_keychain(tmp_path: Path):
 
 def test_batch_stt_uses_vad_only_barge_in_gate():
     source = (Path(__file__).parents[1] / "brutus/livekit_agent.py").read_text()
-    assert "model=\"scribe_v2\"" in source
+    assert 'model="scribe_v2"' in source
     assert '"mode": "vad"' in source
     assert '"min_words": 0' in source
     assert "aec_warmup_duration=None" in source

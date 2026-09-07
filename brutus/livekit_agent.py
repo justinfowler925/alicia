@@ -15,14 +15,14 @@ from livekit.plugins import elevenlabs, silero
 from livekit.plugins.elevenlabs import VoiceSettings
 
 from .config import load_config
-from .voice_identity import VoiceIdentity
+from .voice_identity import MIN_VERIFY_SECONDS, VoiceIdentity
 
 log = logging.getLogger("brutus.livekit")
 BRUTUS_URL = os.environ.get("BRUTUS_URL", "http://127.0.0.1:8768")
 
 
 class OwnerVoiceGate:
-    """Keep a short remote-audio window and verify it for every final turn."""
+    """Verify audio aligned to the current utterance, with a short pre-roll."""
 
     def __init__(self, identity: VoiceIdentity | None = None) -> None:
         self.identity = identity or VoiceIdentity()
@@ -30,6 +30,12 @@ class OwnerVoiceGate:
         self._bytes = 0
         self.sample_rate = 16000
         self._limit = self.sample_rate * 2 * 8
+        self._utterance_start = 0
+
+    def start_utterance(self) -> None:
+        """Mark speech onset while retaining at most 500 ms of acoustic pre-roll."""
+        pre_roll = self.sample_rate * 2 // 2
+        self._utterance_start = max(0, self._bytes - pre_roll)
 
     async def observe(self, track: rtc.AudioTrack) -> None:
         stream = rtc.AudioStream(track, sample_rate=self.sample_rate, num_channels=1)
@@ -44,13 +50,19 @@ class OwnerVoiceGate:
             await stream.aclose()
 
     async def accepts_current_speaker(self) -> bool:
-        # A decision over less than two seconds is too easy to make from room
-        # noise. Silence and an unenrolled profile fail closed.
-        if self._bytes < self.sample_rate * 2 * 2:
-            return False
         pcm = b"".join(self._frames)
-        verdict = await asyncio.to_thread(self.identity.verify_pcm, pcm, self.sample_rate)
-        log.info("owner voice score=%.4f accepted=%s", float(verdict.get("score") or 0), verdict.get("accepted"))
+        utterance = pcm[self._utterance_start :]
+        # Extremely short noise and an unenrolled profile fail closed. Consume the window so
+        # the next verdict can never inherit a prior speaker's audio.
+        self._frames.clear()
+        self._bytes = 0
+        self._utterance_start = 0
+        if len(utterance) < self.sample_rate * 2 * MIN_VERIFY_SECONDS:
+            return False
+        verdict = await asyncio.to_thread(self.identity.verify_pcm, utterance, self.sample_rate)
+        log.info(
+            "owner voice score=%.4f accepted=%s", float(verdict.get("score") or 0), verdict.get("accepted")
+        )
         return bool(verdict.get("accepted"))
 
 
@@ -66,6 +78,14 @@ class BrutusVoiceAgent(Agent):
         super().__init__(instructions="Brutus voice transport; the canonical manager supplies every reply.")
         self.session_id = session_id
         self.gate = gate
+        self._active_turn: asyncio.Task | None = None
+        self._closed = False
+
+    def close(self) -> None:
+        """Cancel canonical work when the participant or room disconnects."""
+        self._closed = True
+        if self._active_turn and not self._active_turn.done():
+            self._active_turn.cancel()
 
     async def _reply(self, message: str) -> str:
         async with httpx.AsyncClient(timeout=150.0) as client:
@@ -84,15 +104,27 @@ class BrutusVoiceAgent(Agent):
 
     async def on_user_turn_completed(self, turn_ctx, new_message) -> None:
         """Hand the finalized transcript to Brutus and schedule its reply directly."""
+        current = asyncio.current_task()
+        previous = self._active_turn
+        self._active_turn = current
+        if previous and previous is not current and not previous.done():
+            previous.cancel()
         message = (new_message.text_content or "").strip()
-        if message and not await self.gate.accepts_current_speaker():
-            log.warning("owner voice rejected session=%s", self.session_id)
+        try:
+            if self._closed:
+                raise StopResponse()
+            if message and not await self.gate.accepts_current_speaker():
+                log.warning("owner voice rejected session=%s", self.session_id)
+                raise StopResponse()
+            log.info("canonical turn session=%s chars=%s", self.session_id, len(message))
+            if message:
+                reply = await self._reply(message)
+                if not self._closed and self._active_turn is current:
+                    self.session.say(reply, allow_interruptions=True, add_to_chat_ctx=True)
             raise StopResponse()
-        log.info("canonical turn session=%s chars=%s", self.session_id, len(message))
-        if message:
-            reply = await self._reply(message)
-            self.session.say(reply, allow_interruptions=True, add_to_chat_ctx=True)
-        raise StopResponse()
+        finally:
+            if self._active_turn is current:
+                self._active_turn = None
 
     async def llm_node(self, chat_ctx, tools, model_settings):
         """Fallback for explicit session.generate_reply calls."""
@@ -125,6 +157,7 @@ async def entrypoint(ctx: agents.JobContext) -> None:
     configured_voice_id = load_config().voice.elevenlabs_voice_id.strip()
     voice_id = configured_voice_id or os.environ.get("ELEVENLABS_VOICE_ID") or "hpp4J3VqNfWAUOO0d1Us"
     gate = OwnerVoiceGate()
+    agent = BrutusVoiceAgent(session_id, gate)
     session = AgentSession(
         stt=elevenlabs.STT(
             api_key=api_key,
@@ -180,6 +213,8 @@ async def entrypoint(ctx: agents.JobContext) -> None:
     @session.on("user_state_changed")
     def _on_user_state(event) -> None:
         log.info("voice user state session=%s state=%s", session_id, event.new_state)
+        if str(event.new_state).casefold().endswith("speaking"):
+            gate.start_utterance()
 
     @session.on("user_input_transcribed")
     def _on_transcript(event) -> None:
@@ -189,7 +224,12 @@ async def entrypoint(ctx: agents.JobContext) -> None:
             event.is_final,
             len(event.transcript or ""),
         )
-    await session.start(agent=BrutusVoiceAgent(session_id, gate), room=ctx.room)
+
+    @ctx.room.on("disconnected")
+    def _on_disconnected(*_args) -> None:
+        agent.close()
+
+    await session.start(agent=agent, room=ctx.room)
     log.info("voice room connected room=%s session=%s", ctx.room.name, session_id)
 
 

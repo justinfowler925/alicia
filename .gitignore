@@ -4,6 +4,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+.venvs/
+.runtime-venv
+.runtime-venv.next
 
 # Local runtime state — memory, notes, todos, captured audio. Never committed:
 # these are per-machine and diverge between the laptop and any other host.

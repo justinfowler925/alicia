@@ -1,9 +1,9 @@
-"""One Cursor brain, gated local hands. No Atlas, Claude, or local LLM.
+"""One Claude brain with native tools and gated local hands.
 
 Two entry points, one policy:
 
-  `brain_reply` — the conversation. Cursor with the full session history,
-  a text tool catalog, and the write gate exactly as it was. This
+  `brain_reply` — the conversation. Claude with the full session history,
+  a native tool catalog, prompt caching, and the write gate exactly as it was. This
   replaces the regex router + two-lane split that docs/CONVERSATION_REBUILD_PLAN.md
   diagnosed: decisions belong to a model that read the message; deterministic
   code keeps the two jobs it is actually good at — executing tools and gating
@@ -25,7 +25,7 @@ Hard lines, inherited from the gate design (gate.py):
     never silently trusted (the 8B invented REV-402/403 whole; a bigger model
     earns a challenge instead of a full-reply replacement, but not blind trust).
 
-The Cursor call itself is isolated in `_create` so tests patch one seam.
+The Anthropic call itself is isolated in `_create` so tests patch one seam.
 """
 
 from __future__ import annotations
@@ -35,7 +35,6 @@ import logging
 import re
 import time
 from collections.abc import Callable
-from types import SimpleNamespace
 from typing import Any
 
 from .config import BrutusCfg
@@ -221,9 +220,7 @@ def complete(
     reply = str(result.get("reply") or "").strip()
     if result.get("ok") and reply:
         return reply
-    raise BrainError(
-        f"cursor: {result.get('error') or 'empty reply'}", tried=["cursor"]
-    )
+    raise BrainError(f"cursor: {result.get('error') or 'empty reply'}", tried=["cursor"])
 
 
 def _call(cfg: BrutusCfg, backend: str, system: str, body: str) -> dict[str, Any]:
@@ -232,61 +229,40 @@ def _call(cfg: BrutusCfg, backend: str, system: str, body: str) -> dict[str, Any
     from .cursor_runner import run_cursor_chat
 
     prompt = f"{system}\n\n{body}".strip() if system else body
-    root = (cfg.cursor_runner.reasoning_root if cfg.cursor_runner else "~/.brutus/app")
+    root = cfg.cursor_runner.reasoning_root if cfg.cursor_runner else "~/.brutus/app"
     return run_cursor_chat(cfg, prompt, repo_hint=root, mutate=False)
 
 
 # ---------------------------------------------------------------------------
-# Cursor call seam (text tool protocol — the conversation path)
+# Native Claude call seam (the conversation path)
 # ---------------------------------------------------------------------------
 
-def _create(cfg: BrutusCfg, **kwargs: Any) -> Any:
-    """One read-only Cursor call, adapted to the existing tool-loop shape."""
-    from .cursor_runner import run_cursor_chat
 
-    system = kwargs.get("system") or []
-    tools = kwargs.get("tools") or []
-    messages = kwargs.get("messages") or []
-    system_text = "\n\n".join(
-        str(block.get("text") or "")
-        for block in system
-        if isinstance(block, dict) and str(block.get("text") or "").strip()
+def _create(cfg: BrutusCfg, **kwargs: Any) -> Any:
+    """Create one native Anthropic Messages turn with a cacheable stable prefix."""
+    from anthropic import Anthropic
+
+    claude = cfg.claude
+    if claude is None or not claude.enabled:
+        raise BrainError("Claude is disabled", tried=["claude"])
+
+    system = [dict(block) for block in (kwargs.get("system") or [])]
+    if system:
+        # BRAIN_SYSTEM is stable across turns. Voice instructions and standing
+        # notes deliberately remain after the cache breakpoint.
+        system[0]["cache_control"] = {"type": "ephemeral"}
+    client_kwargs: dict[str, Any] = {"timeout": claude.timeout_s}
+    if claude.api_key.strip():
+        client_kwargs["api_key"] = claude.api_key.strip()
+    client = Anthropic(**client_kwargs)
+    return client.messages.create(
+        model=claude.model,
+        max_tokens=claude.max_tokens,
+        output_config={"effort": claude.effort},
+        system=system,
+        tools=kwargs.get("tools") or [],
+        messages=kwargs.get("messages") or [],
     )
-    catalog = "\n".join(
-        f"- {tool.get('name')}: {tool.get('description')} schema={json.dumps(tool.get('input_schema') or {})}"
-        for tool in tools
-        if isinstance(tool, dict)
-    )
-    turns: list[str] = []
-    for message in messages:
-        role = str(message.get("role") or "")
-        content = message.get("content")
-        rendered = content if isinstance(content, str) else json.dumps(content, default=str)
-        turns.append(f"{role.upper()}: {rendered}")
-    prompt = (
-        f"{system_text}\n\nAVAILABLE TOOLS\n{catalog}\n\n"
-        "Use a tool whenever current work evidence or an action is required. Never say "
-        "you checked, compiled, queued, drafted, or proposed something without the matching "
-        "tool result. Requests to draft or queue an action require propose_action; requests "
-        "to decide new versus existing work require compile_unfog_work first. To call one, reply with exactly "
-        "two lines and nothing else:\nTOOL: <tool_name>\nARGS: <json object>\n"
-        "Otherwise answer Justin directly in plain prose.\n\nCONVERSATION\n"
-        + "\n\n".join(turns)
-    ).strip()
-    root = (cfg.cursor_runner.reasoning_root if cfg.cursor_runner else "~/.brutus/app")
-    result = run_cursor_chat(cfg, prompt, repo_hint=root, mutate=False)
-    if not result.get("ok"):
-        raise BrainError(str(result.get("error") or "Cursor unavailable"), tried=["cursor"])
-    text = str(result.get("reply") or "").strip()
-    parsed = _parse_cursor_tool_call(text)
-    if parsed:
-        name, args = parsed
-        content = [SimpleNamespace(type="tool_use", name=name, input=args, id="cursor_tool")]
-        stop_reason = "tool_use"
-    else:
-        content = [SimpleNamespace(type="text", text=text)]
-        stop_reason = "end_turn"
-    return SimpleNamespace(content=content, stop_reason=stop_reason, usage=None)
 
 
 def _parse_cursor_tool_call(text: str) -> tuple[str, dict[str, Any]] | None:
@@ -295,9 +271,7 @@ def _parse_cursor_tool_call(text: str) -> tuple[str, dict[str, Any]] | None:
     if value.startswith("```") and value.endswith("```"):
         value = re.sub(r"^```(?:json|text)?\s*", "", value, flags=re.IGNORECASE)
         value = re.sub(r"\s*```$", "", value).strip()
-    match = re.fullmatch(
-        r"TOOL:\s*([a-zA-Z0-9_]+)\s*\nARGS:\s*(\{.*\})\s*", value, re.DOTALL
-    )
+    match = re.fullmatch(r"TOOL:\s*([a-zA-Z0-9_]+)\s*\nARGS:\s*(\{.*\})\s*", value, re.DOTALL)
     if not match:
         return None
     try:
@@ -389,9 +363,7 @@ def anthropic_tools(registry: ToolRegistry) -> list[dict[str, Any]]:
         schema = tool.parameters or {}
         if not schema.get("type"):
             schema = {"type": "object", "properties": schema.get("properties", {}) or {}}
-        out.append(
-            {"name": tool.name, "description": tool.description, "input_schema": schema}
-        )
+        out.append({"name": tool.name, "description": tool.description, "input_schema": schema})
     out.append(_RECALL_TOOL)
     out.append(_PROPOSE_TOOL)
     return out
@@ -466,7 +438,7 @@ def brain_reply(
     onto the screen. Raises nothing — errors come back as honest reply text.
     """
     started = time.monotonic()
-    meta: dict[str, Any] = {"brain": True, "backend": "cursor", "rounds": 0, "tools": []}
+    meta: dict[str, Any] = {"brain": True, "backend": "claude", "rounds": 0, "tools": []}
 
     system: list[dict[str, Any]] = [
         {
@@ -512,8 +484,7 @@ def brain_reply(
                     "for permission again. After a lookup, state the result and the decision "
                     "plainly; do not append a new 'want me to' offer in the same turn. "
                     "Finish the sentence; never trail off mid-question. "
-                    "The accepted offer was: "
-                    + accepted_offer[:1200]
+                    "The accepted offer was: " + accepted_offer[:1200]
                 ),
             }
         )
@@ -531,9 +502,7 @@ def brain_reply(
             resp = _create(cfg, system=system, tools=tools, messages=messages)
         except Exception as exc:  # noqa: BLE001 — network/API failure, fall back
             log.warning("brain API call failed: %s", exc)
-            return _backend_fallback(
-                cfg, registry, messages, str(exc), meta, channel=channel
-            )
+            return _backend_fallback(cfg, registry, messages, str(exc), meta, channel=channel)
 
         _tick_usage(meta, getattr(resp, "usage", None))
         uses = _tool_uses(getattr(resp, "content", None))
@@ -549,9 +518,8 @@ def brain_reply(
             if completed != reply:
                 meta["dropped_incomplete_tail"] = True
                 reply = completed
-            unbacked_action = (
-                "propose_action" not in meta["tools"]
-                and bool(_UNBACKED_ACTION_CLAIM.search(reply))
+            unbacked_action = "propose_action" not in meta["tools"] and bool(
+                _UNBACKED_ACTION_CLAIM.search(reply)
             )
             if unbacked_action and channel == "voice":
                 meta["blocked_action_claim"] = True
@@ -712,7 +680,7 @@ def _backend_fallback(
     *,
     channel: str,
 ) -> tuple[str, dict[str, Any]]:
-    """Cursor unavailable — use deterministic local answers or fail honestly."""
+    """Claude unavailable — use deterministic local answers or fail honestly."""
     folded = error.casefold()
     if any(token in folded for token in ("api_key", "authentication", "unauthorized", "forbidden")):
         error_code = "brain_auth_unavailable"
@@ -736,8 +704,7 @@ def _backend_fallback(
         )
         folded_latest = latest.casefold()
         if any(
-            phrase in folded_latest
-            for phrase in ("what needs me", "needs my attention", "need my attention")
+            phrase in folded_latest for phrase in ("what needs me", "needs my attention", "need my attention")
         ):
             try:
                 called = registry.call("get_work_surface", {})

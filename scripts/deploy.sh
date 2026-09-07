@@ -27,11 +27,37 @@ STATE="${BRUTUS_DEPLOY_STATE_DIR:-$HOME/.brutus/state}"
 PLIST_NAME=com.clearspeed.brutus.plist
 LOADED_PLIST="$HOME/Library/LaunchAgents/$PLIST_NAME"
 PORT=8768
+VOICE_PORT=8096
+CORE_LABEL="com.clearspeed.brutus"
+VOICE_AGENT_LABEL="com.clearspeed.brutus-livekit-agent"
+DEPLOY_SERVICES_STOPPED="${BRUTUS_DEPLOY_SERVICES_STOPPED:-0}"
+DEPLOY_SUCCEEDED=0
 
 running_sha () { git -C "$APP" rev-parse --short HEAD 2>/dev/null || echo "-"; }
 service_pid () {
-  launchctl print "gui/$(id -u)/com.clearspeed.brutus" 2>/dev/null \
+  launchctl print "gui/$(id -u)/$CORE_LABEL" 2>/dev/null \
     | grep -oE 'pid = [0-9]+' | grep -oE '[0-9]+' | head -1
+}
+job_pid () {
+  launchctl print "gui/$(id -u)/$1" 2>/dev/null \
+    | grep -oE 'pid = [0-9]+' | grep -oE '[0-9]+' | head -1
+}
+unload_job () {
+  local label="$1"
+  launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+  for _ in $(seq 1 50); do
+    launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1 || return 0
+    sleep 0.2
+  done
+  return 1
+}
+wait_for_port_closed () {
+  local port="$1"
+  for _ in $(seq 1 50); do
+    lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || return 0
+    sleep 0.2
+  done
+  return 1
 }
 wait_for_new_actor () {
   local old_pid="$1" stable=0 pid i
@@ -51,6 +77,33 @@ wait_for_new_actor () {
   done
   return 1
 }
+wait_for_voice_actor () {
+  local old_pid="$1" stable=0 pid i
+  for i in $(seq 1 120); do
+    pid=$(job_pid "$VOICE_AGENT_LABEL")
+    if [ -n "$pid" ] && { [ -z "$old_pid" ] || [ "$pid" != "$old_pid" ]; } \
+      && curl -sf -m 3 "http://127.0.0.1:$VOICE_PORT/" >/dev/null 2>&1; then
+      stable=$((stable + 1))
+      [ "$stable" -ge 2 ] && { echo "    voice actor pid=$pid stable after ~${i}s"; return 0; }
+    else
+      stable=0
+    fi
+    sleep 1
+  done
+  return 1
+}
+recover_on_failure () {
+  [ "$DEPLOY_SERVICES_STOPPED" = "1" ] || return 0
+  [ "$DEPLOY_SUCCEEDED" = "1" ] && return 0
+  echo "    deploy failed after quiescing services; restoring launchd jobs" >&2
+  for label in "$CORE_LABEL" "$VOICE_AGENT_LABEL"; do
+    plist="$HOME/Library/LaunchAgents/$label.plist"
+    launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1 \
+      || launchctl bootstrap "gui/$(id -u)" "$plist" >/dev/null 2>&1 \
+      || true
+  done
+}
+trap recover_on_failure EXIT
 wait_for_http_200 () {
   local url="$1" code i
   for i in $(seq 1 20); do
@@ -65,7 +118,7 @@ wait_for_todos () {
   for i in $(seq 1 20); do
     TODOS=$(curl -s -m 8 -w '\n%{http_code}' "http://127.0.0.1:$PORT/api/todos")
     CODE=${TODOS##*$'\n'}
-    IDEAS=$(printf '%s' "${TODOS%$'\n'*}" | "$APP/.venv/bin/python" -c \
+    IDEAS=$(printf '%s' "${TODOS%$'\n'*}" | "${RUNTIME_VENV:-$APP/.venv}/bin/python" -c \
       'import json,sys
 d = json.load(sys.stdin)
 t = d.get("todos") if isinstance(d, dict) else d
@@ -118,6 +171,25 @@ if [ -e "$APP/.git" ] && [ -n "$(git -C "$APP" status --porcelain --untracked-fi
     exit 1
   fi
 fi
+
+# No deployed actor may remain alive while its source checkout changes. This
+# is idempotent across the one-time self re-exec below.
+if [ "$DEPLOY_SERVICES_STOPPED" != "1" ]; then
+  PRE_RESTART_PID=$(service_pid)
+  PRE_VOICE_PID=$(job_pid "$VOICE_AGENT_LABEL")
+  echo "==> quiescing core and voice before changing the release"
+  unload_job "$VOICE_AGENT_LABEL" || { echo "    voice job did not stop"; exit 1; }
+  wait_for_port_closed "$VOICE_PORT" || { echo "    voice port did not close"; exit 1; }
+  unload_job "$CORE_LABEL" || { echo "    core job did not stop"; exit 1; }
+  wait_for_port_closed "$PORT" || { echo "    core port did not close"; exit 1; }
+  export BRUTUS_DEPLOY_SERVICES_STOPPED=1
+  export BRUTUS_PRE_RESTART_PID="${PRE_RESTART_PID:-}"
+  export BRUTUS_PRE_VOICE_PID="${PRE_VOICE_PID:-}"
+  DEPLOY_SERVICES_STOPPED=1
+else
+  PRE_RESTART_PID="${BRUTUS_PRE_RESTART_PID:-}"
+  PRE_VOICE_PID="${BRUTUS_PRE_VOICE_PID:-}"
+fi
 if [ ! -d "$APP/.git" ] && [ ! -f "$APP/.git" ]; then
   mkdir -p "$(dirname "$APP")"
   # Detached on purpose: a named branch here would collide with the primary
@@ -152,58 +224,48 @@ if [ -z "${BRUTUS_DEPLOY_REEXEC:-}" ]; then
   fi
 fi
 
-# The service gets its OWN venv, editable-installed against $APP.
-#
-# Symlinking the shared venv looked tidy and was a trap: that venv carries an
-# editable install pinned to $REPO via a .pth import hook, so `import brutus`
-# resolved to the SHARED CHECKOUT no matter where the process ran from. The
-# deploy's cwd check passed and meant nothing — Python does not import from the
-# working directory when a .pth says otherwise. PYTHONPATH does not override it
-# either; the hook wins.
-if [ ! -x "$APP/.venv/bin/python" ]; then
-  [ -L "$APP/.venv" ] && rm -f "$APP/.venv"
-  echo "    building the service venv"
-  "${UV:-/opt/homebrew/bin/uv}" venv "$APP/.venv" >/dev/null 2>&1 \
-    || python3 -m venv "$APP/.venv" || exit 1
-fi
-# Re-install every deploy: cheap when nothing changed, and it is what keeps the
-# pin pointing at $APP after any checkout.
-# [dev,voice]: the deploy runs the suite in this venv, so it needs pytest, and
-# the daemon needs the voice extras. A bare `-e .` installs neither.
+# Every commit gets an exact, immutable dependency environment. A prior deploy
+# rewrote .venv under a week-old voice worker and mixed two AnyIO versions in
+# one process. The runtime symlink moves only after the locked environment and
+# production suite pass.
+TARGET_SHA=$(git -C "$APP" rev-parse HEAD)
+RUNTIME_ROOT="$APP/.venvs/$TARGET_SHA"
+RUNTIME_VENV="$APP/.runtime-venv"
+[ -f "$APP/uv.lock" ] || { echo "    FATAL: uv.lock is required for an exact runtime"; exit 1; }
 INSTALL_LOG=$(mktemp)
-# The RELATIVE form, run from $APP. Two other spellings were tried and both
-# failed while looking like something else:
-#   -e "$APP[dev,voice]"    uv: "Empty field is not allowed for PEP508" — and it
-#                           left the venv unable to resolve brutus at all, so
-#                           the NEXT check blamed the shared checkout.
-#   -e "$APP" --extra dev   exits 2, installs nothing.
-# `.[dev,voice]` keeps the declaration in pyproject rather than duplicating the
-# package list here, where it would drift.
-if ! ( cd "$APP" && "${UV:-/opt/homebrew/bin/uv}" pip install -q \
-        --python "$APP/.venv/bin/python" -e ".[dev,voice]" ) >"$INSTALL_LOG" 2>&1; then
+mkdir -p "$APP/.venvs"
+if [ ! -x "$RUNTIME_ROOT/bin/python" ]; then
+  echo "    building immutable runtime $TARGET_SHA"
+  "${UV:-/opt/homebrew/bin/uv}" venv "$RUNTIME_ROOT" >/dev/null 2>&1 || exit 1
+fi
+if ! ( cd "$APP" && UV_PROJECT_ENVIRONMENT="$RUNTIME_ROOT" \
+        "${UV:-/opt/homebrew/bin/uv}" sync -q --locked --extra dev --extra voice \
+        --no-editable --python "$RUNTIME_ROOT/bin/python" ) >"$INSTALL_LOG" 2>&1; then
   echo "    install failed:"; tail -5 "$INSTALL_LOG" | sed 's/^/      /'; rm -f "$INSTALL_LOG"; exit 1
 fi
 rm -f "$INSTALL_LOG"
+ln -sfn ".venvs/$TARGET_SHA" "$APP/.runtime-venv.next"
+mv -f "$APP/.runtime-venv.next" "$RUNTIME_VENV"
 
 # Prove the pin BEFORE restarting, not after. This is the check whose absence
 # let a green deploy run week-old code.
-# Run the probe FROM $APP. sys.path[0] is the process cwd, so a deploy invoked
-# from another brutus checkout (a worktree, ~/Projects/brutus) makes
-# `import brutus` resolve there even when the .pth correctly points at $APP —
-# and the check then FATAL's on a healthy venv. Earned 2026-08-08.
-RESOLVED=$(cd "$APP" && "$APP/.venv/bin/python" -c 'import brutus,os;print(os.path.realpath(brutus.__file__))' 2>/dev/null)
+RESOLVED=$(cd "$STATE" && BRUTUS_CONFIG="$APP/config.yaml" "$RUNTIME_VENV/bin/python" -c 'import brutus,os;print(os.path.realpath(brutus.__file__))' 2>/dev/null)
 case "$RESOLVED" in
-  "$(cd "$APP" && pwd -P)"/*) echo "    imports brutus from $APP" ;;
-  *) echo "    FATAL: venv imports brutus from ${RESOLVED:-nowhere}, not $APP"; exit 1 ;;
+  "$RUNTIME_ROOT"/*) echo "    imports brutus from immutable runtime $TARGET_SHA" ;;
+  *) echo "    FATAL: runtime imports brutus from ${RESOLVED:-nowhere}, not $RUNTIME_ROOT"; exit 1 ;;
 esac
 
 # Atlas/Codex adapters receive a separate least-authority credential that can
 # append idempotent event receipts but cannot exercise owner state gates.
-( cd "$APP" && "$APP/.venv/bin/python" -c \
+( cd "$STATE" && BRUTUS_CONFIG="$APP/config.yaml" "$RUNTIME_VENV/bin/python" -c \
   'from brutus.security import configured_adapter_token; configured_adapter_token()' ) || exit 1
 
+# Exercise the exact async HTTPX/AnyIO import path that failed in production.
+( cd "$STATE" && "$RUNTIME_VENV/bin/python" -c \
+  'import asyncio,httpx; asyncio.run(httpx.AsyncClient().aclose())' ) || exit 1
+
 echo "==> tests, against the code about to run"
-( cd "$APP" && "$APP/.venv/bin/python" -m pytest tests/ -q -p no:cacheprovider 2>&1 | tail -1 ) || exit 1
+( cd "$APP" && BRUTUS_CONFIG="$APP/config.yaml" "$RUNTIME_VENV/bin/python" -m pytest tests/ -q -p no:cacheprovider 2>&1 | tail -1 ) || exit 1
 
 # Declared here, not at the verification block below, because the sibling-plist
 # loop can fail before that point — and a later `FAIL=0` would have wiped it.
@@ -211,7 +273,7 @@ FAIL=0
 # Capture this before either the plist reload or kickstart. The old readiness
 # loop could accept one response from the process being terminated, then see
 # two 000s while launchd brought up the replacement.
-PRE_RESTART_PID=$(service_pid)
+PRE_RESTART_PID="${PRE_RESTART_PID:-${BRUTUS_PRE_RESTART_PID:-}}"
 
 echo "==> syncing the launchd plist"
 # From $APP, NOT $REPO. The shared checkout sits on whatever branch someone left
@@ -225,16 +287,6 @@ echo "==> syncing the launchd plist"
 # reported the tunnel "updated but FAILED TO RELOAD — it is now DOWN", and the
 # identical bootstrap succeeded by hand seconds later. Wait for the service to
 # actually be gone, the same way the readiness poll below does.
-unload_job () {
-  local label="$1"
-  launchctl bootout "gui/$(id -u)/$label" 2>/dev/null
-  for _ in $(seq 1 50); do
-    launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1 || return 0
-    sleep 0.2
-  done
-  return 1  # still there after 10s — let the caller report it
-}
-
 # Canon's durability and authenticated GitHub ingestion are required parts of
 # the work surface, not optional operator add-ons. Install them on first deploy;
 # the generic sibling loop below continues to avoid starting unrelated jobs.
@@ -325,13 +377,18 @@ if ! wait_for_new_actor "$PRE_RESTART_PID"; then
   FAIL=1
 fi
 
-# The LiveKit worker owns child processes and an HTTP health port. Its lifecycle
-# is intentionally not folded into a web deploy: forced launchctl restarts can
-# overlap the old child and create a Python restart storm. The worker launcher
-# reads the deployed app path on its next clean start; keep this deploy quiet.
-VOICE_AGENT_LABEL="com.clearspeed.brutus-livekit-agent"
+# Start voice only after the old job and health listener are gone. The worker
+# and core now resolve the same immutable runtime symlink.
 if [ -f "$HOME/Library/LaunchAgents/$VOICE_AGENT_LABEL.plist" ]; then
-  echo "    $VOICE_AGENT_LABEL: left running; restart separately after the port is clear"
+  PRE_VOICE_PID="${PRE_VOICE_PID:-${BRUTUS_PRE_VOICE_PID:-}}"
+  unload_job "$VOICE_AGENT_LABEL" || { echo "    voice job did not stop for cutover"; FAIL=1; }
+  if launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/$VOICE_AGENT_LABEL.plist" >/dev/null 2>&1 \
+    && wait_for_voice_actor "$PRE_VOICE_PID"; then
+    echo "    $VOICE_AGENT_LABEL: restarted on immutable runtime"
+  else
+    echo "    $VOICE_AGENT_LABEL: failed to become ready"
+    FAIL=1
+  fi
 fi
 
 echo "==> verifying the layer you actually use"
@@ -395,4 +452,10 @@ for f in memory.sqlite todos.sqlite sessions.sqlite supervisor.sqlite; do
   if [ -s "$STATE/$f" ]; then echo "    $f $(du -h "$STATE/$f" | cut -f1)"; else echo "    $f MISSING OR EMPTY"; FAIL=1; fi
 done
 
-[ "$FAIL" -eq 0 ] && echo "==> deployed $(running_sha)" || { echo "==> DEPLOY VERIFICATION FAILED"; exit 1; }
+if [ "$FAIL" -eq 0 ]; then
+  DEPLOY_SUCCEEDED=1
+  echo "==> deployed $(running_sha)"
+else
+  echo "==> DEPLOY VERIFICATION FAILED"
+  exit 1
+fi
