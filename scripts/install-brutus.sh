@@ -15,6 +15,7 @@ fi
 source .venv/bin/activate
 pip install -e ".[dev]" -q
 pytest -q
+python -c 'from brutus.security import configured_adapter_token; configured_adapter_token()'
 
 # Ensure config exists
 if [[ ! -f config.yaml ]]; then

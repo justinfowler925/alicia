@@ -1,0 +1,25 @@
+schema_version: 1
+repository: github.com/justinfowler925/brutus
+requirements:
+  - id: tests
+    kind: test
+    command: .venv/bin/python -m pytest -q
+    freshness_hours: 4
+  - id: lint
+    kind: lint
+    command: ./scripts/verify-workflow-control.sh
+    freshness_hours: 4
+  - id: git
+    kind: git
+    probe: origin/main contains the delivered commit and the checkout is clean
+    freshness_hours: 4
+  - id: deploy
+    kind: deploy
+    command: ./scripts/deploy.sh
+    target: local-brutus
+    freshness_hours: 4
+  - id: production
+    kind: readback
+    probe: /version reports the delivered SHA and workflow endpoints answer from 127.0.0.1:8768
+    target: local-brutus
+    freshness_hours: 4

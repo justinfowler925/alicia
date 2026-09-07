@@ -375,6 +375,110 @@ def build_mcp():
             indent=2,
         )
 
+    @mcp.tool()
+    def brutus_work_route(
+        request: str,
+        repo_hint: str = "",
+        cwd: str = "",
+        create: bool = False,
+    ) -> str:
+        """Deduplicate and route one intent through Canon and saved Git projects.
+
+        create=False is a read-only preview. Set create=True only when the user
+        intends to open the returned Canon work item.
+        """
+        from .canon.surface import open_canon_store
+        from .workflow_control import live_route
+
+        store = open_canon_store()
+        try:
+            return json.dumps(
+                live_route(
+                    request,
+                    store=store,
+                    repo_hint=repo_hint,
+                    cwd=cwd,
+                    create=create,
+                ).to_dict(),
+                indent=2,
+            )
+        finally:
+            store.close()
+
+    @mcp.tool()
+    def brutus_work_status(work_item_id: str) -> str:
+        """Read one Canon item, its bounded events, and delivery-proof gaps."""
+        from .canon.surface import open_canon_store
+        from .workflow_control import work_status
+
+        store = open_canon_store()
+        try:
+            return json.dumps(work_status(store, work_item_id), indent=2)
+        finally:
+            store.close()
+
+    @mcp.tool()
+    def brutus_work_event(
+        work_item_id: str,
+        event_id: str,
+        event_type: str,
+        surface: str,
+        source_locator: str,
+        result: str = "",
+        artifact_digest: str = "",
+    ) -> str:
+        """Post an idempotent event receipt; cannot accept or close Canon work."""
+        from .canon.surface import open_canon_store
+        from .workflow_control import post_work_event
+
+        store = open_canon_store()
+        try:
+            receipt, created = post_work_event(
+                store,
+                work_item_id=work_item_id,
+                event_id=event_id,
+                event_type=event_type,
+                surface=surface,
+                source_locator=source_locator,
+                result=result,
+                artifact_digest=artifact_digest,
+            )
+            return json.dumps(
+                {"created": created, "evidence": receipt.model_dump(mode="json")},
+                indent=2,
+            )
+        finally:
+            store.close()
+
+    @mcp.tool()
+    def brutus_feedback_batch(reports_json: str) -> str:
+        """Batch feedback by surface and shared acceptance/release/rollback path."""
+        from .workflow_control import batch_feedback
+
+        raw = json.loads(reports_json)
+        reports = raw.get("reports") if isinstance(raw, dict) else raw
+        batches = batch_feedback(reports or [])
+        return json.dumps(
+            {
+                "reports": len(reports or []),
+                "batches": [item.to_dict() for item in batches],
+                "dispositioned": sum(len(item.dispositions) for item in batches),
+            },
+            indent=2,
+        )
+
+    @mcp.tool()
+    def brutus_workflow_scorecard(days: int = 7) -> str:
+        """Generate a denominator-bearing local workflow-efficiency scorecard."""
+        from .canon.surface import open_canon_store
+        from .workflow_control import live_efficiency_scorecard
+
+        store = open_canon_store()
+        try:
+            return json.dumps(live_efficiency_scorecard(store, days=days), indent=2)
+        finally:
+            store.close()
+
     return mcp
 
 

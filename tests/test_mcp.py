@@ -19,6 +19,11 @@ def test_build_mcp_tools():
     assert "brutus_peek_email" in names
     assert "brutus_ingest_slack" in names
     assert "brutus_ingest_gmail" in names
+    assert "brutus_work_route" in names
+    assert "brutus_work_status" in names
+    assert "brutus_work_event" in names
+    assert "brutus_feedback_batch" in names
+    assert "brutus_workflow_scorecard" in names
 
 
 def test_brutus_query_description_says_read_only():

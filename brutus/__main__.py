@@ -9,13 +9,13 @@ import sys
 
 import httpx
 
-from .canon.models import InboxStatus, WorkItemState, WorkItemType
-from .paths import canon_db_path
+from .canon.models import EvidenceType, InboxStatus, WorkItemState, WorkItemType
 from .chat_resolve import resolve_chat_reply
 from .client import AtlasClient
 from .config import load_config
 from .local_llm import list_models, probe_generation
 from .memory import MemoryStore
+from .paths import canon_db_path
 
 
 def _die(msg: str, code: int = 1) -> None:
@@ -291,6 +291,50 @@ def main() -> None:
     )
     canon_dogfood.add_argument("--marker", default="live-proof")
 
+    workflow = sub.add_parser(
+        "workflow",
+        help="Route one work item, enforce delivery, batch feedback, and measure efficiency",
+    )
+    workflow.add_argument(
+        "--db",
+        dest="canon_db",
+        default=os.environ.get("BRUTUS_CANON_DB_PATH") or str(canon_db_path()),
+    )
+    workflow_sub = workflow.add_subparsers(dest="workflow_command")
+    workflow_route = workflow_sub.add_parser("route", help="Preview or create one routed Canon item")
+    workflow_route.add_argument("request")
+    workflow_route.add_argument("--repo", dest="repo_hint", default="")
+    workflow_route.add_argument("--cwd", default="")
+    workflow_route.add_argument("--create", action="store_true")
+    workflow_status = workflow_sub.add_parser("status", help="Read Canon state and delivery proof")
+    workflow_status.add_argument("work_item_id")
+    workflow_policy = workflow_sub.add_parser("policy", help="Validate and optionally bind a repo policy")
+    workflow_policy.add_argument("repository")
+    workflow_policy.add_argument("--bind", metavar="WORK_ITEM_ID", default="")
+    workflow_delivery = workflow_sub.add_parser("delivery", help="Verify required delivery receipts")
+    workflow_delivery.add_argument("work_item_id")
+    workflow_receipt = workflow_sub.add_parser("receipt", help="Attach an owner-verified delivery receipt")
+    workflow_receipt.add_argument("work_item_id")
+    workflow_receipt.add_argument("--requirement-id", required=True)
+    workflow_receipt.add_argument("--type", required=True, choices=[item.value for item in EvidenceType])
+    workflow_receipt.add_argument("--content-ref", required=True)
+    workflow_receipt.add_argument("--result", required=True, choices=["pass", "fail"])
+    workflow_receipt.add_argument("--target", default="")
+    workflow_receipt.add_argument("--artifact-digest", default="")
+    workflow_event = workflow_sub.add_parser("event", help="Post one idempotent bounded work event")
+    workflow_event.add_argument("work_item_id")
+    workflow_event.add_argument("--event-id", required=True)
+    workflow_event.add_argument("--event-type", required=True)
+    workflow_event.add_argument("--surface", required=True)
+    workflow_event.add_argument("--source-locator", required=True)
+    workflow_event.add_argument("--result", default="")
+    workflow_event.add_argument("--artifact-digest", default="")
+    workflow_feedback = workflow_sub.add_parser("feedback", help="Batch a JSON feedback population")
+    workflow_feedback.add_argument("--input", required=True)
+    workflow_feedback.add_argument("--create", action="store_true")
+    workflow_scorecard = workflow_sub.add_parser("scorecard", help="Generate the local efficiency scorecard")
+    workflow_scorecard.add_argument("--days", type=int, default=7)
+
     appr = sub.add_parser("approve", help="Approve a Justin gate (thread id or REV-XX)")
     appr.add_argument("target")
     appr.add_argument("--reject", action="store_true")
@@ -305,6 +349,14 @@ def main() -> None:
         if args.canon_command is None:
             canon.print_help()
             raise SystemExit(1)
+    if args.cmd == "workflow":
+        if args.workflow_command is None:
+            workflow.print_help()
+            raise SystemExit(1)
+        from .workflow_cli import run as run_workflow
+
+        run_workflow(args)
+        return
 
     cfg = load_config()
     client = AtlasClient(cfg)

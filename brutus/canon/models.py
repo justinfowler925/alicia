@@ -174,6 +174,22 @@ class WorkItem(BaseModel):
     approval_refs: list[str] = Field(default_factory=list)
     decision_refs: list[str] = Field(default_factory=list)
 
+    # Cross-surface identity and repository-delivery contract. These fields
+    # live on the canonical Work Item so routing adapters and execution
+    # surfaces do not need a second binding database.
+    bindings: dict[str, str] = Field(default_factory=dict)
+    repository_id: str = ""
+    repository_path: str = ""
+    worktree_path: str = ""
+    contract_id: str = ""
+    delivery_policy_ref: str = ""
+    delivery_policy_digest: str = ""
+    delivery_requirements: list[str] = Field(default_factory=list)
+    delivery_freshness_hours: dict[str, float] = Field(default_factory=dict)
+    delivery_targets: dict[str, str] = Field(default_factory=dict)
+    target_artifact_digest: str = ""
+    feedback_refs: list[str] = Field(default_factory=list)
+
 
 class Decision(BaseModel):
     id: str = Field(default_factory=_new_id)
@@ -201,6 +217,15 @@ class Evidence(BaseModel):
     source_object_id: Optional[str] = None
     source_sha: Optional[str] = None
     source_delivery_id: Optional[str] = None
+    # Structured receipt/event metadata. Optional defaults keep all evidence
+    # written before workflow-control v1 readable.
+    requirement_id: Optional[str] = None
+    result: Optional[str] = None
+    target: Optional[str] = None
+    artifact_digest: Optional[str] = None
+    event_type: Optional[str] = None
+    surface: Optional[str] = None
+    metadata: dict = Field(default_factory=dict)
 
 
 class Run(BaseModel):

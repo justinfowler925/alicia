@@ -244,6 +244,20 @@ def transition(
             )
             if not ok:
                 raise CanonError(f"cannot exit 'validation': {why}")
+            if work_item.delivery_requirements:
+                from ..workflow_control import evaluate_delivery_receipts
+
+                delivery = evaluate_delivery_receipts(work_item, evidence)
+                if not delivery.ok:
+                    details = []
+                    for label in ("missing", "stale", "failed", "mismatched"):
+                        values = getattr(delivery, label)
+                        if values:
+                            details.append(f"{label}={','.join(values)}")
+                    raise CanonError(
+                        "cannot exit 'validation': repository delivery policy failed: "
+                        + "; ".join(details)
+                    )
             if work_item.type == WorkItemType.TASK:
                 diff_evidence, _ = _task_completion_evidence(evidence)
                 completion_evidence_ref = next(item.id for item in diff_evidence if item.verified)

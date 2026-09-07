@@ -35,6 +35,39 @@ inflight work, update an exact open ticket, or draft one gated Linear issue.
 Frontier calls and ticket creation execute only after the reviewed proposal is
 approved.
 
+### Workflow control
+
+The `brutus workflow` surface joins that compiler to Canon, saved Git projects,
+repository delivery policies, product-feedback batches, and a reproducible
+efficiency scorecard. It does not create a second queue.
+
+```bash
+brutus workflow route "Fix Brutus delivery" --repo brutus
+brutus workflow route "Fix Brutus delivery" --repo brutus --create
+brutus workflow policy . --bind <canon-work-item-id>
+brutus workflow status <canon-work-item-id>
+brutus workflow delivery <canon-work-item-id>
+brutus workflow feedback --input feedback.json --create
+brutus workflow scorecard --days 7
+
+# Attach a structured owner-verified receipt to the bound policy.
+brutus workflow receipt <work-item-id> --requirement-id tests \
+  --type run_output --content-ref 'pytest: 817 passed' --result pass \
+  --artifact-digest <git-sha>
+```
+
+The same operations are available through MCP as `brutus_work_route`,
+`brutus_work_status`, `brutus_work_event`, `brutus_feedback_batch`, and
+`brutus_workflow_scorecard`. Bounded external adapters post idempotent events
+to `POST /api/workflow/events` with `X-Brutus-Adapter-Token`; that token cannot
+accept, close, approve, or otherwise change Canon lifecycle state.
+
+Every repository can declare its required tests, lint, visual proof, Git,
+deployment, production readback, and rollback evidence in
+`.codex/delivery.yaml`. Once a policy is bound to a Canon Work Item, the item
+cannot leave validation while a required receipt is missing, stale, failed, or
+bound to another artifact digest.
+
 `config.yaml`:
 
 ```yaml

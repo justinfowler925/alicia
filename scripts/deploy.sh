@@ -197,6 +197,11 @@ case "$RESOLVED" in
   *) echo "    FATAL: venv imports brutus from ${RESOLVED:-nowhere}, not $APP"; exit 1 ;;
 esac
 
+# Atlas/Codex adapters receive a separate least-authority credential that can
+# append idempotent event receipts but cannot exercise owner state gates.
+( cd "$APP" && "$APP/.venv/bin/python" -c \
+  'from brutus.security import configured_adapter_token; configured_adapter_token()' ) || exit 1
+
 echo "==> tests, against the code about to run"
 ( cd "$APP" && "$APP/.venv/bin/python" -m pytest tests/ -q -p no:cacheprovider 2>&1 | tail -1 ) || exit 1
 

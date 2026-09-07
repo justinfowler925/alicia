@@ -245,10 +245,20 @@ class CanonStore:
         persisted = self.get(WorkItem, work_item.id)
         if persisted is None:
             return
-        for field_name in ("evidence_refs", "approval_refs", "decision_refs"):
+        for field_name in (
+            "evidence_refs",
+            "approval_refs",
+            "decision_refs",
+            "feedback_refs",
+        ):
             latest_refs = getattr(persisted, field_name)
             supplied_refs = getattr(work_item, field_name)
             setattr(work_item, field_name, list(dict.fromkeys([*latest_refs, *supplied_refs])))
+        for key, value in persisted.bindings.items():
+            supplied = work_item.bindings.get(key)
+            if supplied and supplied != value:
+                raise ValueError(f"work item binding '{key}' is immutable")
+            work_item.bindings.setdefault(key, value)
 
     def _validate_identity_fields(
         self,

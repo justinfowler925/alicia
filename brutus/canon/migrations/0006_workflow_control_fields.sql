@@ -1,0 +1,3 @@
+-- Workflow-control v1 fields live in the existing JSON columns. Optional
+-- Pydantic defaults keep older Work Items and Evidence records readable, so
+-- no table DDL or lossy backfill is required.

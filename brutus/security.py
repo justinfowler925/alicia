@@ -17,6 +17,7 @@ from .paths import state_path
 
 
 OWNER_TOKEN_FILE = "owner.token"
+ADAPTER_TOKEN_FILE = "adapter.token"
 OWNER_SESSION_COOKIE = "brutus_owner_session"
 
 
@@ -49,8 +50,38 @@ def configured_owner_token() -> str:
     return token
 
 
+def configured_adapter_token() -> str:
+    """Return a separate token limited to bounded workflow-event ingestion."""
+
+    token = os.environ.get("BRUTUS_ADAPTER_TOKEN", "").strip()
+    if token:
+        return token
+    path = state_path(ADAPTER_TOKEN_FILE)
+    try:
+        token = path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        token = secrets.token_urlsafe(48)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(token + "\n")
+    if not token:
+        raise RuntimeError(f"adapter token is empty: {path}")
+    return token
+
+
 def authenticate_owner_token(presented: str) -> bool:
     return bool(presented) and hmac.compare_digest(presented, configured_owner_token())
+
+
+def require_adapter_token(
+    x_brutus_adapter_token: str | None = Header(default=None),
+) -> None:
+    """Authenticate an adapter without granting any owner capability."""
+
+    presented = (x_brutus_adapter_token or "").strip()
+    if not presented or not hmac.compare_digest(presented, configured_adapter_token()):
+        raise HTTPException(status_code=401, detail="adapter authentication required")
 
 
 def issue_owner_session(*, lifetime_seconds: int = 8 * 3600) -> tuple[str, str]:
