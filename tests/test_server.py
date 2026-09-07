@@ -669,6 +669,8 @@ def test_steer_retriage_steers_each_ticket_and_reports_failures():
         assert body["failed"][0]["ticket_id"] == "REV-292"
 
         assert c.post("/api/steer_retriage", json={"ticket_ids": []}).status_code == 400
+
+
 def test_version_reads_explicit_deploy_manifest(tmp_path, monkeypatch):
     manifest = tmp_path / "deploy.json"
     manifest.write_text(
@@ -680,4 +682,3 @@ def test_version_reads_explicit_deploy_manifest(tmp_path, monkeypatch):
         atlas.return_value = MagicMock()
         payload = TestClient(create_app(cfg, start_watchdog=False)).get("/version").json()
     assert payload["sha"] == "abc123"
-
