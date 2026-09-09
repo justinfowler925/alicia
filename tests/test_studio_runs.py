@@ -178,6 +178,7 @@ def test_collect_discovers_new_jobs_preserves_missing_and_reads_nevada(tmp_path,
     nv = jobs["com.clearspeed.nv-sled-intel"]
     assert nv["status"] == "failure" and nv["loaded"] is False
     assert nv["last_success_at"] == "2026-09-08T10:30:00Z"
+    assert not any("Never ran in this scheduler" in note for note in nv["notes"])
     assert nv["duration_seconds"] is None  # yesterday's completion isn't this run's end
     assert "must-not-export" not in str(result)
 

@@ -390,6 +390,19 @@ def collect(home=None, state=STATE):
         raw = read_json(nv_out / "studio-state.json", {})
         job["logs"]["receipt"] = str(nv_out / "studio-state.json")
         if raw:
+            # The report receipt supersedes tick-level process/exit observations.
+            job["notes"] = [
+                n
+                for n in job["notes"]
+                if not n.startswith(
+                    (
+                        "launchd last exit",
+                        "No timestamped run receipt",
+                        "Never ran in this scheduler",
+                        "Process currently present",
+                    )
+                )
+            ]
             ended = raw.get("completed_at") if raw.get("status") == "complete" else None
             started = raw.get("started_at")
             duration = (
