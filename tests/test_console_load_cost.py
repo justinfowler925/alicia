@@ -131,3 +131,42 @@ def test_the_brain_still_gets_a_blocking_fresh_build():
 
     signature = inspect.signature(build_nucleus_snapshot)
     assert signature.parameters["allow_stale"].default is False
+
+
+# --- a control with no observable effect is decoration ----------------------
+
+
+def test_an_organization_write_is_visible_before_the_rebuild_lands():
+    """Pinning a project reported "done" and left the button saying Pin.
+
+    Invalidating the cache alone stopped being enough once the snapshot was
+    persisted: the next read found an empty cache, fell back to the copy on
+    disk — written before the write — and served the row unchanged.
+    """
+    from brutus.nucleus import apply_project_overlay, slim_nucleus_snapshot
+    import brutus.nucleus as nuc
+
+    snapshot = {"projects": [{"id": "sfdc", "name": "sfdc", "pinned": False, "archived": False}]}
+    with patch.object(nuc, "_write_snapshot_to_disk"):
+        nuc._SNAPSHOT_CACHE["data"] = snapshot
+        nuc._SNAPSHOT_CACHE["at"] = time.time()
+
+        apply_project_overlay("sfdc", {"pinned": True})
+
+        served = slim_nucleus_snapshot(nuc._SNAPSHOT_CACHE["data"])
+    assert served["projects"][0]["pinned"] is True
+    # And it is still due a real rebuild rather than being treated as fresh.
+    assert nuc._SNAPSHOT_CACHE["at"] == 0.0
+
+
+def test_an_overlay_write_cannot_set_fields_it_does_not_own():
+    from brutus.nucleus import apply_project_overlay
+    import brutus.nucleus as nuc
+
+    with patch.object(nuc, "_write_snapshot_to_disk"):
+        nuc._SNAPSHOT_CACHE["data"] = {"projects": [{"id": "sfdc", "attention_score": 1698}]}
+        apply_project_overlay("sfdc", {"attention_score": 0, "pinned": True})
+        row = nuc._SNAPSHOT_CACHE["data"]["projects"][0]
+
+    assert row["attention_score"] == 1698, "source-owned fields are not writable"
+    assert row["pinned"] is True

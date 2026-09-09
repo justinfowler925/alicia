@@ -47,6 +47,7 @@ from .memory import MemoryStore
 from .model_gateway import judge_with_profile
 from . import process_control
 from .nucleus import (
+    apply_project_overlay,
     build_nucleus_snapshot,
     invalidate_nucleus_cache,
     nucleus_project_detail,
@@ -1197,6 +1198,9 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         invalidate_nucleus_cache()
+        # And fold it into what the screen reads next, so the row it just
+        # changed actually looks changed before the rebuild lands.
+        apply_project_overlay(project_id, changes)
         return {
             "ok": True,
             "project_id": project_id,

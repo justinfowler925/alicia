@@ -147,34 +147,31 @@
               aria-selected="false" tabindex="-1">
         Running <span class="count" id="running-count"></span>
       </button>
+      <button type="button" role="tab" id="tab-work" aria-controls="panel-work"
+              aria-selected="false" tabindex="-1">
+        Work <span class="count" id="work-count"></span>
+      </button>
+      <button type="button" role="tab" id="tab-projects" aria-controls="panel-projects"
+              aria-selected="false" tabindex="-1">
+        Projects <span class="count" id="projects-count"></span>
+      </button>
       <button type="button" role="tab" id="tab-queue" aria-controls="panel-queue"
               aria-selected="true" tabindex="0">
         Queue <span class="count" id="queue-tab-count"></span>
       </button>
     </div>
 
-    <!-- Running: every process this laptop and the Studio have in flight, each
-         row carrying the control that stops it. The board used to report thirty
-         live threads whose only row action was "Ask" — watching work you cannot
-         stop reads as control while being none. -->
-    <section class="tray-panel ops" id="panel-running" role="tabpanel" aria-labelledby="tab-running" hidden>
-      <div class="ops-toolbar">
-        <label class="sr-only" for="ops-search">Search everything running</label>
-        <input id="ops-search" type="search" placeholder="Search threads, jobs, services…" autocomplete="off">
-        <div class="ops-filters" role="toolbar" aria-label="Filter by what it is">
-          <button type="button" data-ops-filter="all" class="is-active" aria-pressed="true">All</button>
-          <button type="button" data-ops-filter="threads" aria-pressed="false">Threads</button>
-          <button type="button" data-ops-filter="jobs" aria-pressed="false">Jobs</button>
-          <button type="button" data-ops-filter="services" aria-pressed="false">Services</button>
-        </div>
-        <label class="ops-live-only">
-          <input type="checkbox" id="ops-live-only" checked> Running only
-        </label>
-        <button type="button" id="ops-refresh">Refresh</button>
-      </div>
-      <p class="ops-note" id="ops-note" role="status" hidden></p>
-      <div class="ops-groups" id="ops-groups" aria-live="polite"></div>
-    </section>
+    <!-- Running, Work and Projects were three pages on a second document with
+         their own nav, their own numbers and their own chat dock. They are
+         panels here, and their toolbars and tables are built by operations.js
+         from one engine — a second component for the same object is the
+         duplication this pass exists to remove. -->
+    <section class="tray-panel ops" id="panel-running" data-ops-panel="running"
+             role="tabpanel" aria-labelledby="tab-running" hidden></section>
+    <section class="tray-panel ops" id="panel-work" data-ops-panel="work"
+             role="tabpanel" aria-labelledby="tab-work" hidden></section>
+    <section class="tray-panel ops" id="panel-projects" data-ops-panel="projects"
+             role="tabpanel" aria-labelledby="tab-projects" hidden></section>
 
     <section class="tray-panel" id="panel-queue" role="tabpanel" aria-labelledby="tab-queue">
     <h2>

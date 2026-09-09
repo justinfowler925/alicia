@@ -526,6 +526,35 @@ def invalidate_nucleus_cache() -> None:
         _SNAPSHOT_CACHE["data"] = None
 
 
+def apply_project_overlay(project_id: str, changes: dict[str, Any]) -> None:
+    """Fold an organization write into the snapshot the screen will read next.
+
+    Invalidating alone was not enough once the snapshot was persisted: the
+    next read found an empty cache, fell back to the copy on disk — written
+    before the write — and served the row unchanged. Pinning a project
+    reported "done" and left the button saying Pin, which is a control with no
+    observable effect, which is decoration.
+
+    The rebuild behind it is still the authority; this only keeps the screen
+    from lying for the thirty seconds that takes.
+    """
+    allowed = {"pinned", "archived", "objective", "notes"}
+    patch = {key: value for key, value in changes.items() if key in allowed}
+    if not patch:
+        return
+    with _SNAPSHOT_LOCK:
+        snapshot = _SNAPSHOT_CACHE.get("data") or _read_snapshot_from_disk()
+        if not snapshot:
+            return
+        projects = []
+        for project in snapshot.get("projects") or []:
+            projects.append({**project, **patch} if project.get("id") == project_id else project)
+        snapshot = {**snapshot, "projects": projects}
+        _SNAPSHOT_CACHE["data"] = snapshot
+        _SNAPSHOT_CACHE["at"] = 0.0  # still due a rebuild; just not a blank one
+    _write_snapshot_to_disk(snapshot)
+
+
 def build_nucleus_snapshot(
     client: Any, memory: Any, *, force: bool = False, allow_stale: bool = False
 ) -> dict[str, Any]:

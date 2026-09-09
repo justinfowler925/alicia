@@ -72,13 +72,67 @@ def test_the_console_keeps_the_pages_that_have_not_moved_yet():
     assert "nav-projects" in response.text
 
 
-def test_the_one_surface_carries_the_running_panel():
+def test_the_one_surface_carries_every_daily_panel():
+    """Running, Work and Projects were three pages on the second document."""
     html = _client().get("/").text
 
     assert 'role="tablist"' in html
-    assert 'id="tab-running"' in html
-    assert 'id="panel-running"' in html
+    for key in ("running", "work", "projects", "queue"):
+        assert f'id="tab-{key}"' in html
+        assert f'id="panel-{key}"' in html
     assert "/static/operations.js" in html
+
+
+def test_the_panels_share_one_table_engine():
+    """A second component for the same object is the duplication being removed.
+
+    The panels are empty sections in the HTML; operations.js builds the toolbar
+    and the table for all three from one implementation.
+    """
+    html = _client().get("/").text
+    ops = (_STATIC / "operations.js").read_text()
+
+    for key in ("running", "work", "projects"):
+        assert f'data-ops-panel="{key}"' in html
+    # One toolbar builder, one table builder, one action runner.
+    assert ops.count("function chrome(") == 1
+    assert ops.count("function table(") == 1
+    assert ops.count("async function runAction(") == 1
+    assert ops.count('className = "ops-toolbar"') == 1
+    # The HTML carries no per-panel toolbar copies.
+    assert 'id="ops-search"' not in html
+
+
+def test_a_panel_loads_on_first_open_not_on_page_load():
+    """The console fetched twelve endpoints for pages nobody had opened, two of
+    which took 36 seconds and exhausted the browser's connections."""
+    ops = (_STATIC / "operations.js").read_text()
+    assert "if (panel) loadPanel(panel);" in ops
+    assert "if (pState.loaded && !force) return;" in ops
+
+
+def test_no_column_is_wired_to_a_field_that_is_always_empty():
+    """`active_ticket_count` and `live_thread_count` are 0 on every row — they
+    count a narrower thing than the labels promised, and a structurally empty
+    column reads as "no tickets" rather than "wrong field"."""
+    ops = (_STATIC / "operations.js").read_text()
+    projects = ops[ops.index("const PROJECT_GROUPS"):ops.index("/* One canon fetch")]
+    # The comment explains which fields were wrong, so check the code.
+    projects = "\n".join(
+        line for line in projects.splitlines() if not line.lstrip().startswith("//")
+    )
+
+    assert "active_ticket_count" not in projects
+    assert "live_thread_count" not in projects
+    assert 'key: "ticket_count"' in projects
+    assert 'key: "recent_thread_count"' in projects
+
+
+def test_status_chips_are_english_not_field_names():
+    ops = (_STATIC / "operations.js").read_text()
+    assert 'needs_you: "Needs you"' in ops
+    assert 'at_risk: "At risk"' in ops
+    assert "chip.textContent = statusWords(text);" in ops
 
 
 def test_the_running_panel_is_responsive_which_is_what_the_fork_was_for():
