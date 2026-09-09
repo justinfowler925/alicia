@@ -179,3 +179,9 @@ Studio repair backups are in
 Paused sandbox plists are in `paused-sandbox-20260909/` beside that directory;
 restore a definition to `~/Library/LaunchAgents/` and bootstrap it to resume.
 Scripts, logs, receipts and historical journals were preserved.
+
+## Publication-only verification
+
+A receipt may include `verification_scope` to disclose omitted steps, such as notifications disabled during an operator-approved data publication check. The scope appears in Details and remains in the receipt.
+
+For a read-only diagnostic that did not execute the feed, register `verification_receipt_path` separately from `receipt_path`. Brutus shows the diagnostic result and timestamp in Details while preserving the actual scheduled-run status and last successful publication. A passing diagnostic must not turn a failed publication green.
