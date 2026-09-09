@@ -287,6 +287,7 @@ def test_actual_runner_receipts_preserve_failure_and_timestamps(tmp_path):
 def test_scheduler_reload_does_not_clear_a_known_failure(tmp_path):
     import json
     import plistlib
+
     from brutus.studio_collector import collect
 
     agents = tmp_path / "Library/LaunchAgents"
