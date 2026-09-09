@@ -212,3 +212,73 @@ def test_project_scan_does_not_block_studio_request_loop(monkeypatch):
         return await task
 
     assert asyncio.run(probe())["projects"][0]["loop_was_free"]
+
+
+def test_annotated_launchd_exit_codes_are_failures():
+    from types import SimpleNamespace
+
+    from brutus.studio_collector import read_launch_state
+
+    with patch(
+        "brutus.studio_collector.subprocess.run",
+        return_value=SimpleNamespace(returncode=0, stdout="\truns = 1\n\tlast exit code = 78: EX_CONFIG\n"),
+    ):
+        state = read_launch_state("gui/501", "cro")
+    assert state["exit_code"] == 78
+
+
+def test_feed_scope_does_not_confuse_history_services_or_failures():
+    from brutus.studio_collector import classify
+
+    cases = {
+        "com.clearspeed.nv-sled-intel": "feed",
+        "com.clearspeed.zoom-atlas-llm-prod": "feed",
+        "com.clearspeed.zoom-atlas-llm-partial": "sandbox",
+        "atlas-cron:weekly-cleanup": "history",
+        "com.jfstudio.atlas-drift-check": "maintenance",
+        "com.jfstudio.avatar-lab": "service",
+        "com.jfstudio.new-thing": "unclassified",
+    }
+    for jid, category in cases.items():
+        j = job(id=jid, status="failure", loaded=True)
+        if category == "service":
+            j["schedule"]["kind"] = "service"
+        classify(j)
+        assert j["category"] == category
+        assert j["status"] == "failure"
+    j = job(id="com.clearspeed.old", loaded=False)
+    classify(j)
+    assert j["category"] == "inactive"
+    classify(j, {"category": "feed"})
+    assert j["category"] == "feed"
+
+
+def test_actual_runner_receipts_preserve_failure_and_timestamps(tmp_path):
+    import json
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "scripts/studio-run-job.py"
+    for code, status in [(0, "success"), (7, "failure")]:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(script),
+                "--job",
+                "fixture",
+                "--state-dir",
+                str(tmp_path),
+                "--",
+                sys.executable,
+                "-c",
+                f"raise SystemExit({code})",
+            ],
+            check=False,
+        )
+        assert result.returncode == code
+        receipt = json.loads((tmp_path / "fixture.json").read_text())
+        assert receipt["status"] == status
+        assert receipt["finished_at"] >= receipt["started_at"]
+        assert receipt["duration_seconds"] >= 0
+        assert (tmp_path / "fixture.json").stat().st_mode & 0o777 == 0o600

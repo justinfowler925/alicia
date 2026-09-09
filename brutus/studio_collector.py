@@ -43,6 +43,67 @@ NAMES = {
 }
 
 
+# Classification is separate from health: a failed feed must stay visible.
+# Legacy journals record the pre-June Atlas scheduler, not current obligations.
+FEED_IDS = {
+    "com.jfstudio.atlas-trust-center-policy-sync",
+    "com.jfstudio.nucleus-grant-knowledge",
+}
+CATEGORIES = {"feed", "sandbox", "service", "maintenance", "history", "inactive", "unclassified"}
+
+
+def classify(job, descriptor=None):
+    descriptor = descriptor or {}
+    jid = job["id"]
+    explicit = descriptor.get("category")
+    if explicit in CATEGORIES:
+        category, reason = explicit, descriptor.get("category_reason", "Registered job category")
+    elif (
+        jid.startswith("atlas-cron:")
+        and jid.split(":", 1)[1]
+        in {
+            "auto-pickup",
+            "daily-memory-summary",
+            "deepseek-probe",
+            "delivery-watchdog",
+            "deploy-verify",
+            "heartbeat-health-check-retry",
+            "heartbeat-health-check",
+            "heartbeat-tasks",
+            "list-reconcile",
+            "liveness-tick",
+            "postmortem-distill",
+            "sensor-poll",
+            "sf-steering",
+            "trophy-snapshot",
+            "watchdog-tick",
+            "weekly-cleanup",
+        }
+        and (not job.get("last_run_at") or job["last_run_at"] < "2026-06-05")
+    ):
+        category, reason = "history", "Legacy Atlas scheduler journal; active replacements use launchd"
+    elif job.get("loaded") is False:
+        category, reason = "inactive", "Scheduler is not loaded; retained for inspection"
+    elif jid.endswith("-partial"):
+        category, reason = "sandbox", "Sandbox validation job; separate from production feeds"
+    elif jid.startswith(("com.clearspeed.", "com.jfstudio.cro-")) or jid in FEED_IDS:
+        category, reason = "feed", "Scheduled data ingestion, synchronization or publication"
+    elif job.get("schedule", {}).get("kind") == "service":
+        category, reason = "service", "Supporting continuous service"
+    elif jid.startswith(
+        ("com.fowlerbrain.probe.", "com.jfstudio.atlas", "com.justinfowler.modelarchive.")
+    ) or jid in {
+        "com.fowlerbrain.sync",
+        "com.jfstudio.fowler-brain-ci",
+        "com.jfstudio.secrets-liveness",
+        "com.jfstudio.skill-release-verification",
+    }:
+        category, reason = "maintenance", "Host maintenance, validation or health check"
+    else:
+        category, reason = "unclassified", "New job: register category in jobs.json"
+    job.update(category=category, category_reason=reason)
+
+
 def stamp(value=None):
     return (value or dt.datetime.now(UTC)).isoformat()
 
@@ -185,7 +246,7 @@ def read_launch_state(domain, label):
     text = result.stdout
 
     def number(key):
-        match = re.search(r"^\s*" + re.escape(key) + r" = (-?\d+)\s*$", text, re.MULTILINE)
+        match = re.search(r"^\s*" + re.escape(key) + r" = (-?\d+)(?:\s*:[^\n]*)?\s*$", text, re.MULTILINE)
         return int(match[1]) if match else None
 
     return {
@@ -347,6 +408,37 @@ def collect(home=None, state=STATE):
                 sled["notes"] = [n for n in sled["notes"] if "No timestamped" not in n]
         except (OSError, ValueError):
             pass
+    # CRO history records completed pipeline and delivery exit codes.
+    for jid, filename in {
+        "com.jfstudio.cro-morning-brief": "history.md",
+        "com.jfstudio.cro-revenue-intelligence": "revenue-history.md",
+        "com.jfstudio.cro-gov-affairs-watch": "gov-history.md",
+    }.items():
+        job = jobs.get(jid)
+        path = home / "Projects/cro-suite/scheduled-task" / filename
+        if not job or not path.exists():
+            continue
+        records = []
+        for line in tail(path).splitlines():
+            match = re.search(
+                r"\|\s*(\d{4}-[^| ]+)\s*\|\s*studio-launchd\s*\|.*?rc=(\d+)\s+slack=(\d+)", line
+            )
+            if match:
+                records.append(
+                    normalized_receipt(
+                        {
+                            "finished_at": match[1],
+                            "status": "success" if match[2] == match[3] == "0" else "failure",
+                            "error": "" if match[2] == match[3] == "0" else "Runner or delivery failed",
+                        },
+                        str(path),
+                    )
+                )
+        observed_status = job["status"]
+        apply_receipts(job, records)
+        if observed_status in {"failure", "running"}:
+            job["status"] = observed_status
+        job["logs"]["receipt"] = str(path)
     # Atlas's own cron journal is independent of laptop automations. Include
     # every journal, including dormant ones; unknown cadence stays explicit.
     for path in sorted((home / "atlas-direct/state/cron").glob("*.jsonl")):
@@ -434,6 +526,13 @@ def collect(home=None, state=STATE):
             job["notes"].append("Never ran: no Studio report receipt yet")
     # Explicit descriptors enrich discovered services or register non-launchd feeds.
     for jid, desc in config.items():
+        if jid not in jobs and jid in prior:
+            jobs[jid] = dict(
+                prior[jid],
+                loaded=False,
+                status="unknown",
+                notes=["Previously discovered scheduler is no longer installed"],
+            )
         job = jobs.setdefault(jid, base_job(jid, jid, "Registered Studio feed", timezone))
         if not job.get("evidence") and jid in prior:
             for key in ("evidence", "last_success_at"):
@@ -453,6 +552,8 @@ def collect(home=None, state=STATE):
             job = dict(previous, loaded=False, status="unknown")
             job["notes"] = ["Previously discovered job is missing from the current inventory"]
             jobs[jid] = job
+    for jid, job in jobs.items():
+        classify(job, config.get(jid))
     return {
         "schema_version": 1,
         "collected_at": stamp(now),

@@ -3,7 +3,10 @@
 Open **Studio** in the Brutus navigation, or `http://127.0.0.1:8768/#/studio`.
 On mobile, use **More → Studio runs**. Search by job/feed name, filter by state,
 then open **Details** for run evidence and the bounded latest/error log or receipt.
-The summary counts the complete discovered population, before filters.
+The default view and summary show **data feeds only** (10 at the September 9 audit).
+Use **Show** to inspect maintenance, supporting services, sandbox jobs, inactive jobs,
+and historical journals. Each summary counts only the selected category, before health/search filters.
+New unclassified jobs are visible under **Needs classification**, with a notice in the default view.
 
 ## Authority and discovery
 
@@ -17,9 +20,9 @@ Sources:
 
 * User LaunchAgents and system LaunchDaemons whose labels start with
   `com.clearspeed.`, `com.jfstudio.`, `com.fowlerbrain.`, or `com.justinfowler.`.
-  This intentionally includes supporting continuous services, not only daily feeds.
-* Every `~/atlas-direct/state/cron/*.jsonl` receipt journal, including dormant
-  workflows. Cadence is explicitly unknown when the journal does not expose it.
+  Supporting services are retained in their own category, outside the default feed list.
+* Every `~/atlas-direct/state/cron/*.jsonl` receipt journal, including historical
+  workflows in the History category. Cadence is explicitly unknown when the journal does not expose it.
 * Nevada `~/Projects/reports/nv-sled-brief/studio-state.json`. The daily
   06:00 America/New_York report is distinct from its launchd polling/retry tick.
   Failure never borrows yesterday's completion time as this run's end time.
@@ -65,7 +68,11 @@ Historical durations and last-run times that were never recorded remain unknown.
 
 ## Register a new feed
 
-A launchd job using an existing prefix automatically appears within a minute.
+A launchd job using an existing prefix is discovered within a minute. Known production
+feed families appear under Data feeds; unfamiliar jobs appear under Needs classification.
+Set `"category": "feed"` in its descriptor to include it in the feed summary. Other values:
+`service`, `maintenance`, `sandbox`, `inactive`, `history`, `unclassified`.
+Classification never depends on success/failure; broken feeds remain visible.
 No Brutus release is needed. Descriptive names, source, daily cadence overriding
 a polling tick, precise receipts, or non-launchd feeds can be configured on Studio
 in `~/.local/share/brutus-studio-runs/jobs.json`:
@@ -74,6 +81,7 @@ in `~/.local/share/brutus-studio-runs/jobs.json`:
 {
   "com.jfstudio.example-feed": {
     "name": "Example daily feed",
+    "category": "feed",
     "source": "Source API → published dataset",
     "schedule": {
       "kind": "calendar",
@@ -141,3 +149,33 @@ reported zero axe violations and measured text contrast at least 6.93:1.
 Its full aggregate certification is not claimed: the existing Brutus SSE page
 prevents the tool's network-idle reference capture, and its strict shared-table
 source verifier does not establish the Python-composed native UI's provenance.
+
+## September 9 cleanup
+
+The original 65 entries were an infrastructure inventory, not 65 data feeds:
+10 data feeds, 20 maintenance tasks, 13 supporting services, 16 historical Atlas
+journals, 3 sandbox schedules and 3 unloaded definitions. The three sandbox
+schedules were subsequently paused at Justin's request and retained under Inactive.
+The 16 journals stopped when the old in-process Atlas scheduler was replaced in June;
+they are not treated as current stale obligations. Revived/new journals require
+classification rather than being silently archived.
+
+Fixed the launchd parser to recognize annotated exits such as `78: EX_CONFIG`.
+CRO history now preserves prior successful publication even while its current
+scheduler fails. The observer does not repair or conceal unhealthy services.
+
+Eight periodic production feeds now run through `scripts/studio-run-job.py`,
+installed as `~/.local/share/brutus-studio-runs/run_job.py`. It writes atomic
+running/terminal receipts, duration and real exit code, forwards termination,
+and prevents overlapping invocations of the same job. The original command and
+schedule remain intact. Nevada already has report receipts; the grant worker is
+continuous. Registration uses the normal `receipt_path` descriptor. To wrap a new
+job, prefix its launchd ProgramArguments with `/usr/bin/python3`, the wrapper path,
+`--job`, its label, `--`, then the original arguments; register the resulting
+`receipts/<label>.json`. Validate the original runner propagates real failures.
+
+Studio repair backups are in
+`~/.local/share/brutus-studio-runs/repair-backup-20260909/`.
+Paused sandbox plists are in `paused-sandbox-20260909/` beside that directory;
+restore a definition to `~/Library/LaunchAgents/` and bootstrap it to resume.
+Scripts, logs, receipts and historical journals were preserved.
