@@ -230,6 +230,8 @@ def normalized_receipt(raw, ref):
     if duration is None and isinstance(raw.get("duration_ms"), (int, float)):
         duration = raw["duration_ms"] / 1000
     started = raw.get("started_at")
+    if duration is None and parse_time(started) and parse_time(ended):
+        duration = max(0, (parse_time(ended) - parse_time(started)).total_seconds())
     if not started and parse_time(ended) and isinstance(duration, (int, float)):
         started = stamp(parse_time(ended) - dt.timedelta(seconds=max(0, duration)))
     return {
@@ -420,6 +422,9 @@ def collect(home=None, state=STATE):
     # Explicit descriptors enrich discovered services or register non-launchd feeds.
     for jid, desc in config.items():
         job = jobs.setdefault(jid, base_job(jid, jid, "Registered Studio feed", timezone))
+        if not job.get("evidence") and jid in prior:
+            for key in ("evidence", "last_success_at"):
+                job[key] = prior[jid].get(key)
         for key in ("name", "source", "schedule", "timezone", "stale_after_seconds", "max_runtime_seconds"):
             if key in desc:
                 job[key] = desc[key]

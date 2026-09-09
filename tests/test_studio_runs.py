@@ -180,3 +180,11 @@ def test_collect_discovers_new_jobs_preserves_missing_and_reads_nevada(tmp_path,
     assert nv["last_success_at"] == "2026-09-08T10:30:00Z"
     assert nv["duration_seconds"] is None  # yesterday's completion isn't this run's end
     assert "must-not-export" not in str(result)
+
+
+def test_receipt_duration_can_be_derived_from_recorded_boundaries():
+    r = normalized_receipt(
+        {"status": "success", "started_at": "2026-09-09T10:00:00Z", "finished_at": "2026-09-09T10:02:30Z"},
+        "receipt",
+    )
+    assert r["duration_seconds"] == 150
