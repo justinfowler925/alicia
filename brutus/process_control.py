@@ -35,9 +35,17 @@ import time
 from pathlib import Path
 from typing import Any
 
-APP_DIR = Path(__file__).resolve().parent.parent
-PLIST_DIR = APP_DIR / "launchd"
+# The installed plists are the authority, not the source tree. Deriving the
+# allowlist from `__file__` worked in a checkout, where brutus/ sits beside
+# launchd/, and returned an empty list in production — the release installs a
+# non-editable wheel, so the parent of the package is site-packages and there
+# is no launchd/ there. /api/services answered {"services":[]} on the live
+# daemon while eight jobs were loaded.
+LAUNCH_PREFIX = "com.clearspeed.brutus"
 INSTALLED_AGENTS = Path.home() / "Library" / "LaunchAgents"
+# A source checkout still gets its own plists, so a service this build ships
+# but has not installed yet is listed (as not installed) rather than hidden.
+SOURCE_PLIST_DIR = Path(__file__).resolve().parent.parent / "launchd"
 
 # The service that is answering the request. Booting it out of launchd from
 # inside itself drops the response on the floor.
@@ -61,8 +69,19 @@ class ControlError(RuntimeError):
 
 
 def known_service_labels() -> list[str]:
-    """Only the services this checkout ships a plist for."""
-    return sorted(p.stem for p in PLIST_DIR.glob("com.clearspeed.brutus*.plist"))
+    """Every Brutus service, whether installed on this machine or shipped here.
+
+    The prefix is the allowlist: it is what stops /api/services/com.apple.
+    Finder/stop from being a sentence anyone can write, and unlike a directory
+    listing it does not depend on how the package was installed.
+    """
+    labels = set()
+    for directory in (INSTALLED_AGENTS, SOURCE_PLIST_DIR):
+        try:
+            labels.update(path.stem for path in directory.glob(f"{LAUNCH_PREFIX}*.plist"))
+        except OSError:
+            continue
+    return sorted(label for label in labels if label.startswith(LAUNCH_PREFIX))
 
 
 def _launchctl(*args: str, timeout: float = 15.0) -> subprocess.CompletedProcess[str]:

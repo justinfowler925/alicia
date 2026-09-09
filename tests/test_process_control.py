@@ -22,7 +22,7 @@ def _completed(returncode=0, stdout="", stderr=""):
 # --- services ---------------------------------------------------------------
 
 
-def test_only_services_this_checkout_ships_a_plist_for_can_be_addressed():
+def test_only_brutus_services_can_be_addressed():
     labels = pc.known_service_labels()
     assert "com.clearspeed.brutus" in labels
     assert all(label.startswith("com.clearspeed.brutus") for label in labels)
@@ -223,3 +223,20 @@ def test_cancelling_a_thread_the_board_does_not_have_is_a_400():
 
     assert response.status_code == 400
     assert "no longer on the board" in response.json()["detail"]
+
+
+def test_the_service_list_does_not_depend_on_how_brutus_was_installed():
+    """The release installs a non-editable wheel.
+
+    Deriving the allowlist from `__file__` therefore pointed at site-packages,
+    where there is no launchd/ — and /api/services answered {"services": []} on
+    the live daemon while eight jobs were loaded. The installed LaunchAgents
+    directory is the authority, and the label prefix is the allowlist.
+    """
+    import inspect
+
+    source = inspect.getsource(pc.known_service_labels)
+    assert "INSTALLED_AGENTS" in source
+    assert pc.LAUNCH_PREFIX == "com.clearspeed.brutus"
+    # Whatever this machine looks like, the core service is addressable.
+    assert "com.clearspeed.brutus" in pc.known_service_labels()
