@@ -435,3 +435,56 @@ def test_transcript_delta_resets_safely_after_replacement(tmp_path: Path):
     assert delta["ok"] is True
     assert delta["reset"] is True
     assert delta["excerpt"] == "assistant: after"
+
+
+# --- searching for work the way it gets asked for ---------------------------
+
+
+def test_a_spoken_phrase_finds_a_thread_whose_words_are_not_contiguous():
+    """From session 7ac0ae3e2421, turn 1816.
+
+    "the status of the UI/UX audit redesign" searched agent threads and
+    returned nothing while a thread named "Company page UI/UX audit and
+    redesign" was running. Every word was present; the phrase was not, because
+    of one "and" — and the match was `query not in blob`, a single contiguous
+    substring. Brutus then told him the work did not exist.
+    """
+    rows = [
+        {
+            "id": "claude:1",
+            "title": "Company page UI/UX audit and redesign",
+            "live": True,
+            "surface": "claude",
+        },
+        {"id": "claude:2", "title": "Salesforce deal advancement audit", "live": True},
+    ]
+
+    hit = filter_cockpit(rows, q="UI/UX audit redesign")
+
+    assert [r["id"] for r in hit] == ["claude:1"]
+
+
+def test_word_order_does_not_matter():
+    rows = [{"id": "c:1", "title": "Nucleus UX/UI deep dive", "live": True}]
+    assert filter_cockpit(rows, q="deep dive nucleus")
+    assert filter_cockpit(rows, q="nucleus deep dive")
+
+
+def test_filler_words_never_exclude_a_real_match():
+    """Requiring "and" is how "audit and redesign" missed "audit redesign"."""
+    rows = [{"id": "c:1", "title": "UI/UX audit redesign", "live": True}]
+    assert filter_cockpit(rows, q="the audit and the redesign")
+
+
+def test_a_query_still_has_to_match_something():
+    rows = [{"id": "c:1", "title": "Company page UI/UX audit and redesign", "live": True}]
+    assert not filter_cockpit(rows, q="renewal tracker rewrite")
+    # One matching word out of two is not a match.
+    assert not filter_cockpit(rows, q="audit spreadsheet")
+
+
+def test_substring_matching_still_works():
+    """The old behaviour is a subset, so nothing that matched stops matching."""
+    rows = [{"id": "c:1", "title": "Company page UI/UX audit and redesign", "live": True}]
+    assert filter_cockpit(rows, q="page UI/UX audit and redesign")
+    assert filter_cockpit(rows, q="redesign")

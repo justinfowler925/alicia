@@ -712,6 +712,33 @@ def merge_overlays(
     return out
 
 
+# Words that appear in a spoken phrase and carry no search intent. Requiring
+# them EXCLUDES real matches: "audit and redesign" would miss a thread titled
+# "UI/UX audit redesign" over the missing "and".
+_QUERY_NOISE = frozenset(
+    {"a", "an", "and", "the", "of", "for", "on", "in", "to", "my", "our", "that", "this", "it"}
+)
+
+
+def _matches_query(query: str, blob: str) -> bool:
+    """Every meaningful word present, in any order.
+
+    This was `query not in blob` — one contiguous substring — and a spoken
+    phrase is almost never a substring of a thread title. Asked for "the status
+    of the UI/UX audit redesign", Brutus searched agent threads with those
+    words and got zero hits, while a thread named "Company page UI/UX audit and
+    redesign" sat there running: every word present, the phrase absent, because
+    of one "and". It then told him the work did not exist.
+
+    Substring matching is a subset of this, so nothing that used to match stops
+    matching.
+    """
+    if query in blob:
+        return True
+    words = [w for w in re.split(r"[^a-z0-9/._-]+", query) if len(w) > 1 and w not in _QUERY_NOISE]
+    return bool(words) and all(word in blob for word in words)
+
+
 def filter_cockpit(
     rows: list[dict[str, Any]],
     *,
@@ -739,7 +766,7 @@ def filter_cockpit(
             blob = " ".join(
                 str(r.get(k) or "") for k in ("title", "cwd", "project", "session_id", "labels")
             ).lower()
-            if qn not in blob:
+            if not _matches_query(qn, blob):
                 continue
         out.append(r)
     return out
