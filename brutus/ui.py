@@ -17,6 +17,8 @@ charts, real titles always, explanation once per group, buttons say what they
 do.
 """
 
+from .studio_ui import STUDIO_JS
+
 BRUTUS_HTML = """<!DOCTYPE html>
 <html lang="en" data-cite="antd-pro-list" data-shine-voice="adapted" data-shine-theme="dark">
 <head>
@@ -574,6 +576,7 @@ BRUTUS_HTML = """<!DOCTYPE html>
       <button type="button" class="nav-item" id="nav-work" onclick="go('work')">Work <span class="n" id="n-work"></span></button>
       <button type="button" class="nav-item" id="nav-canon" onclick="go('canon')">Inbox <span class="n" id="n-canon"></span></button>
       <button type="button" class="nav-item" id="nav-agents" onclick="go('agents')">Agents <span class="n" id="n-agents"></span></button>
+      <button type="button" class="nav-item" id="nav-studio" onclick="go('studio')">Studio</button>
       <button type="button" class="nav-item" id="nav-projects" onclick="go('projects')">Projects <span class="n" id="n-projects"></span></button>
       <button type="button" class="nav-item" id="nav-notes" onclick="go('notes')">Notes <span class="n" id="n-notes"></span></button>
       <details class="nav-more"><summary>Tools</summary><div class="tool-menu">
@@ -631,6 +634,7 @@ BRUTUS_HTML = """<!DOCTYPE html>
     <button type="button" class="nav-item" id="mob-nav-chatbots" onclick="goFromMore('chatbots')">Chatbots <span class="n" id="mob-n-chatbots"></span></button>
     <button type="button" class="nav-item" id="mob-nav-avatar" onclick="goFromMore('avatar')">Avatar</button>
     <button type="button" class="nav-item" id="mob-nav-demomaker" onclick="goFromMore('demomaker')">Demo Maker</button>
+    <button type="button" class="nav-item" id="mob-nav-studio" onclick="goFromMore('studio')">Studio runs</button>
     <button type="button" class="nav-item" id="mob-nav-projects" onclick="goFromMore('projects')">Projects <span class="n" id="mob-n-projects"></span></button>
   </div>
   <div class="sec">Bots</div>
@@ -665,7 +669,7 @@ const el = i => document.getElementById(i);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let C=[{k:'sys',t:'Ask about tickets, status, anything on the board.'}];
 let operatorSession=localStorage.getItem('brutus.operator.session')||'';
-const PAGES=['nucleus','work','canon','chatbots','avatar','demomaker','agents','projects','notes'];
+const PAGES=['nucleus','work','canon','chatbots','avatar','demomaker','agents','projects','notes','studio'];
 // Page lives in the URL hash so Back works and a page can be linked/bookmarked.
 // localStorage is only the fallback for a bare "/".
 function pageFromHash(){let h=location.hash||'';
@@ -1217,11 +1221,7 @@ function nucleusRows(){
   if(NF.status)rows=rows.filter(p=>p.status===NF.status);
   if(NF.source==='linear')rows=rows.filter(p=>(p.ticket_count||0)>0);
   else if(NF.source)rows=rows.filter(p=>((p.thread_counts||{})[NF.source]||0)>0);
-  const dir=NF.dir==='asc'?1:-1,key=NF.sort;
-  rows.sort((a,b)=>{let av=a[key],bv=b[key];
-    if(key==='name'){av=String(av||'').toLowerCase();bv=String(bv||'').toLowerCase();}
-    return av<bv?-dir:av>bv?dir:0;});
-  return rows;
+  return orderedGridRows(rows,NF.sort,NF.dir);
 }
 function nucleusSort(key){if(NF.sort===key)NF.dir=NF.dir==='asc'?'desc':'asc';else{NF.sort=key;NF.dir=key==='name'?'asc':'desc';}NF.page=1;nucleusApplyGrid();}
 function nucleusSortLabel(key,label){const on=NF.sort===key,order=on?(NF.dir==='asc'?'ascending':'descending'):'none';
@@ -1776,6 +1776,7 @@ function render(){
     page==='avatar' ? 'Avatar — who the demo is, and where it runs' :
     page==='demomaker' ? 'Fowler Demo Maker — voices into the demo library' :
     page==='agents' ? 'Agents — Codex, Cursor & Claude threads on this laptop' :
+    page==='studio' ? 'Studio runs' :
     page==='projects' ? 'Your projects, straight from git' :
     'Notes — capture now, sort later';
   const s=[];
@@ -1783,7 +1784,7 @@ function render(){
   else s.push('<span class="ok">Connected</span>');
   if(page==='work'&&B.hidden)s.push(B.hidden+' self-tests hidden');
   if(B.generated_at)s.push('checked '+new Date(B.generated_at).toLocaleTimeString());
-  el('sub').innerHTML=s.join(' &nbsp;·&nbsp; ');
+  el('sub').innerHTML=page==='studio'?esc('Studio · '+(ST.connection==='live'?'Observed ':'Last observation ')+studioTime(ST.collected_at,ST.timezone)+' · Updates every minute'):s.join(' &nbsp;·&nbsp; ');
 
   const a=B.alarm||{},ab=el('alarm');
   if(a.alarm){
@@ -1797,7 +1798,7 @@ function render(){
   el('page').innerHTML = page==='nucleus'?nucleusHtml():page==='work'?workHtml():page==='canon'?canonHtml():
     page==='chatbots'?chatbotsHtml():page==='avatar'?avatarHtml():
     page==='demomaker'?demoMakerHtml():
-    page==='agents'?agentsHtml():
+    page==='studio'?studioHtml():page==='agents'?agentsHtml():
     page==='projects'?projectsHtml():notesHtml();
   restorePageInputs(saved);
   markKanbanClipped();
@@ -2419,9 +2420,13 @@ placeChatdock();applyChatSize();applyVoiceBtns();drawChat();
   const ideasEs=new EventSource('/api/session/ideas/events');
   ideasEs.onmessage=(e)=>{try{const ev=JSON.parse(e.data);if(!ev.kind||ev.kind==='idea')loadTodos();}catch(_e){}};
 })();
+loadStudio();
+setInterval(()=>{if(page==='studio')loadStudio();},60000);
 loadNucleus();loadBoard();loadAgents();loadProjects();loadTodos();loadLessons();loadHealth();loadSites();loadAvatar();loadVoice();loadCanon();
 setInterval(loadNucleus,60000);setInterval(loadAgents,45000);setInterval(loadProjects,90000);setInterval(loadHealth,30000);setInterval(loadSites,60000);setInterval(loadCanon,15000);
 </script>
 </body>
 </html>
 """
+
+BRUTUS_HTML = BRUTUS_HTML.replace("/* ---------------- navigation ---------------- */", STUDIO_JS + "\n/* ---------------- navigation ---------------- */")

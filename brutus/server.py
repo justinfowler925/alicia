@@ -67,6 +67,7 @@ from .voice import transcribe as voice_transcribe
 from .voice_identity import EnrollmentError, VoiceIdentity
 from .watchdog import Watchdog
 from .workflow_http import router as workflow_router
+from .studio_runs import router as studio_runs_router
 from .zoom_api import ZoomAPIError, ZoomClient, assets_from_summary, default_window
 from .zoom_ingest import DEFAULT_SOURCE_MODE, ZoomIngestStore, ingest_assets
 from .zoom_my_notes import sync_my_note
@@ -461,6 +462,7 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
     app.state.board_watch = BoardWatcher(on_event=bus.publish)
     app.include_router(canon_router)
     app.include_router(workflow_router)
+    app.include_router(studio_runs_router)
 
     @app.exception_handler(AtlasDisabled)
     async def atlas_disabled_handler(_request: Request, exc: AtlasDisabled) -> Response:
