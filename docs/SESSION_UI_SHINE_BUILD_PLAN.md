@@ -1,5 +1,7 @@
 # Brutus UI — Shine audit build plan
 
+> **Historical scope:** For the current voice, session-continuity and release direction, use the [Apple accessibility reset plan](APPLE_ACCESSIBILITY_RESET_PLAN.md). This document remains evidence of its dated work; it does not override the reset requirements or prove current voice acceptance.
+
 **Audit date:** 2026-08-08  
 **Live SHA at audit:** `215e8e6`  
 **Surfaces:** `/session`, `/mobile`, Ops `/` (`ui.py`)  

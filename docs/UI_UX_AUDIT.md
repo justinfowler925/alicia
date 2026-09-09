@@ -1,5 +1,7 @@
 # UI/UX Audit: Brutus operator SPA
 
+> **Historical scope:** For the current voice, session-continuity and release direction, use the [Apple accessibility reset plan](APPLE_ACCESSIBILITY_RESET_PLAN.md). This document remains evidence of its dated work; it does not override the reset requirements or prove current voice acceptance.
+
 **Date:** 2026-08-02  
 **Recheck:** 2026-08-02 evening — after Waves 2–5  
 **Remediation:** 2026-08-02 — Phases A–C shipped in `brutus/ui.py` (see [`UI_BUILD_PLAN.md`](UI_BUILD_PLAN.md))  

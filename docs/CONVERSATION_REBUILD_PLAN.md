@@ -1,5 +1,7 @@
 # Conversation Rebuild Plan — one brain, gated hands
 
+> **Historical scope:** For the current voice, session-continuity and release direction, use the [Apple accessibility reset plan](APPLE_ACCESSIBILITY_RESET_PLAN.md). This document remains evidence of its dated work; it does not override the reset requirements or prove current voice acceptance.
+
 Date: 2026-08-19 · Status: **shipped** — Phases 1–3 landed in #80 (with #79's Sonnet/Cursor backend), Phase 4 STT config included; deployed 33587fb · Supersedes nothing (this is the first plan the conversation path has ever had; all seven prior docs in this directory are UI or factory plumbing).
 
 ## Problem

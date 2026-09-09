@@ -1,5 +1,7 @@
 # Brutus / Atlas5 pipeline unfuck
 
+> **Historical scope:** For the current voice, session-continuity and release direction, use the [Apple accessibility reset plan](APPLE_ACCESSIBILITY_RESET_PLAN.md). This document remains evidence of its dated work; it does not override the reset requirements or prove current voice acceptance.
+
 **SSOT (fowler-brain):** `~/fowler-brain/strategy/plans/operator/2026-08-03-brutus-pipeline-unfuck.md`  
 **Date:** 2026-08-03  
 **Status:** done (P0–P3 shipped)

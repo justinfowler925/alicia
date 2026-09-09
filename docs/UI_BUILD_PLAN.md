@@ -1,5 +1,7 @@
 # Brutus UI build plan
 
+> **Historical scope:** For the current voice, session-continuity and release direction, use the [Apple accessibility reset plan](APPLE_ACCESSIBILITY_RESET_PLAN.md). This document remains evidence of its dated work; it does not override the reset requirements or prove current voice acceptance.
+
 **Source audit:** [`docs/UI_UX_AUDIT.md`](UI_UX_AUDIT.md) (2026-08-02)  
 **Recheck:** 2026-08-02 evening — `main` after Waves 2–5  
 **Shipped:** 2026-08-02 — Phases A–C in `brutus/ui.py`; Phase D HTML smokes in `tests/test_server.py`  

@@ -1,5 +1,7 @@
 # Session Ideas — wave 2 build plan
 
+> **Historical scope:** For the current voice, session-continuity and release direction, use the [Apple accessibility reset plan](APPLE_ACCESSIBILITY_RESET_PLAN.md). This document remains evidence of its dated work; it does not override the reset requirements or prove current voice acceptance.
+
 **Depends on:** PR #28 (`93a82e8`) — Ideas pad + spoken CRUD + Ledger rename  
 **Source audit:** Shine audit 2026-08-08 remaining gaps  
 **Branch:** `feat/session-ideas-wave2`  

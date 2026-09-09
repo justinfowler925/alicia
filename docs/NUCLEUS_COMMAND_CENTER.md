@@ -1,5 +1,7 @@
 # Nucleus command center contract
 
+> **Historical scope:** For the current voice, session-continuity and release direction, use the [Apple accessibility reset plan](APPLE_ACCESSIBILITY_RESET_PLAN.md). This document remains evidence of its dated work; it does not override the reset requirements or prove current voice acceptance.
+
 ## Outcome
 
 Opening Brutus at `/` answers one question first: **what needs Justin across every
