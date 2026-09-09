@@ -23,9 +23,15 @@
 # and `--status` reports the drift until the commits land on origin/main — at
 # which point a plain deploy replaces them.
 #
-# It is needed in practice: a machine whose gh credential lacks write access to
-# the repo cannot land a fix, and "you may not deploy a tested fix from here"
-# is not a safety property, it is a locked room.
+# Use it to try a fix on the real daemon before landing it, and nothing else.
+#
+# It was FIRST added for a bad reason worth recording: a push had failed with
+# "Permission to justinfowler925/brutus.git denied to justin-fowler_cspd", and
+# that was read as "this machine has no write access". It is not. `gh` holds one
+# active account and this laptop has two; the personal one owns this repo. The
+# lesson two paragraphs down, about fetch, is the same lesson. Landing is
+# `./scripts/land.sh`, which takes the token from 1Password for one invocation
+# and never touches the active account.
 set -uo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd -P)
