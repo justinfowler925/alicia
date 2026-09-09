@@ -14,6 +14,13 @@ retry_seconds="${BRUTUS_CREDENTIAL_RETRY_SECONDS:-900}"
 max_attempts="${BRUTUS_CREDENTIAL_MAX_ATTEMPTS:-0}"
 attempts=0
 
+# A service token does not stop op from probing the desktop app's protected
+# settings at startup. That probe triggers macOS app-data permission dialogs
+# attributed to credential-run's Python process on every daemon restart.
+# Background services must use headless credentials, never desktop integration.
+export OP_LOAD_DESKTOP_APP_SETTINGS=false
+export OP_BIOMETRIC_UNLOCK_ENABLED=false
+
 # launchd does not source ~/.zshenv. Load the existing read-only 1Password
 # service account from the login keychain so credential-run never falls back to
 # desktop-app authorization prompts. Linux/CI safely skips this macOS step.
