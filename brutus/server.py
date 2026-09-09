@@ -45,7 +45,12 @@ from .linear_surface import linear_work_surface
 from .local_llm import list_models
 from .memory import MemoryStore
 from .model_gateway import judge_with_profile
-from .nucleus import build_nucleus_snapshot, invalidate_nucleus_cache
+from .nucleus import (
+    build_nucleus_snapshot,
+    invalidate_nucleus_cache,
+    nucleus_project_detail,
+    slim_nucleus_snapshot,
+)
 from .paths import canon_db_path
 from .projects import scan_projects
 from .refine import refine_todo
@@ -1117,14 +1122,39 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         return {"projects": await asyncio.to_thread(scan_projects)}
 
     @app.get("/api/nucleus")
-    async def nucleus(request: Request, force: bool = False) -> dict[str, Any]:
-        """Canonical project operating graph used by both screen and conversation brain."""
-        return await asyncio.to_thread(
+    async def nucleus(
+        request: Request, force: bool = False, detail: str = "summary"
+    ) -> dict[str, Any]:
+        """Canonical project operating graph used by both screen and conversation brain.
+
+        Two defaults are deliberate, and both were measured on the page that
+        would not load: the screen is served stale-while-revalidating rather
+        than waiting out a 38-second cold build, and it is served the summary
+        projection rather than 1.04 MB of thread bodies it does not render.
+        Pass `detail=full` for the whole graph, `force=true` to wait for fresh.
+        """
+        snapshot = await asyncio.to_thread(
             build_nucleus_snapshot,
             request.app.state.client,
             request.app.state.memory,
             force=force,
+            allow_stale=not force,
         )
+        return snapshot if detail == "full" else slim_nucleus_snapshot(snapshot)
+
+    @app.get("/api/nucleus/projects/{project_id:path}")
+    async def nucleus_project(project_id: str, request: Request) -> dict[str, Any]:
+        """One project's threads and tickets — the detail the table omits."""
+        snapshot = await asyncio.to_thread(
+            build_nucleus_snapshot,
+            request.app.state.client,
+            request.app.state.memory,
+            allow_stale=True,
+        )
+        project = nucleus_project_detail(snapshot, project_id)
+        if project is None:
+            raise HTTPException(status_code=404, detail="unknown project")
+        return project
 
     @app.patch("/api/nucleus/projects/{project_id:path}")
     async def nucleus_project_update(project_id: str, body: dict, request: Request) -> dict[str, Any]:
@@ -1806,27 +1836,39 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
     # ---- Avatar control -------------------------------------------------
     @app.get("/api/avatar")
     async def avatar_state() -> dict[str, Any]:
-        """Everything the avatar page needs: masters, drafts, live avatars, env."""
+        """Everything the avatar page needs: masters, drafts, live avatars, env.
+
+        The four lookups reach four different machines and used to run one after
+        another, so the handler cost the sum of every timeout — 36 seconds when
+        the Studio peer was asleep. They are independent, so they run together
+        and the page costs the slowest one.
+        """
         state: dict[str, Any] = {"tiers": avatar_ctl.TIERS, "transports": avatar_ctl.TRANSPORTS,
-                                 "configs": avatar_ctl.load_configs()}
-        try:
-            state["faces"] = await avatar_ctl.studio_faces()
-        except Exception as exc:  # noqa: BLE001
-            state["faces"], state["faces_error"] = [], str(exc)
-        try:
+                                 "configs": avatar_ctl.load_configs(),
+                                 "studio": avatar_ctl.studio_reachability()}
+
+        async def _live() -> list[dict[str, Any]]:
+            return (await avatar_ctl.studio_avatars()).get("avatars", [])
+
+        results = await asyncio.gather(
+            avatar_ctl.studio_faces(),
             # Sync SSH — keep it off the event loop the same way session turns do.
-            state["drafts"] = await asyncio.to_thread(avatar_ctl.list_mflux_drafts)
-        except Exception as exc:  # noqa: BLE001
-            state["drafts"], state["drafts_error"] = [], str(exc)
-        try:
-            live = await avatar_ctl.studio_avatars()
-            state["enrolled"] = live.get("avatars", [])
-        except Exception as exc:  # noqa: BLE001
-            state["enrolled"], state["studio_error"] = [], str(exc)
-        try:
-            state["env"] = await avatar_ctl.vercel_env()
-        except Exception as exc:  # noqa: BLE001
-            state["env"], state["env_error"] = {}, str(exc)
+            asyncio.to_thread(avatar_ctl.list_mflux_drafts),
+            _live(),
+            avatar_ctl.vercel_env(),
+            return_exceptions=True,
+        )
+        for key, error_key, empty, result in zip(
+            ("faces", "drafts", "enrolled", "env"),
+            ("faces_error", "drafts_error", "studio_error", "env_error"),
+            ([], [], [], {}),
+            results,
+            strict=True,
+        ):
+            if isinstance(result, BaseException):
+                state[key], state[error_key] = empty, str(result)
+            else:
+                state[key] = result
         return state
 
     @app.post("/api/avatar/apply")

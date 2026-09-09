@@ -8,6 +8,7 @@ conversation brain one deterministic projection over those records.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import threading
@@ -27,6 +28,7 @@ JUSTIN_EMAIL = "justin.fowler@clearspeed.com"
 LINKS_PATH = Path(__file__).with_name("project_links.json")
 _SNAPSHOT_TTL_S = 60.0
 _SNAPSHOT_CACHE: dict[str, Any] = {"at": 0.0, "data": None}
+log = logging.getLogger("brutus.nucleus")
 _SNAPSHOT_LOCK = threading.Lock()
 
 LINEAR_QUERY = """
@@ -450,6 +452,26 @@ def build_operating_graph(
     }
 
 
+_REFRESHING = threading.Event()
+
+
+def _refresh_nucleus_in_background(client: Any, memory: Any) -> None:
+    """Rebuild the snapshot once, behind whoever was just served stale data."""
+    if _REFRESHING.is_set():
+        return
+    _REFRESHING.set()
+
+    def run() -> None:
+        try:
+            build_nucleus_snapshot(client, memory, force=True)
+        except Exception:  # a failed refresh keeps the stale copy on screen
+            log.exception("nucleus background refresh failed")
+        finally:
+            _REFRESHING.clear()
+
+    threading.Thread(target=run, name="nucleus-refresh", daemon=True).start()
+
+
 def invalidate_nucleus_cache() -> None:
     """Organization writes invalidate the shared screen/chat projection."""
     with _SNAPSHOT_LOCK:
@@ -457,13 +479,30 @@ def invalidate_nucleus_cache() -> None:
         _SNAPSHOT_CACHE["data"] = None
 
 
-def build_nucleus_snapshot(client: Any, memory: Any, *, force: bool = False) -> dict[str, Any]:
-    """The one cached source path used by HTTP and conversation tools."""
+def build_nucleus_snapshot(
+    client: Any, memory: Any, *, force: bool = False, allow_stale: bool = False
+) -> dict[str, Any]:
+    """The one cached source path used by HTTP and conversation tools.
+
+    A cold build walks every checkout on the laptop, scans agent sessions and
+    pages Linear: measured at 38 seconds. With a 60-second TTL the cache is
+    cold most of the times anyone actually opens the page, so the screen showed
+    "Loading…" for well over half a minute and looked broken rather than busy.
+
+    `allow_stale` is what the screen wants: answer instantly with the last
+    snapshot and refresh behind it. Slightly old numbers with a timestamp beat
+    a spinner, and the brain — which needs the freshest graph it can get and
+    has no user waiting on it — keeps the blocking path.
+    """
     now = time.time()
     with _SNAPSHOT_LOCK:
         cached = _SNAPSHOT_CACHE.get("data")
-        if not force and cached is not None and now - float(_SNAPSHOT_CACHE.get("at") or 0) < _SNAPSHOT_TTL_S:
+        fresh = cached is not None and now - float(_SNAPSHOT_CACHE.get("at") or 0) < _SNAPSHOT_TTL_S
+        if not force and fresh:
             return cached
+        if allow_stale and cached is not None:
+            _refresh_nucleus_in_background(client, memory)
+            return {**cached, "stale": True, "refreshing": True}
     projects = scan_projects(force=force)
     agents = merge_overlays(scan_agent_sessions(force=force), memory.list_agent_overlays())
     source_status: dict[str, Any] = {
@@ -545,3 +584,29 @@ def nucleus_view(
         "count": len(rows),
         "projects": rows[:cap],
     }
+
+
+# The screen's project table renders a name, a status, counts and a timestamp.
+# It was shipped 1.04 MB to do that, because one project embedded 453 agent
+# threads — 410 KB in a single record, 98% of the response, none of it on
+# screen until you open that project. The counts it does render are already
+# computed alongside, so the bodies can wait for a click.
+_PROJECT_DETAIL_KEYS = ("threads", "tickets")
+
+
+def slim_nucleus_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """The same graph without the per-project detail bodies."""
+    projects = []
+    for project in snapshot.get("projects") or []:
+        slim = {key: value for key, value in project.items() if key not in _PROJECT_DETAIL_KEYS}
+        slim["detail_available"] = any(project.get(key) for key in _PROJECT_DETAIL_KEYS)
+        projects.append(slim)
+    return {**snapshot, "projects": projects, "detail": "summary"}
+
+
+def nucleus_project_detail(snapshot: dict[str, Any], project_id: str) -> dict[str, Any] | None:
+    """One project's full record, including the threads and tickets."""
+    for project in snapshot.get("projects") or []:
+        if project.get("id") == project_id:
+            return project
+    return None

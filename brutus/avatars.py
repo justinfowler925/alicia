@@ -62,11 +62,61 @@ def _draft_persona_hint(name: str) -> str:
     return re.sub(r"-\d{8}T\d{6}Z$", "", stem) or stem
 
 
-def _ssh(remote: str, timeout: int = 30) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", STUDIO_HOST, remote],
-        capture_output=True, text=True, timeout=timeout,
-    )
+# The Studio is a Tailscale peer that is often simply asleep, and every console
+# page load used to pay for that in full: three sequential ssh calls, each
+# waiting out the TCP timeout, ~36 seconds of a synchronous handler for 570
+# bytes of JSON. Two of those in flight also exhausted the browser's six
+# connections to the origin, so the Nucleus table sat on "Loading…" behind an
+# avatar listing nobody had opened.
+#
+# So an unreachable host is remembered. The first attempt after the cooldown
+# pays a short timeout; the rest are told instantly, which is the honest answer
+# anyway — the host is down, and waiting 12 seconds does not make it truer.
+_STUDIO_UNREACHABLE_FOR = 120.0
+_studio_down: tuple[float, str] | None = None
+
+
+class StudioUnreachable(RuntimeError):
+    """The Studio peer did not answer, and we are not going to wait on it again."""
+
+
+def studio_reachability() -> dict[str, Any]:
+    """What the screen should say about the Studio peer, with no network call."""
+    if _studio_down is None:
+        return {"reachable": True, "error": ""}
+    since, error = _studio_down
+    remaining = max(0.0, _STUDIO_UNREACHABLE_FOR - (time.monotonic() - since))
+    if not remaining:
+        return {"reachable": True, "error": ""}
+    return {"reachable": False, "error": error, "retry_in_seconds": round(remaining)}
+
+
+def reset_studio_reachability() -> None:
+    """Forget the cooldown, so an explicit retry really retries."""
+    global _studio_down
+    _studio_down = None
+
+
+def _ssh(remote: str, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+    global _studio_down
+    if not studio_reachability()["reachable"]:
+        raise StudioUnreachable(_studio_down[1] if _studio_down else "Studio is unreachable")
+    try:
+        proc = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", STUDIO_HOST, remote],
+            capture_output=True, text=True, timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        _studio_down = (time.monotonic(), f"Studio did not answer within {timeout}s")
+        raise StudioUnreachable(_studio_down[1]) from exc
+    # Only a connection failure is a host verdict. A command that runs and
+    # exits nonzero means the host is up and the caller owns the error.
+    stderr = (proc.stderr or "").lower()
+    if proc.returncode == 255 and ("connect to host" in stderr or "timed out" in stderr):
+        _studio_down = (time.monotonic(), (proc.stderr or "ssh failed").strip()[-240:])
+        raise StudioUnreachable(_studio_down[1])
+    _studio_down = None
+    return proc
 
 
 async def studio_faces() -> list[dict[str, str]]:
@@ -160,7 +210,7 @@ def stage_mflux_draft(draft: str, persona: str, look: str = "professional") -> d
     )
     try:
         proc = _ssh(remote, timeout=60)
-    except (subprocess.TimeoutExpired, OSError) as exc:
+    except (StudioUnreachable, subprocess.TimeoutExpired, OSError) as exc:
         return {"ok": False, "error": f"studio ssh failed: {exc}"}
     if proc.returncode != 0:
         return {"ok": False, "error": (proc.stderr or proc.stdout or "stage failed").strip()[-240:]}
