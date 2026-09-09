@@ -150,12 +150,22 @@ class ConversationManager:
         channel: str = "text",
         read_only: bool = True,
         wait: bool = False,
+        owner_verified: bool | None = None,
     ) -> TurnResult:
         """Take one user turn and answer it. Voice and text land here identically.
 
         `read_only` is accepted for endpoint compatibility and deliberately
         unused: the brain's tool surface is fixed (reads + notepad), and every
         gated write goes through an artifact regardless of the flag.
+
+        `owner_verified` is the speaker check, and it guards exactly one thing:
+        settling a pending artifact. That is the only place a sentence spends
+        anything, because the artifact holds the {tool, args} that will run and
+        a spoken "yes" is what executes it. None means the transport cannot
+        identify a speaker at all — typing, where the owner token is already
+        the credential — and False means the voice transport listened and could
+        not place the speaker. Both still get answered; only False is barred
+        from approving, and it is told why rather than met with silence.
 
         `wait=True` runs the brain inline and returns the finished reply — the
         push-to-talk Ear needs the spoken text in hand. The web UI leaves it
@@ -173,6 +183,18 @@ class ConversationManager:
         # request, and must never be routed as one.
         pending = self._pending_artifact(session_id)
         if pending:
+            if owner_verified is False and read_confirmation(message) == "yes":
+                # A yes is the execution. Leave the artifact in draft so the
+                # approval can still happen on screen, and say so out loud —
+                # this used to be the point where the turn disappeared.
+                return self._land(
+                    session_id,
+                    "fast",
+                    "I couldn't place your voice on that, so I'm not going to run it "
+                    "on a spoken yes. It's still waiting on screen — approve it there.",
+                    turn.id,
+                    tool=pending["tool"],
+                )
             settled = self._answer_proposal(session_id, pending, message, turn.id)
             if settled is not None:
                 return settled

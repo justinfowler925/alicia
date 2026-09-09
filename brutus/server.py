@@ -122,6 +122,12 @@ class SessionSayRequest(BaseModel):
     # Voice needs the completed reply so it can synthesize the answer. The web
     # client leaves this false and receives the answer from the event stream.
     wait: bool = False
+    # Speaker-verification result for a voice turn. None means the transport
+    # cannot verify a speaker at all — the typed textarea, where the owner
+    # token is the credential. False means the voice transport listened and
+    # could not place the speaker: answer them, but do not let them settle a
+    # pending write by saying "yes".
+    owner_verified: bool | None = None
 
 
 class ApproveRequest(BaseModel):
@@ -1467,6 +1473,7 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             channel=req.channel,
             read_only=req.read_only,
             wait=req.wait,
+            owner_verified=req.owner_verified,
         )
         return result.as_dict()
 

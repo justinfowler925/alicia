@@ -86,6 +86,10 @@ def test_livekit_agent_calls_canonical_session_endpoint():
             "channel": "voice",
             "read_only": False,
             "wait": True,
+            # The fallback path cannot say whose voice this was, so it claims
+            # nothing. A turn that claims nothing still gets answered; it just
+            # cannot approve a pending write by saying yes.
+            "owner_verified": False,
         },
     )
 

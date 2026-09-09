@@ -7,6 +7,7 @@ import logging
 import os
 import re
 from collections import deque
+from typing import NamedTuple
 
 import httpx
 from livekit import agents, rtc
@@ -15,27 +16,85 @@ from livekit.plugins import elevenlabs, silero
 from livekit.plugins.elevenlabs import VoiceSettings
 
 from .config import load_config
-from .voice_identity import MIN_VERIFY_SECONDS, VoiceIdentity
+from .voice_identity import MATCH_THRESHOLD, MIN_VERIFY_SECONDS, VoiceIdentity
 
 log = logging.getLogger("brutus.livekit")
 BRUTUS_URL = os.environ.get("BRUTUS_URL", "http://127.0.0.1:8768")
 
 
+class VoiceVerdict(NamedTuple):
+    """A verification result that always carries the reason it came out that way."""
+
+    accepted: bool
+    reason: str
+    score: float | None = None
+
+
 class OwnerVoiceGate:
-    """Verify audio aligned to the current utterance, with a short pre-roll."""
+    """Verify the audio that actually produced the current transcript.
+
+    The window is the part that is easy to get wrong, and getting it wrong is
+    indistinguishable from a stranger at the microphone. Three separate window
+    faults were live in the same eight-second ring buffer:
+
+      The marker drifted. `_utterance_start` indexed the joined buffer, but the
+      buffer evicts from the left as audio arrives, and eviction never moved
+      the marker. Any sentence long enough to fill the ring therefore verified
+      its own tail, then a slice of silence past the end. The owner's longest
+      turns failed hardest, which is the opposite of what a speaker check
+      should do.
+
+      VAD flicker moved the marker. Every `speaking` transition re-anchored it,
+      including the ones that fire in the middle of a sentence, so a verdict
+      often covered the half second of pre-roll *after* the speech it was
+      supposed to check.
+
+      A second transcript for one utterance verified an already-emptied
+      buffer, which can only ever reject.
+
+    The evidence: across 477 logged verdicts the enrolled owner scored a median
+    0.369 against a 0.45 threshold and was refused 65% of the time, with a mode
+    near 0.0. Cosine similarity near zero is not a near miss between two
+    humans; it is noise, the signature of scoring the wrong audio rather than
+    the wrong speaker.
+
+    Every offset below is an absolute position in the received stream, so
+    eviction cannot move it, and the floor advances past each settled verdict
+    so no decision can inherit an earlier speaker's audio.
+    """
+
+    # Eight seconds truncated ordinary speech. Thirty covers a spoken paragraph
+    # without the ring ever sliding out from under an anchored marker.
+    WINDOW_SECONDS = 30
+    PRE_ROLL_SECONDS = 0.5
+    # What to verify when a late duplicate transcript arrives with no marker.
+    FALLBACK_SECONDS = 3.0
 
     def __init__(self, identity: VoiceIdentity | None = None) -> None:
         self.identity = identity or VoiceIdentity()
         self._frames: deque[bytes] = deque()
-        self._bytes = 0
         self.sample_rate = 16000
-        self._limit = self.sample_rate * 2 * 8
-        self._utterance_start = 0
+        self._limit = int(self.sample_rate * 2 * self.WINDOW_SECONDS)
+        self._received = 0  # absolute bytes ever appended
+        self._evicted = 0  # absolute bytes dropped off the left
+        self._utterance_start: int | None = None
+        self._floor = 0  # audio at or before here has already been judged
+
+    @property
+    def buffered_bytes(self) -> int:
+        return self._received - self._evicted
 
     def start_utterance(self) -> None:
-        """Mark speech onset while retaining at most 500 ms of acoustic pre-roll."""
-        pre_roll = self.sample_rate * 2 // 2
-        self._utterance_start = max(0, self._bytes - pre_roll)
+        """Anchor the window at speech onset, keeping a little acoustic pre-roll.
+
+        Only the first onset after a verdict anchors. Mid-sentence VAD flicker
+        used to re-anchor and hand the verifier the end of the sentence it was
+        meant to check.
+        """
+        if self._utterance_start is not None:
+            return
+        pre_roll = int(self.sample_rate * 2 * self.PRE_ROLL_SECONDS)
+        self._utterance_start = max(self._floor, self._received - pre_roll)
 
     async def observe(self, track: rtc.AudioTrack) -> None:
         stream = rtc.AudioStream(track, sample_rate=self.sample_rate, num_channels=1)
@@ -43,27 +102,45 @@ class OwnerVoiceGate:
             async for event in stream:
                 data = bytes(event.frame.data)
                 self._frames.append(data)
-                self._bytes += len(data)
-                while self._bytes > self._limit:
-                    self._bytes -= len(self._frames.popleft())
+                self._received += len(data)
+                while self._received - self._evicted > self._limit:
+                    self._evicted += len(self._frames.popleft())
         finally:
             await stream.aclose()
 
-    async def accepts_current_speaker(self) -> bool:
-        pcm = b"".join(self._frames)
-        utterance = pcm[self._utterance_start :]
-        # Extremely short noise and an unenrolled profile fail closed. Consume the window so
-        # the next verdict can never inherit a prior speaker's audio.
-        self._frames.clear()
-        self._bytes = 0
-        self._utterance_start = 0
-        if len(utterance) < self.sample_rate * 2 * MIN_VERIFY_SECONDS:
-            return False
-        verdict = await asyncio.to_thread(self.identity.verify_pcm, utterance, self.sample_rate)
-        log.info(
-            "owner voice score=%.4f accepted=%s", float(verdict.get("score") or 0), verdict.get("accepted")
+    async def verify_current_speaker(self) -> VoiceVerdict:
+        """Score the anchored utterance. Never returns a verdict without a reason."""
+        start = self._utterance_start
+        if start is None:
+            # A duplicate transcript for one utterance. Judge the tail rather
+            # than an emptied buffer, which could only ever reject.
+            start = self._received - int(self.sample_rate * 2 * self.FALLBACK_SECONDS)
+        start = max(start, self._floor, self._evicted)
+        end = self._received
+        self._utterance_start = None
+        self._floor = end
+
+        buffer = b"".join(self._frames)
+        pcm = buffer[max(start - self._evicted, 0) : max(end - self._evicted, 0)]
+        seconds = len(pcm) / (self.sample_rate * 2)
+        if seconds < MIN_VERIFY_SECONDS:
+            return VoiceVerdict(
+                False, f"only {seconds:.2f}s of owner audio in the verification window"
+            )
+        try:
+            verdict = await asyncio.to_thread(self.identity.verify_pcm, pcm, self.sample_rate)
+        except Exception as exc:  # noqa: BLE001 — an unverifiable turn is not a crash
+            log.warning("owner voice verification failed: %s", exc)
+            return VoiceVerdict(False, f"verification error: {exc}")
+        score = float(verdict.get("score") or 0.0)
+        return VoiceVerdict(
+            bool(verdict.get("accepted")),
+            f"score {score:.3f} against threshold {MATCH_THRESHOLD} over {seconds:.2f}s",
+            score,
         )
-        return bool(verdict.get("accepted"))
+
+    async def accepts_current_speaker(self) -> bool:
+        return (await self.verify_current_speaker()).accepted
 
 
 def session_id_from_room(room_name: str) -> str:
@@ -87,7 +164,7 @@ class BrutusVoiceAgent(Agent):
         if self._active_turn and not self._active_turn.done():
             self._active_turn.cancel()
 
-    async def _reply(self, message: str) -> str:
+    async def _reply(self, message: str, *, owner_verified: bool) -> str:
         async with httpx.AsyncClient(timeout=150.0) as client:
             response = await client.post(
                 f"{BRUTUS_URL}/api/session/{self.session_id}/say",
@@ -96,6 +173,7 @@ class BrutusVoiceAgent(Agent):
                     "channel": "voice",
                     "read_only": False,
                     "wait": True,
+                    "owner_verified": owner_verified,
                 },
             )
             response.raise_for_status()
@@ -103,7 +181,20 @@ class BrutusVoiceAgent(Agent):
         return str(payload.get("reply") or "I couldn't finish that turn. Please try again.")
 
     async def on_user_turn_completed(self, turn_ctx, new_message) -> None:
-        """Hand the finalized transcript to Brutus and schedule its reply directly."""
+        """Hand the finalized transcript to Brutus and schedule its reply directly.
+
+        An unrecognized voice no longer silences the conversation. Dropping the
+        turn was the wrong control and the wrong shape of failure: the brain's
+        tool surface is reads and the notepad, every gated write already needs
+        an artifact approved on screen, and the only thing a stranger's voice
+        can actually spend is the spoken "yes" that settles one. So the turn is
+        always answered, the verdict rides along with it, and the server
+        refuses to settle a pending artifact for a voice it cannot place.
+
+        Silence, meanwhile, is unreadable. When two thirds of the owner's own
+        turns vanished with no reply and no reason, the product looked dead
+        rather than cautious.
+        """
         current = asyncio.current_task()
         previous = self._active_turn
         self._active_turn = current
@@ -113,12 +204,16 @@ class BrutusVoiceAgent(Agent):
         try:
             if self._closed:
                 raise StopResponse()
-            if message and not await self.gate.accepts_current_speaker():
-                log.warning("owner voice rejected session=%s", self.session_id)
-                raise StopResponse()
-            log.info("canonical turn session=%s chars=%s", self.session_id, len(message))
             if message:
-                reply = await self._reply(message)
+                verdict = await self.gate.verify_current_speaker()
+                log.info(
+                    "owner voice session=%s accepted=%s chars=%s (%s)",
+                    self.session_id,
+                    verdict.accepted,
+                    len(message),
+                    verdict.reason,
+                )
+                reply = await self._reply(message, owner_verified=verdict.accepted)
                 if not self._closed and self._active_turn is current:
                     self.session.say(reply, allow_interruptions=True, add_to_chat_ctx=True)
             raise StopResponse()
@@ -129,7 +224,11 @@ class BrutusVoiceAgent(Agent):
     async def llm_node(self, chat_ctx, tools, model_settings):
         """Fallback for explicit session.generate_reply calls."""
         user_messages = [m for m in chat_ctx.messages() if m.role == "user" and m.text_content]
-        return await self._reply(user_messages[-1].text_content.strip()) if user_messages else ""
+        if not user_messages:
+            return ""
+        return await self._reply(
+            user_messages[-1].text_content.strip(), owner_verified=False
+        )
 
 
 class CanonicalBrainMarker(llm.LLM):

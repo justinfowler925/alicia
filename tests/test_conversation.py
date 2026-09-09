@@ -370,3 +370,65 @@ def test_the_reply_is_rendered_once_for_screen_and_once_for_mouth(mgr):
         result = mgr.handle(sid, "how's the runner", wait=True)
     assert result.reply == "The runner is back online."
     assert result.spoken  # speechify rendering of the SAME reply
+
+
+# --- the spoken yes is the only thing a voice can spend --------------------
+
+
+def _pending(mgr, sid):
+    """Leave one artifact in draft, the way a gated write does."""
+    from brutus.gate import propose
+
+    proposal = propose("approve_gate", {"ticket": "REV-551", "decision": "approve"})
+    return mgr.store.draft_artifact(
+        sid,
+        kind=proposal.kind,
+        tool=proposal.tool,
+        args=proposal.args,
+        summary=proposal.summary,
+    )
+
+
+def test_an_unplaced_voice_cannot_execute_a_pending_write_by_saying_yes(mgr):
+    """The artifact holds the {tool, args} that runs. A yes is the execution."""
+    sid = mgr.store.open_session()
+    _pending(mgr, sid)
+
+    result = mgr.handle(sid, "yes", channel="voice", owner_verified=False)
+
+    assert "approve it there" in result.reply.lower()
+    assert mgr._pending_artifact(sid) is not None, "the draft must survive to be approved on screen"
+
+
+def test_a_verified_voice_still_settles_a_pending_write(mgr):
+    sid = mgr.store.open_session()
+    _pending(mgr, sid)
+
+    with patch.object(mgr, "execute_artifact", return_value="executed") as run:
+        assert mgr.handle(sid, "yes", channel="voice", owner_verified=True) == "executed"
+    assert run.called
+
+
+def test_typing_is_never_asked_to_prove_a_voice(mgr):
+    """None means the transport has no speaker to check; the token is the credential."""
+    sid = mgr.store.open_session()
+    _pending(mgr, sid)
+
+    with patch.object(mgr, "execute_artifact", return_value="executed") as run:
+        assert mgr.handle(sid, "yes") == "executed"
+    assert run.called
+
+
+def test_an_unplaced_voice_is_still_answered_when_nothing_is_pending(mgr):
+    """Silence was the bug. An unrecognized voice gets a real reply."""
+    sid = mgr.store.open_session()
+    verified = mgr.handle(sid, "how is the Holloway rollout reading?", channel="voice", owner_verified=True)
+    unplaced = mgr.handle(sid, "how is the Holloway rollout reading?", channel="voice", owner_verified=False)
+
+    # The verdict decides what a yes may execute, never whether Brutus answers.
+    assert (unplaced.lane, unplaced.thinking, unplaced.error) == (
+        verified.lane,
+        verified.thinking,
+        verified.error,
+    )
+    assert unplaced.error is None
