@@ -1108,7 +1108,7 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
 
     @app.get("/api/projects")
     async def projects() -> dict[str, Any]:
-        return {"projects": scan_projects()}
+        return {"projects": await asyncio.to_thread(scan_projects)}
 
     @app.get("/api/nucleus")
     async def nucleus(request: Request, force: bool = False) -> dict[str, Any]:

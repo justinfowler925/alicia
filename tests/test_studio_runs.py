@@ -189,3 +189,26 @@ def test_receipt_duration_can_be_derived_from_recorded_boundaries():
         "receipt",
     )
     assert r["duration_seconds"] == 150
+
+
+def test_project_scan_does_not_block_studio_request_loop(monkeypatch):
+    import asyncio
+    import threading
+    from unittest.mock import MagicMock
+
+    from brutus.config import BrutusCfg
+    from brutus.server import create_app
+
+    released = threading.Event()
+    monkeypatch.setattr("brutus.server.scan_projects", lambda: [{"loop_was_free": released.wait(1)}])
+    with patch("brutus.server.AtlasClient", return_value=MagicMock()):
+        app = create_app(BrutusCfg(watchdog_enabled=False), start_watchdog=False)
+    endpoint = next(r.endpoint for r in app.routes if getattr(r, "path", "") == "/api/projects")
+
+    async def probe():
+        task = asyncio.create_task(endpoint())
+        await asyncio.sleep(0.02)
+        released.set()
+        return await task
+
+    assert asyncio.run(probe())["projects"][0]["loop_was_free"]
