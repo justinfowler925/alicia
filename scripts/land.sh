@@ -54,7 +54,13 @@ BEFORE=$(git rev-parse --short "origin/$BRANCH" 2>/dev/null || echo "-")
 
 # The helper reads the token from its own environment, so it never appears in
 # argv where `ps` would show it.
+# The empty value first is load-bearing: `credential.helper` is a multi-valued
+# config, so `-c` APPENDS. Without the reset, git asks the `gh` helper first, it
+# answers with the active account, and the 1Password token is never consulted —
+# which is exactly the 403 this script exists to avoid, reproduced from inside
+# the fix.
 "$CREDENTIAL_RUN" "$PROFILE" -- git \
+  -c credential.helper= \
   -c "credential.helper=!f() { echo username=x-access-token; echo \"password=\${$VAR}\"; }; f" \
   push origin "HEAD:$BRANCH"
 

@@ -82,6 +82,10 @@ def test_landing_never_mutates_the_active_gh_account():
     assert "github-personal-mcp" in land and "atlas-core" in land
     # The token reaches git through the environment, never argv, never a file.
     assert r"password=\${$VAR}" in land
+    # `credential.helper` is multi-valued, so -c appends. Without the reset git
+    # asks the gh helper first and the 1Password token is never consulted.
+    assert "-c credential.helper= \\" in land
+    assert land.index("-c credential.helper= ") < land.index("password=")
     assert "mktemp" not in land and "> /tmp" not in land
     # And it proves the remote actually moved.
     assert 'origin/$BRANCH is $AFTER' in land
