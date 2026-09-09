@@ -74,6 +74,12 @@ def _draft_persona_hint(name: str) -> str:
 # anyway — the host is down, and waiting 12 seconds does not make it truer.
 _STUDIO_UNREACHABLE_FOR = 120.0
 _studio_down: tuple[float, str] | None = None
+# One breaker covers SSH and HTTP because both talk to the same sleeping Mac.
+# Only the ssh path was guarded at first, so the endpoint still cost 15s every
+# time: the concurrent gather is bounded by its slowest member, and studio_faces
+# (10s) and studio_avatars (15s) were both still waiting out their own timeouts
+# against a host the ssh probe had already established was down.
+_STUDIO_HTTP_TIMEOUT = 4.0
 
 
 class StudioUnreachable(RuntimeError):
@@ -97,33 +103,57 @@ def reset_studio_reachability() -> None:
     _studio_down = None
 
 
-def _ssh(remote: str, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+def _note_studio_down(error: str) -> StudioUnreachable:
     global _studio_down
+    _studio_down = (time.monotonic(), error.strip()[-240:] or "Studio is unreachable")
+    return StudioUnreachable(_studio_down[1])
+
+
+def _require_studio() -> None:
     if not studio_reachability()["reachable"]:
         raise StudioUnreachable(_studio_down[1] if _studio_down else "Studio is unreachable")
+
+
+async def _studio_get(path: str) -> Any:
+    """One GET to the Studio, behind the same breaker the ssh calls use."""
+    global _studio_down
+    _require_studio()
+    try:
+        async with httpx.AsyncClient(timeout=_STUDIO_HTTP_TIMEOUT, verify=True) as client:
+            response = await client.get(f"{STUDIO}{path}")
+            response.raise_for_status()
+            payload = response.json()
+    except (httpx.TimeoutException, httpx.TransportError) as exc:
+        # httpx connect errors often stringify to nothing, so name the class.
+        why = str(exc).strip() or type(exc).__name__
+        raise _note_studio_down(f"Studio did not answer {path}: {why}") from exc
+    # A woken host clears the cooldown for the ssh callers too.
+    _studio_down = None
+    return payload
+
+
+def _ssh(remote: str, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+    global _studio_down
+    _require_studio()
     try:
         proc = subprocess.run(
             ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", STUDIO_HOST, remote],
             capture_output=True, text=True, timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
-        _studio_down = (time.monotonic(), f"Studio did not answer within {timeout}s")
-        raise StudioUnreachable(_studio_down[1]) from exc
+        raise _note_studio_down(f"Studio did not answer within {timeout}s") from exc
     # Only a connection failure is a host verdict. A command that runs and
     # exits nonzero means the host is up and the caller owns the error.
     stderr = (proc.stderr or "").lower()
     if proc.returncode == 255 and ("connect to host" in stderr or "timed out" in stderr):
-        _studio_down = (time.monotonic(), (proc.stderr or "ssh failed").strip()[-240:])
-        raise StudioUnreachable(_studio_down[1])
+        raise _note_studio_down(proc.stderr or "ssh failed")
     _studio_down = None
     return proc
 
 
 async def studio_faces() -> list[dict[str, str]]:
     """Face masters staged on the Studio, grouped into persona + look."""
-    async with httpx.AsyncClient(timeout=10, verify=True) as c:
-        r = await c.get(f"{STUDIO}/api/faces")
-        faces = r.json().get("faces", [])
+    faces = (await _studio_get("/api/faces")).get("faces", [])
     out = []
     for f in faces:
         persona, look = _persona_and_look(f)
@@ -133,9 +163,7 @@ async def studio_faces() -> list[dict[str, str]]:
 
 async def studio_avatars() -> dict[str, Any]:
     """What Anam currently holds, and which id the app defaults to."""
-    async with httpx.AsyncClient(timeout=15) as c:
-        r = await c.get(f"{STUDIO}/api/avatars/custom")
-        return r.json()
+    return await _studio_get("/api/avatars/custom")
 
 
 def list_mflux_drafts() -> list[dict[str, Any]]:

@@ -51,6 +51,7 @@ from .nucleus import (
     invalidate_nucleus_cache,
     nucleus_project_detail,
     slim_nucleus_snapshot,
+    warm_nucleus_snapshot,
 )
 from .paths import canon_db_path
 from .projects import scan_projects
@@ -294,6 +295,11 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
     async def lifespan(app: FastAPI):
         if start_watchdog and cfg.watchdog_enabled:
             app.state.watchdog.start()
+        # Warm the project graph before anyone asks for it. A cold build walks
+        # every checkout, scans agent sessions and pages Linear — 24 seconds —
+        # and a restart used to hand that bill straight to the first page load.
+        if start_watchdog:
+            warm_nucleus_snapshot(app.state.client, app.state.memory)
         # Poll the board and diff it into transitions. Atlas has no event feed,
         # so this is a poller — but only the DIFF ever reaches anyone, which is
         # what keeps a poller from reading like a poller.
@@ -484,20 +490,42 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             media_type="application/json",
         )
 
+    _STATIC = Path(__file__).resolve().parent / "static"
+
+    # No-store on every surface: a cached page served Justin a stale UI twice —
+    # once a button offering a sandbox alias that does not exist, once a page
+    # with no Probes toggle, so the ticket he was told to test was unreachable.
+    # The surface must never be a version behind the server.
+    _NO_STORE = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
+
     @app.get("/", response_class=HTMLResponse)
     async def home() -> HTMLResponse:
-        # No-store: a cached page served Justin a stale UI twice — once a button
-        # offering a sandbox alias that does not exist, once a page with no
-        # Probes toggle, so the ticket he was told to test was unreachable. The
-        # surface must never be a version behind the server.
-        return HTMLResponse(
-            BRUTUS_HTML,
-            headers={
-                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-                "Pragma": "no-cache",
-                "Expires": "0",
-            },
-        )
+        """The one Brutus surface.
+
+        `/` used to serve a second document with its own nav, its own numbers
+        and its own chat dock, while the conversation lived at /session and a
+        third voice UI lived at /mobile. Three surfaces answering "what needs
+        me now" get neither adoption nor trust — people quote whichever one
+        they opened last, and on one screen the three disagreed by four
+        different project counts.
+        """
+        return HTMLResponse((_STATIC / "session.html").read_text(), headers=_NO_STORE)
+
+    @app.get("/console", response_class=HTMLResponse)
+    async def console() -> HTMLResponse:
+        """The console's remaining pages, until each one is a panel on `/`.
+
+        Inbox, Projects, Studio, Sites, Avatar and Demos still live only here,
+        so this is kept reachable rather than deleted — retiring a document
+        that holds the only copy of a feature is losing the feature, not
+        consolidating it. Nucleus, Work, Agents and Notes are already answered
+        by the one surface and are the next to go.
+        """
+        return HTMLResponse(BRUTUS_HTML, headers=_NO_STORE)
 
     @app.get("/api/healthz")
     async def healthz(request: Request) -> dict[str, Any]:
@@ -1456,25 +1484,18 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
 
     # --- the conversation screen -----------------------------------------
 
-    _STATIC = Path(__file__).resolve().parent / "static"
-
+    # /session and /mobile were the same screen twice over: /mobile's endpoint
+    # set was a strict subset of /session's, and neither could reach the
+    # console. /session stays as an alias because it is bookmarked; /mobile is
+    # gone, and its 2,109 lines of forked JS and CSS with it. The one surface
+    # is responsive, which is what /mobile was for.
     @app.get("/session", response_class=HTMLResponse)
     async def session_page() -> HTMLResponse:
-        # Same no-store rule as the board: the surface must never be a version
-        # behind the server.
-        return HTMLResponse(
-            (_STATIC / "session.html").read_text(),
-            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
-        )
+        return HTMLResponse((_STATIC / "session.html").read_text(), headers=_NO_STORE)
 
     @app.get("/mobile", response_class=HTMLResponse)
-    async def mobile_page() -> HTMLResponse:
-        # Phone surface forked from the FNOL widget shell. Serves from Brutus
-        # only — never a clearspeed-demos path, and never writes back to FNOL.
-        return HTMLResponse(
-            (_STATIC / "mobile.html").read_text(),
-            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
-        )
+    async def mobile_page() -> RedirectResponse:
+        return RedirectResponse("/", status_code=308)
 
     @app.get("/static/{name}")
     async def static_file(name: str) -> Response:
@@ -1483,8 +1504,7 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         types = {
             "session.css": "text/css",
             "session.js": "application/javascript",
-            "mobile.css": "text/css",
-            "mobile.js": "application/javascript",
+            "operations.js": "application/javascript",
             "shine-tokens.css": "text/css",
         }
         if name not in types:
@@ -1896,7 +1916,12 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             strict=True,
         ):
             if isinstance(result, BaseException):
-                state[key], state[error_key] = empty, str(result)
+                # Never an empty reason. httpx connect errors stringify to ""
+                # and a source that failed for "" is indistinguishable on
+                # screen from a source with nothing in it — which is the exact
+                # failure this endpoint was already making.
+                state[key] = empty
+                state[error_key] = str(result).strip() or type(result).__name__
             else:
                 state[key] = result
         return state

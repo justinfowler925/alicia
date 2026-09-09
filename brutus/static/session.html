@@ -130,12 +130,53 @@
     </details>
   </aside>
 
+  <!-- One surface. The console at / used to be a second document with its own
+       nav, its own numbers and its own chat dock; /mobile was a third. Those
+       regions are disclosure inside this tray now, because three surfaces
+       answering "what needs me now" get neither adoption nor trust — people
+       use the one their last answer came from. -->
   <details class="panel queue work-tray" data-testid="work-tray" aria-label="Workspace tools">
     <summary class="work-tray-summary">
       <span>Workspace tools</span>
-      <span class="work-tray-hint">Capture or browse work when you need it</span>
+      <span class="work-tray-hint">What is running, and the work you have captured</span>
       <span class="count" id="ideas-count"></span>
     </summary>
+
+    <div class="tray-tabs" role="tablist" aria-label="Workspace tools">
+      <button type="button" role="tab" id="tab-running" aria-controls="panel-running"
+              aria-selected="false" tabindex="-1">
+        Running <span class="count" id="running-count"></span>
+      </button>
+      <button type="button" role="tab" id="tab-queue" aria-controls="panel-queue"
+              aria-selected="true" tabindex="0">
+        Queue <span class="count" id="queue-tab-count"></span>
+      </button>
+    </div>
+
+    <!-- Running: every process this laptop and the Studio have in flight, each
+         row carrying the control that stops it. The board used to report thirty
+         live threads whose only row action was "Ask" — watching work you cannot
+         stop reads as control while being none. -->
+    <section class="tray-panel ops" id="panel-running" role="tabpanel" aria-labelledby="tab-running" hidden>
+      <div class="ops-toolbar">
+        <label class="sr-only" for="ops-search">Search everything running</label>
+        <input id="ops-search" type="search" placeholder="Search threads, jobs, services…" autocomplete="off">
+        <div class="ops-filters" role="toolbar" aria-label="Filter by what it is">
+          <button type="button" data-ops-filter="all" class="is-active" aria-pressed="true">All</button>
+          <button type="button" data-ops-filter="threads" aria-pressed="false">Threads</button>
+          <button type="button" data-ops-filter="jobs" aria-pressed="false">Jobs</button>
+          <button type="button" data-ops-filter="services" aria-pressed="false">Services</button>
+        </div>
+        <label class="ops-live-only">
+          <input type="checkbox" id="ops-live-only" checked> Running only
+        </label>
+        <button type="button" id="ops-refresh">Refresh</button>
+      </div>
+      <p class="ops-note" id="ops-note" role="status" hidden></p>
+      <div class="ops-groups" id="ops-groups" aria-live="polite"></div>
+    </section>
+
+    <section class="tray-panel" id="panel-queue" role="tabpanel" aria-labelledby="tab-queue">
     <h2>
       Queue
       <span id="queue-drafting" class="drafting" hidden>
@@ -181,7 +222,20 @@
     <div class="queue-board" id="ideas-list" data-testid="queue-board" role="group" aria-label="Work queue by stage">
       <div class="queue-empty" id="ideas-empty" data-testid="queue-empty" hidden></div>
     </div>
+    </section>
   </details>
+
+  <!-- A cancel is not undoable, so it is confirmed against the thing itself:
+       the dialog names the row, not the verb. -->
+  <dialog id="ops-confirm" class="ops-confirm" aria-labelledby="ops-confirm-title">
+    <h2 id="ops-confirm-title">Stop this?</h2>
+    <p id="ops-confirm-detail"></p>
+    <p id="ops-confirm-consequence" class="ops-confirm-consequence"></p>
+    <form method="dialog" class="ops-confirm-actions">
+      <button value="cancel">Leave it running</button>
+      <button value="confirm" id="ops-confirm-go" class="danger">Stop it</button>
+    </form>
+  </dialog>
 
   <span id="count-turns" hidden>0</span>
   <span id="board-focus" class="focus-chip" hidden>
@@ -212,5 +266,6 @@
 
 </main>
 <script src="/static/session.js"></script>
+<script src="/static/operations.js"></script>
 </body>
 </html>

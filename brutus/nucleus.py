@@ -20,6 +20,7 @@ from typing import Any
 import httpx
 
 from .agent_sessions import merge_overlays, scan_agent_sessions
+from .paths import state_path
 from .projects import scan_projects
 
 LINEAR_API = "https://api.linear.app/graphql"
@@ -426,8 +427,16 @@ def build_operating_graph(
         )
     )
     real_projects = [project for project in projects if project.get("kind") != "unmapped"]
+    # Three quantities on one screen were all labelled "projects": 37 in the
+    # metric tile (tracked), 38 in the pager (tracked plus the synthetic
+    # unmapped row), and 40 in the nav badge — which was actually the count of
+    # at-risk git workspaces out of 136. None of them was wrong; the word was.
+    # Each figure is now named for what it counts, so a reader can tell which
+    # one a sentence means and click through to the rows behind it.
     summary = {
         "projects": len(real_projects),
+        "projects_tracked": len(real_projects),
+        "projects_listed": len(projects),
         "projects_needing_you": sum(1 for project in real_projects if project["status"] == "needs_you"),
         "projects_at_risk": sum(1 for project in real_projects if project["status"] == "at_risk"),
         "tickets": len(issues),
@@ -452,7 +461,40 @@ def build_operating_graph(
     }
 
 
+_SNAPSHOT_FILE = "nucleus-snapshot.json"
 _REFRESHING = threading.Event()
+
+
+def _building_snapshot() -> dict[str, Any]:
+    """A named state for "there is no graph yet", not an empty success."""
+    return {
+        "generated_at": None,
+        "summary": {},
+        "source_status": {},
+        "projects": [],
+        "linear_projects": {},
+        "building": True,
+        "refreshing": True,
+    }
+
+
+def _write_snapshot_to_disk(snapshot: dict[str, Any]) -> None:
+    """Survive a restart. Rebuilding from cold cost 24 seconds of dead page."""
+    try:
+        path = state_path(_SNAPSHOT_FILE)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(snapshot, separators=(",", ":")), encoding="utf-8")
+        temporary.replace(path)
+    except (OSError, TypeError, ValueError):
+        log.warning("could not persist the nucleus snapshot", exc_info=True)
+
+
+def _read_snapshot_from_disk() -> dict[str, Any] | None:
+    try:
+        data = json.loads(state_path(_SNAPSHOT_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) and isinstance(data.get("projects"), list) else None
 
 
 def _refresh_nucleus_in_background(client: Any, memory: Any) -> None:
@@ -470,6 +512,11 @@ def _refresh_nucleus_in_background(client: Any, memory: Any) -> None:
             _REFRESHING.clear()
 
     threading.Thread(target=run, name="nucleus-refresh", daemon=True).start()
+
+
+def warm_nucleus_snapshot(client: Any, memory: Any) -> None:
+    """Build the graph at startup so no page load ever pays for a cold cache."""
+    _refresh_nucleus_in_background(client, memory)
 
 
 def invalidate_nucleus_cache() -> None:
@@ -493,6 +540,13 @@ def build_nucleus_snapshot(
     snapshot and refresh behind it. Slightly old numbers with a timestamp beat
     a spinner, and the brain — which needs the freshest graph it can get and
     has no user waiting on it — keeps the blocking path.
+
+    A cold process has no snapshot to be stale with, and that case was still
+    blocking for 24 seconds — a restart made the page dead again. So the last
+    snapshot is written to disk and read back on the first request, and if even
+    that is missing the screen is told the graph is building rather than being
+    held open. "Building" is a state a reader can understand; a spinner that
+    lasts half a minute is not.
     """
     now = time.time()
     with _SNAPSHOT_LOCK:
@@ -500,9 +554,14 @@ def build_nucleus_snapshot(
         fresh = cached is not None and now - float(_SNAPSHOT_CACHE.get("at") or 0) < _SNAPSHOT_TTL_S
         if not force and fresh:
             return cached
-        if allow_stale and cached is not None:
+        if allow_stale:
+            if cached is None:
+                cached = _read_snapshot_from_disk()
+            if cached is not None:
+                _refresh_nucleus_in_background(client, memory)
+                return {**cached, "stale": True, "refreshing": True}
             _refresh_nucleus_in_background(client, memory)
-            return {**cached, "stale": True, "refreshing": True}
+            return _building_snapshot()
     projects = scan_projects(force=force)
     agents = merge_overlays(scan_agent_sessions(force=force), memory.list_agent_overlays())
     source_status: dict[str, Any] = {
@@ -536,6 +595,7 @@ def build_nucleus_snapshot(
     with _SNAPSHOT_LOCK:
         _SNAPSHOT_CACHE["at"] = time.time()
         _SNAPSHOT_CACHE["data"] = snapshot
+    _write_snapshot_to_disk(snapshot)
     return snapshot
 
 

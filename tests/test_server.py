@@ -47,7 +47,7 @@ def test_supervisor_endpoint_forwards_force_and_returns_structured_snapshot():
     app.state.supervisor.observe.assert_called_once_with(force=True)
 
 
-def test_home_work_surface_no_broken_evidence_hrefs():
+def test_console_work_surface_no_broken_evidence_hrefs():
     cfg = BrutusCfg(
         atlas6_url="http://127.0.0.1:8767",
         serve_port=8768,
@@ -59,7 +59,7 @@ def test_home_work_surface_no_broken_evidence_hrefs():
         app = create_app(cfg, start_watchdog=False)
         client = TestClient(app)
 
-        html = client.get("/")
+        html = client.get("/console")
         assert html.status_code == 200
         # The page is deliberately jargon-free. Check VISIBLE text only —
         # endpoint paths like /api/requeue_stale live in the script and are not
@@ -228,12 +228,12 @@ def test_agents_api_preserves_native_runtime_status(tmp_path):
     assert agent["status_observed_at"] > 0
 
 
-def test_home_has_live_and_speak_controls():
+def test_console_has_live_and_speak_controls():
     cfg = BrutusCfg(watchdog_enabled=False)
     with patch("brutus.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
-        html = TestClient(app).get("/")
+        html = TestClient(app).get("/console")
         assert html.status_code == 200
         assert 'id="livebtn"' in html.text
         assert 'id="speakbtn"' in html.text
@@ -244,11 +244,11 @@ def test_home_has_live_and_speak_controls():
         assert "conversation_id" not in html.text
 
 
-def test_home_defaults_to_nucleus_and_exposes_the_table_contract():
+def test_console_defaults_to_nucleus_and_exposes_the_table_contract():
     cfg = BrutusCfg(watchdog_enabled=False)
     with patch("brutus.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
-        html = TestClient(create_app(cfg, start_watchdog=False)).get("/").text
+        html = TestClient(create_app(cfg, start_watchdog=False)).get("/console").text
 
     assert "data-cite=\"antd-pro-list\"" in html
     assert "data-toolbar role=\"search\"" in html
@@ -281,13 +281,13 @@ def test_nucleus_api_and_project_overlay_share_exact_project_id(tmp_path, monkey
     assert response.json()["source_records_changed"] is False
 
 
-def test_home_ui_build_plan_markers():
+def test_console_ui_build_plan_markers():
     """Phase A–C DoD markers from docs/UI_BUILD_PLAN.md (HTML smoke, no JS)."""
     cfg = BrutusCfg(watchdog_enabled=False)
     with patch("brutus.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
-        html = TestClient(app).get("/").text
+        html = TestClient(app).get("/console").text
         assert 'class="nav-item"' in html or "class='nav-item'" in html or "nav-item" in html
         assert "aria-current" in html
         assert 'id="mob-tabs"' in html
@@ -447,7 +447,7 @@ def test_ops_shine_token_cutover():
     with patch("brutus.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
-        raw = TestClient(app).get("/").text
+        raw = TestClient(app).get("/console").text
     assert "/static/shine-tokens.css" in raw
     assert "var(--shine-font-sans)" in raw
     assert "var(--shine-color-bg)" in raw
@@ -479,7 +479,7 @@ def test_shine_tokens_include_light_theme():
     assert "--shine-color-bg: var(--shine-color-stone-50)" in css
 
 
-def test_mobile_header_rule_wins_on_source_order():
+def test_console_narrow_header_rule_wins_on_source_order():
     """`.rail{display:none}` must come AFTER `.rail{display:flex}`.
 
     Asserting the rule merely *exists* is what let this regress for months: the
@@ -491,7 +491,7 @@ def test_mobile_header_rule_wins_on_source_order():
     with patch("brutus.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
-        raw = TestClient(app).get("/").text
+        raw = TestClient(app).get("/console").text
     # Strip CSS comments first — prose about a rule is not the rule.
     css = re.sub(r"/\*.*?\*/", "", raw, flags=re.DOTALL).replace(" ", "").replace("\n", "")
     hide = css.find(".rail{display:none}")

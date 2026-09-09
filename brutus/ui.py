@@ -573,12 +573,12 @@ BRUTUS_HTML = """<!DOCTYPE html>
     <div class="sec">Pages</div>
     <div class="nav">
       <button type="button" class="nav-item" id="nav-nucleus" onclick="go('nucleus')">Nucleus <span class="n" id="n-nucleus"></span></button>
-      <button type="button" class="nav-item" id="nav-work" onclick="go('work')">Work <span class="n" id="n-work"></span></button>
-      <button type="button" class="nav-item" id="nav-canon" onclick="go('canon')">Inbox <span class="n" id="n-canon"></span></button>
-      <button type="button" class="nav-item" id="nav-agents" onclick="go('agents')">Agents <span class="n" id="n-agents"></span></button>
+      <button type="button" class="nav-item" id="nav-work" onclick="go('work')">Work <span class="n" id="n-work" title="items that need you" aria-label="items that need you"></span></button>
+      <button type="button" class="nav-item" id="nav-canon" onclick="go('canon')">Inbox <span class="n" id="n-canon" title="unread inbox items" aria-label="unread inbox items"></span></button>
+      <button type="button" class="nav-item" id="nav-agents" onclick="go('agents')">Agents <span class="n" id="n-agents" title="agent threads observed" aria-label="agent threads observed"></span></button>
       <button type="button" class="nav-item" id="nav-studio" onclick="go('studio')">Studio</button>
-      <button type="button" class="nav-item" id="nav-projects" onclick="go('projects')">Projects <span class="n" id="n-projects"></span></button>
-      <button type="button" class="nav-item" id="nav-notes" onclick="go('notes')">Notes <span class="n" id="n-notes"></span></button>
+      <button type="button" class="nav-item" id="nav-projects" onclick="go('projects')">Projects <span class="n" id="n-projects" title="projects at risk" aria-label="projects at risk"></span></button>
+      <button type="button" class="nav-item" id="nav-notes" onclick="go('notes')">Notes <span class="n" id="n-notes" title="notes not done" aria-label="notes not done"></span></button>
       <details class="nav-more"><summary>Tools</summary><div class="tool-menu">
         <button type="button" class="nav-item" id="nav-chatbots" onclick="go('chatbots')">Sites <span class="n" id="n-chatbots"></span></button>
         <button type="button" class="nav-item" id="nav-avatar" onclick="go('avatar')">Avatar</button>
@@ -1279,10 +1279,10 @@ function nucleusHtml(){return triadWrap(loadSt.nucleus,'loadNucleus',()=>{
   const allSelected=shown.length&&shown.every(p=>NF.selected.has(p.id));
   const rowHtml=shown.map(nucleusRowHtml).join('');
   return `<div class="nucleus-shell" data-grid data-client-mode><h2 class="sr-only" data-grid-title>Project Nucleus operating graph</h2><section class="nucleus-metrics" aria-label="Portfolio summary">
-    <div class="nucleus-metric"><span class="value">${s.projects||0}</span><span class="label">canonical projects</span></div>
+    <div class="nucleus-metric"><span class="value">${s.projects_listed||s.projects||0}</span><span class="label">projects listed below</span></div>
     <div class="nucleus-metric"><span class="value">${s.projects_needing_you||0}</span><span class="label">need you now</span></div>
     <div class="nucleus-metric"><span class="value">${s.tickets||0}</span><span class="label">open Linear tickets</span></div>
-    <div class="nucleus-metric"><span class="value">${s.recent_threads||0}</span><span class="label">agent threads · 48h</span></div></section>
+    <div class="nucleus-metric"><span class="value">${s.recent_threads||0}</span><span class="label">agent threads touched in 48h</span></div></section>
     <div class="nucleus-source" aria-label="Source freshness">${sourceHtml}</div>
     <div class="nucleus-toolbar" data-toolbar role="search"><label for="nucleus-q" class="sr-only">Search Nucleus</label>
       <input type="search" data-filter-input data-shine-probe-value="__shine_no_match__" id="nucleus-q" value="${esc(NF.q)}" placeholder="Search projects, tickets, threads, or paths…" oninput="nucleusLiveFilter(this)" onkeydown="if(event.key==='Enter')nucleusFilter()">

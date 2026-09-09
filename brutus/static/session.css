@@ -20,6 +20,13 @@
 
 * { box-sizing: border-box; }
 
+/* A genuine token gap, and this file is now its home. `--tap` lived only in
+   ui.py's inline stylesheet, so the console had a hit-target floor and this
+   screen did not — and every `var(--tap)` written here would have resolved to
+   nothing and been dropped silently. 44px is the WCAG 2.5.8 / Apple HIG
+   figure; the vendored shine-tokens.css is re-generated and cannot hold it. */
+:root { --tap: 44px; }
+
 /* Any explicit display beats the `hidden` attribute, which is how the focus
    chip stayed visible with nothing focused. Restore the intent globally rather
    than remembering it per-component. */
@@ -1610,7 +1617,19 @@ body.workspace-open { overflow-y: auto; }
 .voice-shell.workspace-open {
   height: auto;
   min-height: 100vh;
-  grid-template-rows: auto minmax(34rem, auto) auto;
+  /* 34rem was a floor for the conversation even with the tray open, so the
+     tray always began below the fold: measured at 1440x1100 the document grew
+     to 2747px and reaching the Running tables meant scrolling past 800px of
+     empty transcript. The conversation keeps a readable 20rem and the tray
+     scrolls inside its own region instead of growing the page. */
+  grid-template-rows: auto minmax(20rem, auto) auto;
+}
+
+.work-tray[open] > .tray-panel {
+  max-height: min(62vh, 46rem);
+  overflow-y: auto;
+  /* Room for the sticky table headers to sit against. */
+  padding-right: var(--shine-space-1);
 }
 
 .work-tray[open] {
@@ -1661,4 +1680,255 @@ body.workspace-open { overflow-y: auto; }
   .voice-stage-head { align-items: flex-start; flex-direction: column; }
   .voice-primary { width: 100%; justify-content: center; }
   .work-tray-hint { display: none; }
+}
+
+/* Phones. /mobile used to exist because this screen did not survive here:
+   measured at 375px the topbar's six flex items refused to wrap, so the title
+   collapsed to three overlapping lines, "New" was cut off past the right edge,
+   and the composer was clipped by the shell overflowing the viewport. Deleting
+   the fork means this width has to be the real thing, not a fallback. */
+@media (max-width: 30rem) {
+  .shell,
+  .voice-shell { padding: var(--shine-space-3); gap: var(--shine-space-3); }
+
+  .topbar {
+    flex-wrap: wrap;
+    gap: var(--shine-space-2);
+    row-gap: var(--shine-space-2);
+  }
+  /* The name and its tagline own the first line; the controls wrap under it
+     rather than squeezing the title into a column one word wide. */
+  .topbar > .title { flex: 1 0 100%; }
+  .topbar > .title .tagline { display: none; }
+  .topbar > .live { order: -1; }
+  .topbar > button { flex: 1 1 auto; min-width: 0; }
+
+  .voice-stage,
+  .supervisor-rail,
+  .work-tray { min-width: 0; }
+
+  .composer { flex-wrap: wrap; }
+  .composer textarea { flex: 1 1 100%; }
+  .composer button { flex: 1 1 auto; }
+
+  /* One card per row, and the tables keep their own horizontal scroll so the
+     page body never scrolls sideways. */
+  .work-tray[open] > .tray-panel { max-height: min(70vh, 40rem); }
+  .ops-toolbar > * { flex: 1 1 auto; }
+  .ops-filters { flex: 1 1 100%; }
+  .ops-filters button { flex: 1 1 0; }
+}
+
+/* --- the workspace tray, and the panel that can stop things --------------
+ *
+ * The console at / was a second document with its own nav; /mobile was a
+ * third. Those regions are tabs in this tray now. The grid vocabulary is
+ * lifted from the console's own .nucleus-table — sticky header, value-sorted
+ * columns, right-aligned numerics, one action cell — because the product
+ * already had a table convention and a second one for the same objects would
+ * be the duplication this pass exists to remove.
+ */
+
+.tray-tabs {
+  display: flex;
+  gap: var(--shine-space-1);
+  border-bottom: 1px solid var(--shine-color-border);
+  margin-bottom: var(--shine-space-3);
+}
+
+.tray-tabs [role="tab"] {
+  min-height: var(--tap);
+  padding: 0 var(--shine-space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--shine-color-fg-muted);
+  font-weight: 550;
+}
+
+.tray-tabs [role="tab"]:hover { background: var(--shine-color-bg-subtle); color: var(--shine-color-fg); }
+
+.tray-tabs [role="tab"][aria-selected="true"] {
+  border-bottom-color: var(--shine-color-primary);
+  color: var(--shine-color-fg);
+  background: transparent;
+}
+
+.tray-panel[hidden] { display: none !important; }
+
+.ops-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--shine-space-2);
+  margin-bottom: var(--shine-space-3);
+}
+
+.ops-toolbar input[type="search"] {
+  flex: 1 1 16rem;
+  min-width: 10rem;
+  min-height: var(--tap);
+  padding: 0 var(--shine-space-3);
+  border: 1px solid var(--shine-color-border);
+  border-radius: var(--shine-radius-md);
+  background: var(--shine-color-bg);
+  color: var(--shine-color-fg);
+  font: inherit;
+}
+
+.ops-filters { display: flex; gap: var(--shine-space-1); }
+.ops-filters button { min-height: var(--tap); }
+.ops-live-only {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--shine-space-2);
+  min-height: var(--tap);
+  color: var(--shine-color-fg-muted);
+  font-size: var(--shine-text-sm);
+}
+
+.ops-note {
+  margin: 0 0 var(--shine-space-3);
+  padding: var(--shine-space-2) var(--shine-space-3);
+  border: 1px solid var(--shine-color-border);
+  border-radius: var(--shine-radius-md);
+  font-size: var(--shine-text-sm);
+}
+.ops-note[data-tone="ok"] { border-color: var(--shine-color-success); color: var(--shine-color-success); }
+.ops-note[data-tone="bad"] { border-color: var(--shine-color-danger); color: var(--shine-color-danger); }
+
+.ops-groups { display: grid; gap: var(--shine-space-5); }
+/* A grid item defaults to `min-width: auto`, which is min-content — so the
+   table's own `min-width: 34rem` blew the cell out past the viewport instead
+   of being clipped and scrolled. Measured at 375px: a 666px .ops-grid inside a
+   345px column, with the rows sitting off-screen to the right. */
+.ops-groups > .ops-group { min-width: 0; }
+
+.ops-group > header { margin-bottom: var(--shine-space-2); }
+.ops-group h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--shine-space-2);
+  margin: 0;
+  font-size: var(--shine-text-base);
+}
+.ops-group-sub {
+  margin: var(--shine-space-1) 0 0;
+  color: var(--shine-color-fg-muted);
+  font-size: var(--shine-text-xs);
+}
+
+/* Every state a grid owes the reader, said in words. An unreachable source
+   rendered as an empty list is indistinguishable from an empty one. */
+.ops-state {
+  display: flex;
+  align-items: center;
+  gap: var(--shine-space-3);
+  margin: 0;
+  padding: var(--shine-space-4);
+  border: 1px dashed var(--shine-color-border);
+  border-radius: var(--shine-radius-md);
+  color: var(--shine-color-fg-muted);
+  font-size: var(--shine-text-sm);
+}
+.ops-state[data-state="error"] {
+  border-style: solid;
+  border-color: var(--shine-color-danger);
+  color: var(--shine-color-danger);
+}
+
+.ops-grid {
+  overflow-x: auto;
+  border: 1px solid var(--shine-color-border);
+  border-radius: var(--shine-radius-md);
+  background: var(--shine-color-bg-subtle);
+}
+
+.ops-table { width: 100%; border-collapse: collapse; min-width: 44rem; }
+
+.ops-table th,
+.ops-table td {
+  padding: var(--shine-space-2) var(--shine-space-3);
+  border-bottom: 1px solid var(--shine-color-border);
+  text-align: left;
+  vertical-align: middle;
+  font-size: var(--shine-text-sm);
+}
+
+.ops-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--shine-color-bg-subtle);
+  color: var(--shine-color-fg-muted);
+  font-size: var(--shine-text-xs);
+  letter-spacing: var(--shine-tracking-caps);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ops-table thead th button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--shine-space-1);
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.ops-table thead th button:hover { color: var(--shine-color-fg); background: transparent; }
+.ops-arrow { color: var(--shine-color-primary-text); }
+
+.ops-table tbody tr:last-child td { border-bottom: 0; }
+.ops-table tbody tr:hover { background: var(--shine-color-bg); }
+.ops-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.ops-table .mono { font-family: var(--shine-font-mono); }
+
+.ops-status {
+  display: inline-flex;
+  padding: 0 var(--shine-space-2);
+  border-radius: var(--shine-radius-sm);
+  background: var(--shine-color-bg);
+  border: 1px solid var(--shine-color-border);
+  color: var(--shine-color-fg-muted);
+  font-size: var(--shine-text-xs);
+  white-space: nowrap;
+}
+.ops-status[data-tone="ok"] { border-color: var(--shine-color-success); color: var(--shine-color-success); }
+.ops-status[data-tone="bad"] { border-color: var(--shine-color-danger); color: var(--shine-color-danger); }
+.ops-status[data-tone="warn"] { border-color: var(--shine-color-warning); color: var(--shine-color-warning); }
+
+.ops-actions-head { text-align: right; }
+.ops-actions { text-align: right; white-space: nowrap; }
+.ops-actions button { min-height: var(--tap); margin-left: var(--shine-space-1); }
+/* A row with no action says why rather than showing a control that lies. */
+.ops-no-action { color: var(--shine-color-fg-muted); font-size: var(--shine-text-xs); }
+
+.ops-confirm {
+  max-width: 30rem;
+  padding: var(--shine-space-5);
+  border: 1px solid var(--shine-color-border);
+  border-radius: var(--shine-radius-lg);
+  background: var(--shine-color-bg-subtle);
+  color: var(--shine-color-fg);
+}
+.ops-confirm::backdrop { background: rgb(0 0 0 / 0.6); }
+.ops-confirm h2 { margin: 0 0 var(--shine-space-2); font-size: var(--shine-text-lg); }
+.ops-confirm p { margin: 0 0 var(--shine-space-2); }
+.ops-confirm-consequence { color: var(--shine-color-warning); font-size: var(--shine-text-sm); }
+.ops-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--shine-space-2);
+  margin-top: var(--shine-space-4);
+}
+
+@media (max-width: 40rem) {
+  .ops-toolbar input[type="search"] { flex-basis: 100%; }
+  .ops-table { min-width: 34rem; }
 }
