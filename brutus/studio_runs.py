@@ -15,6 +15,7 @@ import time
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 
+from . import process_control
 from .paths import state_path
 from .studio_collector import UTC, calendar_times, parse_time, stamp
 
@@ -149,6 +150,24 @@ def snapshot():
                         _cached = {"jobs": [], "collected_at": None, "coverage": {}}
             _checked = time.monotonic()
         return assess(_cached or {"jobs": []}, error=_error)
+
+
+@router.post("/{job_id}/{action}")
+def control(job_id: str, action: str):
+    """Turn a scheduled job off, back on, or run it now.
+
+    The board listed twenty of these with a status and a next-run time and no
+    way to touch any of them, which is a status page dressed as a console.
+    """
+    jobs = (snapshot() or {}).get("jobs") or []
+    try:
+        return process_control.studio_job_action(
+            job_id, action, jobs, os.environ.get("BRUTUS_STUDIO_SSH", "100.102.92.119")
+        )
+    except process_control.ControlError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail="The Studio did not answer in time") from exc
 
 
 @router.get("/{job_id}/log", response_class=PlainTextResponse)

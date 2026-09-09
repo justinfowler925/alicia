@@ -45,6 +45,7 @@ from .linear_surface import linear_work_surface
 from .local_llm import list_models
 from .memory import MemoryStore
 from .model_gateway import judge_with_profile
+from . import process_control
 from .nucleus import (
     build_nucleus_snapshot,
     invalidate_nucleus_cache,
@@ -1174,6 +1175,35 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             "overlay": overlay,
             "source_records_changed": False,
         }
+
+    @app.get("/api/services")
+    async def services_list() -> dict[str, Any]:
+        """Brutus's own launchd services: loaded, running, and restartable."""
+        return {"services": await asyncio.to_thread(process_control.list_services)}
+
+    @app.post("/api/services/{label}/{action}")
+    async def services_control(label: str, action: str) -> dict[str, Any]:
+        """start | stop | restart one Brutus service."""
+        try:
+            return await asyncio.to_thread(process_control.service_action, label, action)
+        except process_control.ControlError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/agents/{agent_id:path}/cancel")
+    async def agents_cancel(agent_id: str) -> dict[str, Any]:
+        """Signal one running agent thread.
+
+        The live scan is re-read here and handed to the canceller, so the pid
+        being signalled is one the board still claims — a stale row plus a
+        recycled pid is how you kill something else entirely.
+        """
+        rows = await asyncio.to_thread(_agents_merged, force=True)
+        try:
+            return await asyncio.to_thread(process_control.cancel_agent, agent_id, rows)
+        except process_control.ControlError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail="Not permitted to signal that process") from exc
 
     def _agents_merged(*, force: bool = False) -> list[dict[str, Any]]:
         rows = scan_agent_sessions(force=force)
