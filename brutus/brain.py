@@ -70,6 +70,18 @@ _INCOMPLETE_TAIL_RE = re.compile(
 )
 
 _NOT_FOUND = "Sorry, I can't find that shit."
+
+
+def _looks_not_found(reply: str) -> bool:
+    """Whether this reply is telling him the thing does not exist.
+
+    Matched loosely on purpose: the exact string is what the prompt asks for,
+    but the transcript that exposed this said "Sorry, I can't find that shit —
+    nothing in Linear or notes matching a UI/UX audit redesign", and a guard
+    that only catches the bare sentence would have let that through.
+    """
+    text = (reply or "").casefold()
+    return "can't find that" in text or "cannot find that" in text
 _UNBACKED_ACTION_CLAIM = re.compile(
     r"\b(?:queued|drafted|proposal (?:is )?(?:ready|queued)|say yes to do it)\b",
     re.IGNORECASE,
@@ -495,6 +507,7 @@ def brain_reply(
     allowed = _ticket_ids(*[m.get("content") for m in messages], standing_notes)
     challenged = False
     challenged_action_claim = False
+    challenged_not_found = False
 
     for _ in range(_MAX_ROUNDS):
         meta["rounds"] += 1
@@ -576,6 +589,37 @@ def brain_reply(
                     reply = re.sub(
                         rf"\b{re.escape(tid)}\b", f"{tid} (unverified)", reply, flags=re.IGNORECASE
                     )
+            # The not-found line is reserved for a tool that came back empty, and
+            # "empty" has to mean every surface the work could be on. Asked for
+            # the status of "the UI/UX audit redesign", Brutus searched Linear
+            # and notes, said it could not find it, and then OFFERED to check
+            # agent threads — where 55 threads matched the words and two were
+            # running at that moment. Offering the surface that holds the answer
+            # is knowing where it is and declining to look.
+            #
+            # Challenged once, with the tool in reach, exactly the way an
+            # invented ticket is. Asking is not a control; a re-ask WITH the
+            # surface reachable usually is.
+            if (
+                not challenged_not_found
+                and _looks_not_found(reply)
+                and "list_agent_threads" not in meta["tools"]
+            ):
+                challenged_not_found = True
+                meta["challenged_not_found"] = True
+                messages.append({"role": "assistant", "content": resp.content})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "You have not searched agent threads this turn, and most of his "
+                            "work in flight lives there rather than in Linear or notes. Call "
+                            "list_agent_threads with the words he used before you tell him it "
+                            "does not exist."
+                        ),
+                    }
+                )
+                continue
             meta["ms"] = int((time.monotonic() - started) * 1000)
             return reply or _NOT_FOUND, meta
 

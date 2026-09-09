@@ -653,3 +653,88 @@ def test_the_round_cap_fails_honest():
         reply, meta = brain_reply(_cfg(), _registry(), history=_history(("user", "loop forever")))
     assert meta["error"] == "tool round cap"
     assert "say it again" in reply
+
+
+# --- "I can't find it" has to mean every surface, not the first two ----------
+
+
+def test_not_found_is_challenged_until_agent_threads_have_been_searched():
+    """From the transcript of 2026-09-09, session 7ac0ae3e2421, turn 1816.
+
+    Asked "can you tell me the status of the UI/UX audit redesign?", Brutus
+    answered "Sorry, I can't find that shit — nothing in Linear or notes
+    matching a UI/UX audit redesign. ... Want me to check agent threads for
+    it?" — and 55 agent threads matched those words, two of them running.
+    Offering the surface that holds the answer is knowing where it is and
+    declining to look.
+    """
+    searched: list[dict] = []
+    registry = _registry()
+    registry.register(
+        Tool(
+            name="list_agent_threads",
+            description="Codex, Cursor and Claude threads on this laptop.",
+            parameters={"type": "object", "properties": {"q": {"type": "string"}}},
+            fn=lambda **kw: searched.append(kw)
+            or {"threads": [{"title": "Company page UI/UX audit and redesign", "state": "running"}]},
+        )
+    )
+    responses = iter(
+        [
+            _text_resp("Sorry, I can't find that shit — nothing in Linear or notes matching that."),
+            _tool_resp("list_agent_threads", {"q": "UI/UX audit redesign"}),
+            _text_resp("Two threads are on it — the company page audit is running."),
+        ]
+    )
+
+    with patch("brutus.brain._create", side_effect=lambda cfg, **kw: next(responses)):
+        reply, meta = brain_reply(
+            _cfg(),
+            registry,
+            history=_history(("user", "can you tell me the status of the UI/UX audit redesign?")),
+        )
+
+    assert searched, "it declared not-found without ever searching agent threads"
+    assert meta["challenged_not_found"] is True
+    assert "can't find that" not in reply.casefold()
+    assert "audit is running" in reply
+
+
+def test_not_found_stands_once_the_threads_really_were_searched():
+    """The guard is one challenge, not a loop. An honest empty answer survives."""
+    registry = _registry()
+    registry.register(
+        Tool(
+            name="list_agent_threads",
+            description="Codex, Cursor and Claude threads on this laptop.",
+            parameters={"type": "object", "properties": {"q": {"type": "string"}}},
+            fn=lambda **kw: {"threads": []},
+        )
+    )
+    responses = iter(
+        [
+            _tool_resp("list_agent_threads", {"q": "renewal tracker rewrite"}),
+            _text_resp("Sorry, I can't find that shit."),
+        ]
+    )
+
+    with patch("brutus.brain._create", side_effect=lambda cfg, **kw: next(responses)):
+        reply, meta = brain_reply(
+            _cfg(), registry, history=_history(("user", "where is the renewal tracker rewrite?"))
+        )
+
+    assert reply == "Sorry, I can't find that shit."
+    assert "challenged_not_found" not in meta
+
+
+def test_the_not_found_guard_matches_the_sentence_as_actually_spoken():
+    """The prompt asks for the bare line; the transcript had it with a clause
+    appended, and a guard that only caught the exact string missed it."""
+    from brutus.brain import _looks_not_found
+
+    assert _looks_not_found("Sorry, I can't find that shit.")
+    assert _looks_not_found(
+        "Sorry, I can't find that shit — nothing in Linear or notes matching a UI/UX audit redesign."
+    )
+    assert _looks_not_found("I cannot find that anywhere.")
+    assert not _looks_not_found("Two threads are on it — the company page audit is running.")
