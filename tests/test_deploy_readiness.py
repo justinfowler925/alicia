@@ -49,3 +49,28 @@ def test_deploy_builds_locked_immutable_runtime_and_recycles_voice():
     assert 'unload_job "$VOICE_AGENT_LABEL"' in source
     assert 'wait_for_voice_actor "$PRE_VOICE_PID"' in source
     assert "left running; restart separately" not in source
+
+
+def test_runtime_switch_replaces_directory_symlink_without_following_it(tmp_path):
+    import os
+    import sys
+
+    app = tmp_path / "app"
+    old = app / ".venvs" / "old"
+    new = app / ".venvs" / "new"
+    old.mkdir(parents=True)
+    (new / "bin").mkdir(parents=True)
+    (new / "bin" / "python").symlink_to(sys.executable)
+    active = app / ".runtime-venv"
+    active.symlink_to(".venvs/old")
+    source = DEPLOY.read_text()
+    start = source.index('ln -sfn ".venvs/$TARGET_SHA"')
+    end = source.index("# Prove the pin", start)
+    result = subprocess.run(
+        ["bash", "-c", source[start:end]],
+        env=dict(os.environ, APP=str(app), TARGET_SHA="new", RUNTIME_ROOT=str(new), RUNTIME_VENV=str(active)),
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert active.resolve() == new
+    assert list(old.iterdir()) == []

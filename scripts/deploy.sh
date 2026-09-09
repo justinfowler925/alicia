@@ -245,7 +245,10 @@ if ! ( cd "$APP" && UV_PROJECT_ENVIRONMENT="$RUNTIME_ROOT" \
 fi
 rm -f "$INSTALL_LOG"
 ln -sfn ".venvs/$TARGET_SHA" "$APP/.runtime-venv.next"
-mv -f "$APP/.runtime-venv.next" "$RUNTIME_VENV"
+# macOS mv follows an existing directory symlink and moves the source INSIDE
+# the old runtime. Replace the link itself atomically instead.
+"$RUNTIME_ROOT/bin/python" -c 'import os,sys; os.replace(sys.argv[1], sys.argv[2])' \
+  "$APP/.runtime-venv.next" "$RUNTIME_VENV" || exit 1
 
 # Prove the pin BEFORE restarting, not after. This is the check whose absence
 # let a green deploy run week-old code.
