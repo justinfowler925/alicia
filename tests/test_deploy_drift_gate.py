@@ -37,3 +37,25 @@ def test_old_checkout_accepts_only_dirty_paths_that_match_target(tmp_path: Path)
     (repo / "landed.txt").write_text("different\n", encoding="utf-8")
     rejected = subprocess.run([str(gate), str(repo), target])
     assert rejected.returncode != 0
+
+
+def test_deploy_can_target_a_named_ref_but_never_silently():
+    """The failure this file guards was a SILENT unmerged branch.
+
+    A ref named on the command line is the opposite of that, and it is needed:
+    a machine whose gh credential cannot push has no other way to deploy a
+    tested fix. So it is allowed, and it shouts.
+    """
+    from pathlib import Path
+
+    deploy = (Path(__file__).parents[1] / "scripts/deploy.sh").read_text()
+
+    assert 'TARGET_REF="${BRUTUS_DEPLOY_REF:-origin/main}"' in deploy
+    assert "--ref)" in deploy
+    assert 'git -C "$APP" checkout -q --detach "$TARGET_REF"' in deploy
+    # It announces itself, records itself, and reports itself afterwards.
+    assert 'DEPLOYING $TARGET_REF — NOT origin/main' in deploy
+    assert '"ref":"%s"' in deploy
+    assert "NOT origin/main — a plain deploy will replace it" in deploy
+    # And the default is unchanged.
+    assert deploy.count('BRUTUS_DEPLOY_REF:-origin/main') == 1

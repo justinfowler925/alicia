@@ -14,6 +14,18 @@
 #
 #   ./scripts/deploy.sh            # deploy origin/main
 #   ./scripts/deploy.sh --status   # what is running, and is it current?
+#   ./scripts/deploy.sh --ref <r>  # deploy something else, deliberately
+#
+# The --ref escape hatch exists because the failure this file was written to
+# prevent was a SILENT one: the daemon twice served an unmerged branch that
+# nobody chose. A ref named on the command line is the opposite of that. It is
+# still a hazard, so it announces itself, it is recorded in the deploy manifest,
+# and `--status` reports the drift until the commits land on origin/main — at
+# which point a plain deploy replaces them.
+#
+# It is needed in practice: a machine whose gh credential lacks write access to
+# the repo cannot land a fix, and "you may not deploy a tested fix from here"
+# is not a safety property, it is a locked room.
 set -uo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd -P)
@@ -32,6 +44,17 @@ CORE_LABEL="com.clearspeed.brutus"
 VOICE_AGENT_LABEL="com.clearspeed.brutus-livekit-agent"
 DEPLOY_SERVICES_STOPPED="${BRUTUS_DEPLOY_SERVICES_STOPPED:-0}"
 DEPLOY_SUCCEEDED=0
+TARGET_REF="${BRUTUS_DEPLOY_REF:-origin/main}"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --ref)
+      [ -n "${2:-}" ] || { echo "--ref needs a git ref"; exit 2; }
+      TARGET_REF="$2"; export BRUTUS_DEPLOY_REF="$2"; shift 2 ;;
+    --ref=*) TARGET_REF="${1#--ref=}"; export BRUTUS_DEPLOY_REF="$TARGET_REF"; shift ;;
+    *) break ;;
+  esac
+done
 
 running_sha () { git -C "$APP" rev-parse --short HEAD 2>/dev/null || echo "-"; }
 service_pid () {
@@ -135,6 +158,12 @@ if [ "${1:-}" = "--status" ]; then
   echo "running:    $(running_sha)"
   git -C "$REPO" fetch -q origin 2>/dev/null
   echo "origin/main: $(git -C "$REPO" rev-parse --short origin/main)"
+  DEPLOYED_REF=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("ref","origin/main"))' \
+    "$APP/.brutus-deploy.json" 2>/dev/null || echo "origin/main")
+  echo "deployed ref: $DEPLOYED_REF"
+  if [ "$DEPLOYED_REF" != "origin/main" ]; then
+    echo "            NOT origin/main — a plain deploy will replace it"
+  fi
   echo "state:      $STATE ($(ls "$STATE" 2>/dev/null | wc -l | tr -d ' ') files)"
   printf "service:    "
   curl -s -m 5 -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:$PORT/api/session/list" || echo "down"
@@ -142,6 +171,14 @@ if [ "${1:-}" = "--status" ]; then
     && echo "plist:      in sync with the deployed code" \
     || echo "plist:      DRIFTED from the deployed code — run a deploy"
   exit 0
+fi
+
+if [ "$TARGET_REF" != "origin/main" ]; then
+  echo "############################################################"
+  echo "##  DEPLOYING $TARGET_REF — NOT origin/main"
+  echo "##  The next plain ./scripts/deploy.sh replaces this with"
+  echo "##  origin/main. Land these commits to make it permanent."
+  echo "############################################################"
 fi
 
 echo "==> state lives at $STATE (outside every checkout)"
@@ -163,10 +200,10 @@ if ! FETCH_ERR=$(git -C "$REPO" fetch origin 2>&1); then
   exit 1
 fi
 if [ -e "$APP/.git" ] && [ -n "$(git -C "$APP" status --porcelain --untracked-files=all)" ]; then
-  if "$SCRIPT_DIR/check-deploy-drift.sh" "$APP" origin/main --prepare; then
-    echo "    dirty deployed checkout already matches origin/main; target checkout will reconcile it"
+  if "$SCRIPT_DIR/check-deploy-drift.sh" "$APP" "$TARGET_REF" --prepare; then
+    echo "    dirty deployed checkout already matches $TARGET_REF; target checkout will reconcile it"
   else
-    echo "    FATAL: dirty deployed checkout differs from origin/main — preserve and land or discard it first"
+    echo "    FATAL: dirty deployed checkout differs from $TARGET_REF — preserve and land or discard it first"
     git -C "$APP" status --short | sed 's/^/      /'
     exit 1
   fi
@@ -194,23 +231,23 @@ if [ ! -d "$APP/.git" ] && [ ! -f "$APP/.git" ]; then
   mkdir -p "$(dirname "$APP")"
   # Detached on purpose: a named branch here would collide with the primary
   # checkout wanting the same branch, and would drift if anyone committed to it.
-  git -C "$REPO" worktree add --detach "$APP" origin/main || exit 1
+  git -C "$REPO" worktree add --detach "$APP" "$TARGET_REF" || exit 1
 else
-  git -C "$APP" checkout -q --detach origin/main || exit 1
+  git -C "$APP" checkout -q --detach "$TARGET_REF" || exit 1
 fi
 echo "    now at $(running_sha)  $(git -C "$APP" log --oneline -1 --format=%s | cut -c1-60)"
 
-WANT=$(git -C "$REPO" rev-parse --short origin/main)
+WANT=$(git -C "$REPO" rev-parse --short "$TARGET_REF")
 if [ "$(running_sha)" != "$WANT" ]; then
-  echo "    FATAL: worktree is at $(running_sha), origin/main is $WANT"; exit 1
+  echo "    FATAL: worktree is at $(running_sha), $TARGET_REF is $WANT"; exit 1
 fi
 
 # The process names the artifact it serves. Endpoint reachability can otherwise
 # bless yesterday's process after a deploy that changed nothing.
 DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 CONFIG_HASH=$(shasum -a 256 "$APP/config.yaml" | awk '{print $1}')
-printf '{"sha":"%s","deployed_at":"%s","config_sha256":"%s"}\n' \
-  "$(git -C "$APP" rev-parse HEAD)" "$DEPLOYED_AT" "$CONFIG_HASH" > "$APP/.brutus-deploy.json"
+printf '{"sha":"%s","deployed_at":"%s","config_sha256":"%s","ref":"%s"}\n' \
+  "$(git -C "$APP" rev-parse HEAD)" "$DEPLOYED_AT" "$CONFIG_HASH" "$TARGET_REF" > "$APP/.brutus-deploy.json"
 
 # This script is a file the checkout above just rewrote, and bash reads a script
 # incrementally — the deploy that installed the /api/todos check ran the version
