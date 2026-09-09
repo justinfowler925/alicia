@@ -302,8 +302,19 @@ def normalized_receipt(raw, ref):
         "duration_seconds": duration,
         "ref": ref,
         "error": redact(str(raw.get("error") or ""))[:1000],
-        "basis": "durable receipt",
+        "basis": redact(str(raw.get("verification_scope") or "durable receipt"))[:300],
     }
+
+
+def attach_verification(job, raw, ref):
+    """A diagnostic check must never replace the scheduled publication result."""
+    receipt = normalized_receipt(raw, ref)
+    job["verification"] = receipt
+    when = receipt.get("finished_at") or receipt.get("started_at") or "time unknown"
+    job["notes"].append(
+        "Verification: " + receipt["status"] + " at " + when + "; " + receipt["basis"]
+        + ". Scheduled run status is retained."
+    )
 
 
 def collect(home=None, state=STATE):
@@ -561,6 +572,13 @@ def collect(home=None, state=STATE):
             job["logs"]["receipt"] = str(path)
             if isinstance(raw, dict):
                 apply_receipts(job, [*(job.get("evidence") or []), normalized_receipt(raw, str(path))])
+                if raw.get("verification_scope"):
+                    job["notes"].append(redact(str(raw["verification_scope"]))[:300])
+        if desc.get("verification_receipt_path"):
+            path = Path(desc["verification_receipt_path"]).expanduser()
+            raw = read_json(path)
+            if isinstance(raw, dict):
+                attach_verification(job, raw, str(path))
     # Disappearing definitions do not silently disappear from the dashboard.
     for jid, previous in prior.items():
         if jid not in jobs:

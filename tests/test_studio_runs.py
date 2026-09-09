@@ -302,3 +302,20 @@ def test_scheduler_reload_does_not_clear_a_known_failure(tmp_path):
     actual = next(j for j in data["jobs"] if j["id"] == jid)
     assert actual["status"] == "failure"
     assert "retained last failure" in actual["notes"][0]
+
+
+def test_read_only_verification_does_not_mask_failed_publication():
+    from brutus.studio_collector import attach_verification
+    j = job(status="failure", last_run_at="2026-09-08T10:00:00Z")
+    attach_verification(j, {"status": "success", "finished_at": "2026-09-09T14:00:00Z",
+                           "verification_scope": "Read-only: notifications and writes not executed"}, "check.json")
+    assert j["status"] == "failure"
+    assert j["last_run_at"] == "2026-09-08T10:00:00Z"
+    assert j["verification"]["status"] == "success"
+    assert "Scheduled run status is retained" in j["notes"][-1]
+    assert report(j)["jobs"][0]["health"] == "failed"
+
+
+def test_publication_only_receipt_preserves_scope():
+    r = normalized_receipt({"status": "success", "verification_scope": "Publication only; notifications disabled"}, "receipt.json")
+    assert r["basis"] == "Publication only; notifications disabled"
