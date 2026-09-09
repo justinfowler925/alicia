@@ -282,3 +282,22 @@ def test_actual_runner_receipts_preserve_failure_and_timestamps(tmp_path):
         assert receipt["finished_at"] >= receipt["started_at"]
         assert receipt["duration_seconds"] >= 0
         assert (tmp_path / "fixture.json").stat().st_mode & 0o777 == 0o600
+
+
+def test_scheduler_reload_does_not_clear_a_known_failure(tmp_path):
+    import json
+    import plistlib
+    from brutus.studio_collector import collect
+
+    agents = tmp_path / "Library/LaunchAgents"
+    agents.mkdir(parents=True)
+    jid = "com.clearspeed.fixture"
+    (agents / (jid + ".plist")).write_bytes(plistlib.dumps({"Label": jid, "StartInterval": 60}))
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "snapshot.json").write_text(json.dumps({"jobs": [job(id=jid, status="failure", runs=3)]}))
+    with patch("brutus.studio_collector.read_launch_state", return_value={"loaded": True, "runs": 0}):
+        data = collect(home=tmp_path, state=state)
+    actual = next(j for j in data["jobs"] if j["id"] == jid)
+    assert actual["status"] == "failure"
+    assert "retained last failure" in actual["notes"][0]

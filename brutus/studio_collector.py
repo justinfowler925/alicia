@@ -359,9 +359,11 @@ def collect(home=None, state=STATE):
                     job["status"] = "running"
                     job["notes"].append("Process currently present; this alone does not prove feed delivery")
                 elif observed.get("runs") == 0:
-                    job["status"] = "unknown"
+                    job["status"] = "failure" if previous.get("status") == "failure" else "unknown"
                     job["notes"].append(
-                        "Never ran in this scheduler session"
+                        "Scheduler reloaded; retained last failure until a new run"
+                        if job["status"] == "failure"
+                        else "Never ran in this scheduler session"
                         if not job["last_run_at"]
                         else "Scheduler restarted; retained prior run evidence"
                     )
@@ -434,6 +436,19 @@ def collect(home=None, state=STATE):
                         str(path),
                     )
                 )
+            elif filename == "history.md":
+                dated = re.search(r"\|\s*(\d{4}-[^| ]+)\s*\|\s*studio-launchd\s*\|", line)
+                if dated:
+                    records.append(
+                        normalized_receipt(
+                            {
+                                "finished_at": dated[1],
+                                "status": "unknown",
+                                "error": "Legacy history records the run time but not its exit status",
+                            },
+                            str(path),
+                        )
+                    )
         observed_status = job["status"]
         apply_receipts(job, records)
         if observed_status in {"failure", "running"}:
