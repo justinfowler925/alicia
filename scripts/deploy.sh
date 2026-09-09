@@ -240,7 +240,7 @@ if [ ! -x "$RUNTIME_ROOT/bin/python" ]; then
 fi
 if ! ( cd "$APP" && UV_PROJECT_ENVIRONMENT="$RUNTIME_ROOT" \
         "${UV:-/opt/homebrew/bin/uv}" sync -q --locked --extra dev --extra voice \
-        --no-editable --python "$RUNTIME_ROOT/bin/python" ) >"$INSTALL_LOG" 2>&1; then
+        --no-editable --reinstall-package brutus --python "$RUNTIME_ROOT/bin/python" ) >"$INSTALL_LOG" 2>&1; then
   echo "    install failed:"; tail -5 "$INSTALL_LOG" | sed 's/^/      /'; rm -f "$INSTALL_LOG"; exit 1
 fi
 rm -f "$INSTALL_LOG"
@@ -257,6 +257,11 @@ case "$RESOLVED" in
   "$RUNTIME_ROOT"/*) echo "    imports brutus from immutable runtime $TARGET_SHA" ;;
   *) echo "    FATAL: runtime imports brutus from ${RESOLVED:-nowhere}, not $RUNTIME_ROOT"; exit 1 ;;
 esac
+
+# uv's default local-project build cache can survive source-only changes.
+# A new venv path alone does not prove that its wheel contains this release.
+"$RUNTIME_VENV/bin/python" "$APP/scripts/verify-runtime-package.py" \
+  "$APP/brutus" "${RESOLVED%/__init__.py}" || exit 1
 
 # Atlas/Codex adapters receive a separate least-authority credential that can
 # append idempotent event receipts but cannot exercise owner state gates.

@@ -69,8 +69,37 @@ def test_runtime_switch_replaces_directory_symlink_without_following_it(tmp_path
     result = subprocess.run(
         ["bash", "-c", source[start:end]],
         env=dict(os.environ, APP=str(app), TARGET_SHA="new", RUNTIME_ROOT=str(new), RUNTIME_VENV=str(active)),
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
     assert active.resolve() == new
     assert list(old.iterdir()) == []
+
+
+def test_release_payload_gate_rejects_cached_wheel_and_missing_modules(tmp_path):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "runtime_verify", ROOT / "scripts/verify-runtime-package.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    source, installed = tmp_path / "source", tmp_path / "installed"
+    source.mkdir()
+    installed.mkdir()
+    (source / "ui.py").write_text("new release")
+    (installed / "ui.py").write_text("old wheel")
+    import pytest
+
+    with pytest.raises(ValueError, match="ui.py"):
+        module.verify(source, installed)
+    (installed / "ui.py").write_text("new release")
+    assert module.verify(source, installed) == 1
+    (source / "studio_ui.py").write_text("new module")
+    with pytest.raises(ValueError, match="studio_ui.py"):
+        module.verify(source, installed)
+    text = DEPLOY.read_text()
+    assert "--reinstall-package brutus" in text
+    assert "scripts/verify-runtime-package.py" in text
