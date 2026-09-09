@@ -437,10 +437,18 @@ if [ -f "$HOME/Library/LaunchAgents/$VOICE_AGENT_LABEL.plist" ]; then
 fi
 
 echo "==> verifying the layer you actually use"
+# `/` is the surface now, not a second document, so it is what gets checked.
+wait_for_http_200 "http://127.0.0.1:$PORT/" \
+  && echo "    / 200" || { echo "    / unavailable"; FAIL=1; }
 wait_for_http_200 "http://127.0.0.1:$PORT/session" \
   && echo "    /session 200" || { echo "    /session unavailable"; FAIL=1; }
-wait_for_http_200 "http://127.0.0.1:$PORT/mobile" \
-  && echo "    /mobile 200" || { echo "    /mobile unavailable"; FAIL=1; }
+wait_for_http_200 "http://127.0.0.1:$PORT/console" \
+  && echo "    /console 200" || { echo "    /console unavailable"; FAIL=1; }
+# /mobile is a permanent redirect to the one surface. Asserting 200 here is what
+# failed the first deploy of that change — the verifier outlived the route.
+MOBILE_CODE=$(curl -s -m 5 -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT/mobile")
+[ "$MOBILE_CODE" = "308" ] \
+  && echo "    /mobile 308 -> /" || { echo "    /mobile answered $MOBILE_CODE, expected 308"; FAIL=1; }
 wait_for_http_200 "http://127.0.0.1:$PORT/api/supervisor" \
   && echo "    /api/supervisor 200" || { echo "    /api/supervisor unavailable"; FAIL=1; }
 
