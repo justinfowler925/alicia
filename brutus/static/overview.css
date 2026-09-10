@@ -48,6 +48,17 @@ body { overflow-y: auto; }
 #sessions-more { margin-top: var(--shine-space-3); }
 .voice-shell .work-tray, .voice-shell.workspace-open .work-tray { max-height: none; overflow: visible; min-height: 0; }
 .voice-shell .tray-panel { overflow: visible; max-height: none; }
+.voice-shell .work-tray[open] > .tray-panel,
+.voice-shell .work-tray[open] .qcol,
+.voice-shell .work-tray[open] .qcol-list,
+.voice-shell .work-tray[open] .captured-details .scroll {
+  height: auto; max-height: none; overflow-y: visible;
+}
+.archive-sessions { margin-top: var(--shine-space-3); font-size: var(--shine-text-sm); }
+.archive-sessions summary { cursor: pointer; }
+.archive-list { list-style: none; padding: 0; }
+.archive-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--shine-space-3); padding: var(--shine-space-2) 0; border-bottom: 1px solid var(--shine-color-border); }
+.archive-list span { overflow-wrap: anywhere; min-width: 0; }
 .tray-tabs { flex-wrap: wrap; }
 .ops, .ops-groups, .ops-group, .ops-grid { min-width: 0; max-width: 100%; }
 .ops-grid { overflow-x: auto; }

@@ -470,6 +470,7 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         )
     app.state.supervisor = SupervisorRuntime(
         judge=supervisor_judge,
+        overlays=memory.list_agent_overlays,
         stale_after_seconds=max(60.0, float(cfg.stale_inflight_minutes) * 60)
     )
 

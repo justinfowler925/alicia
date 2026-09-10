@@ -15,6 +15,7 @@ const sessions = Array.from({ length: 15 }, (_, i) => ({
  try {
   const page = await browser.newPage();
   const errors = [];
+  const archived = new Set();
   page.on('pageerror', e => errors.push(e.message));
   await page.route('**/*', async route => {
    const u = new URL(route.request().url());
@@ -24,11 +25,17 @@ const sessions = Array.from({ length: 15 }, (_, i) => ({
    }
    if (u.pathname.endsWith('/events')) return route.fulfill({contentType:'text/event-stream', body:': fixture\n\n'});
    let data = {};
+   if (u.pathname.startsWith('/api/agents/') && route.request().method() === 'PATCH') {
+    const id = decodeURIComponent(u.pathname.slice('/api/agents/'.length));
+    if (route.request().postDataJSON().archived) archived.add(id); else archived.delete(id);
+    data = {id,archived:archived.has(id)};
+   }
+   if (u.pathname === '/api/agents') data = {agents:sessions.map(s=>({...s,hidden:archived.has(s.id)}))};
    if (u.pathname === '/api/session/open') data = { session_id:'fixture' };
    if (u.pathname === '/api/session/fixture') data = { turns:[{id:'u1',role:'user',text:'Do not show every word.'},{id:'a1',role:'assistant',text:'I’ll keep intent and progress visible. The full response stays available on demand.'}],fields:[],artifacts:[] };
-   if (u.pathname === '/api/supervisor') data = {sessions,counts:{total:15,live:15}};
+   if (u.pathname === '/api/supervisor') data = {sessions:sessions.filter(s=>!archived.has(s.id)),counts:{total:15-archived.size,live:15-archived.size}};
    if (u.pathname === '/api/todos') data = {todos:[],stages:[]};
-   if (u.pathname === '/api/nucleus') data = {projects:[{id:'brutus',name:'Brutus',status:'needs_you',ticket_count:3,thread_count:6,recent_thread_count:6}]};
+   if (u.pathname === '/api/nucleus') data = {projects:Array.from({length:30},(_,i)=>({id:`brutus-${i}`,name:`Brutus ${i}`,status:'needs_you',ticket_count:3,thread_count:6,recent_thread_count:6}))};
    return route.fulfill({json:data});
   });
   await page.goto('http://brutus.test/session');
@@ -42,6 +49,12 @@ const sessions = Array.from({ length: 15 }, (_, i) => ({
   await page.locator('#sessions-more').click();
   assert.equal(await page.locator('.agent-strip > li').count(),15);
   assert.equal(await page.locator('#sessions-more').isVisible(),false);
+  await page.getByRole('button',{name:'Archive from Brutus'}).first().click();
+  await page.waitForFunction(()=>document.querySelectorAll('.agent-strip > li').length===14);
+  await page.locator('#archived-sessions > summary').click();
+  await page.locator('#archive-list button').click();
+  await page.waitForFunction(()=>document.querySelectorAll('.agent-strip > li').length===15);
+  assert.equal(archived.size,0);
   await page.locator('.work-tray > summary').click();
   for (const tab of ['projects','work','queue','sites','running']) {
    await page.locator(`#tab-${tab}`).click();
@@ -59,7 +72,22 @@ const sessions = Array.from({ length: 15 }, (_, i) => ({
    if(layout.overflow) console.log(await page.evaluate(()=>[...document.querySelectorAll("body *")].filter(el=>el.getBoundingClientRect().right>innerWidth).map(el=>[el.tagName,el.className,el.getBoundingClientRect().width]).slice(0,20)));
    assert.equal(layout.overflow,false,`horizontal overflow at ${width}`);
    assert.equal(layout.ordered,true,`overlapping sections at ${width}`);
+   const scrollers = await page.locator('.work-tray').evaluate(tray=>[...tray.querySelectorAll('*')].filter(el=>{
+    const style=getComputedStyle(el);
+    return el.getClientRects().length && /auto|scroll/.test(style.overflowY) && el.scrollHeight>el.clientHeight+2;
+   }).map(el=>el.className));
+   assert.deepEqual(scrollers,[],`nested vertical scrolling at ${width}`);
   }
+  await page.locator('#tab-queue').click();
+  await page.locator('#ideas-list').evaluate(host=>{
+   const col=document.createElement('section');col.className='qcol';
+   const list=document.createElement('ul');list.className='qcol-list';
+   for(let i=0;i<30;i++){const li=document.createElement('li');li.textContent=`Long queue item ${i}: preserve page scrolling without a separate column scrollbar.`;list.append(li);}
+   col.append(list);host.append(col);
+  });
+  await page.setViewportSize({width:390,height:700});
+  assert.equal(await page.locator('.qcol-list').last().evaluate(el=>el.scrollHeight>el.clientHeight+2),false);
+  await page.locator('#tab-projects').click();
   await page.locator('#conversation-details > summary').click();
   assert.equal(await page.locator('#say').isVisible(),true);
   await page.locator('#mute').click();
@@ -74,6 +102,6 @@ const sessions = Array.from({ length: 15 }, (_, i) => ({
    await page.screenshot({path:`/tmp/brutus-overview-${width}.png`,fullPage:true});
   }
   assert.deepEqual(errors,[]);
-  console.log('PASS: 15 sessions; paging, readback, restored history, stable expansion, five workspace tabs, mute and four viewport layouts.');
+  console.log('PASS: archive/restore; 30 projects and long queue without nested vertical scrolling; 15 sessions, paging, readback, five workspace tabs and four viewport layouts.');
  } finally { await browser.close(); }
 })().catch(e=>{console.error(e);process.exitCode=1;});

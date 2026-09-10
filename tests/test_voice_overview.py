@@ -25,6 +25,18 @@ def test_snapshot_never_waits_for_summary_lock_or_calls_provider(tmp_path):
     assert result["counts"]["total"] == 1
 
 
+def test_archived_sessions_disappear_from_reads_and_supervision_and_can_return(tmp_path):
+    source = tmp_path / "archived.jsonl"
+    _write(source, "assistant", "Working on the requested task.")
+    overlays = {"codex:local:one": {"archived": True}}
+    runtime = SupervisorRuntime(tmp_path / "s.sqlite", scanner=lambda **_: [_row(source)], overlays=lambda: overlays)
+    assert runtime.snapshot()["sessions"] == []
+    assert runtime.observe()["sessions"] == []
+    overlays["codex:local:one"]["archived"] = False
+    assert len(runtime.snapshot()["sessions"]) == 1
+    assert len(runtime.observe()["sessions"]) == 1
+
+
 def test_ordinary_sessions_receive_summaries_without_interruptions(tmp_path: Path):
     one, two = tmp_path / "one.jsonl", tmp_path / "two.jsonl"
     _write(one, "assistant", "The parser tests passed.")

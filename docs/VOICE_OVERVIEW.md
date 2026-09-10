@@ -9,6 +9,10 @@ Claude/Cursor/OpenAI session summaries, and existing workspace tools below.
 - Expanding a session exposes next action, evidence, and Discuss with Brutus.
   This asks Brutus about that exact session; it does not silently send commands
   to another provider. Existing proposal gates still apply to agent handoffs.
+- Archive from Brutus hides a session using the existing local archive overlay.
+  Archived sessions exposes Restore. Neither action stops a process or deletes
+  a provider conversation. Running → Cancel remains the explicit process stop.
+  The same overlay filters background supervision and spoken status queries.
 - Ordinary sessions receive structured judgments within the existing one-call
   sweep budget. Pending sessions are filled in on later sweeps. Failed provider
   attempts are cached until the source changes. Progress does not earn a spoken
@@ -24,6 +28,9 @@ Claude/Cursor/OpenAI session summaries, and existing workspace tools below.
   when opened. Projects & work expands in document flow, preserving all five
   existing workspace views and their table engine. Tables scroll horizontally
   inside their own container on narrow screens.
+- Expanded workspace panels and Queue columns have no vertical height cap.
+  Regression fixtures contain 30 projects and a long Queue column so checking
+  section order alone cannot accidentally pass while a nested scroller remains.
 
 ## Verification
 

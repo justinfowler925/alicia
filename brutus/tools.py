@@ -841,7 +841,7 @@ def build_default_registry(
         supervisor_judge = lambda prompt: judge_with_profile(
             runtime_cfg, "supervisor", prompt, cwd=Path(__file__).resolve().parents[1]
         )
-    supervisor = SupervisorRuntime(judge=supervisor_judge)
+    supervisor = SupervisorRuntime(judge=supervisor_judge, overlays=memory.list_agent_overlays)
     reg = ToolRegistry()
     reg.register(
         Tool(

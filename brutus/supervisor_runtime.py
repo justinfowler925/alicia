@@ -17,7 +17,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from .agent_sessions import filter_cockpit, read_transcript_delta, scan_agent_sessions
+from .agent_sessions import filter_cockpit, merge_overlays, read_transcript_delta, scan_agent_sessions
 from .paths import state_path
 from .session_supervisor import SessionAssessment, assess_session, redact_supervisor_transcript
 
@@ -43,12 +43,14 @@ class SupervisorRuntime:
         *,
         scanner: Callable[..., list[dict[str, Any]]] = scan_agent_sessions,
         judge: Judge | None = None,
+        overlays: Callable[[], dict[str, dict[str, Any]]] | None = None,
         stale_after_seconds: float = 45 * 60,
     ) -> None:
         self.path = Path(path) if path else state_path("supervisor.sqlite")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.scanner = scanner
         self.judge = judge
+        self.overlays = overlays or dict
         self.stale_after_seconds = stale_after_seconds
         self._lock = threading.Lock()
         self._init_db()
@@ -122,7 +124,7 @@ class SupervisorRuntime:
 
     def snapshot(self, *, force: bool = False, limit: int = 40) -> dict[str, Any]:
         """Read catalog and persisted judgments without waiting on a model call."""
-        rows = filter_cockpit(self.scanner(force=force))[:max(1, min(limit, 100))]
+        rows = filter_cockpit(merge_overlays(self.scanner(force=force), self.overlays()))[:max(1, min(limit, 100))]
         sessions = []
         for row in rows:
             agent_id = str(row.get("id") or "")
@@ -156,7 +158,7 @@ class SupervisorRuntime:
     def observe(self, *, force: bool = False, limit: int = 40) -> dict[str, Any]:
         """Return current sessions and the highest-value earned intervention."""
         with self._lock:
-            rows = filter_cockpit(self.scanner(force=force))[: max(1, min(limit, 100))]
+            rows = filter_cockpit(merge_overlays(self.scanner(force=force), self.overlays()))[: max(1, min(limit, 100))]
             rows.sort(key=lambda row: str(row.get("state")) not in {"approval_needed", "failed", "blocked"})
             sessions: list[dict[str, Any]] = []
             interventions: list[dict[str, Any]] = []
@@ -267,6 +269,10 @@ class SupervisorRuntime:
                 if assessment.should_intervene:
                     interventions.append({"session": slim, **assessment.to_dict()})
 
+            # An archive may land while a provider judgment is in flight.
+            archived = {key for key, value in self.overlays().items() if value.get("archived")}
+            sessions = [row for row in sessions if row["id"] not in archived]
+            interventions = [item for item in interventions if item["session"]["id"] not in archived]
             interventions.sort(
                 key=lambda item: (
                     _PRIORITY.get(str(item.get("intervention_type")), 8),

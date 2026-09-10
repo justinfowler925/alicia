@@ -1067,9 +1067,54 @@ function setVoicePhase(phase, detail = "") {
 
 let supervisorSnapshot = null;
 let sessionLimit = 6;
+const archivedSessionIds = new Set();
+
+async function setSessionArchived(session, archived, button) {
+  button.disabled = true;
+  const status = $("#session-action-status");
+  try {
+    const response = await fetch(`/api/agents/${encodeURIComponent(session.id)}`, {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ archived }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (archived) archivedSessionIds.add(session.id);
+    else archivedSessionIds.delete(session.id);
+    status.textContent = `${archived ? "Archived" : "Restored"}: ${session.title || "Session"}.${archived ? " The agent has not been stopped." : ""}`;
+    await loadSupervisor();
+    if ($("#archived-sessions").open) await loadArchivedSessions();
+  } catch (error) {
+    status.textContent = `Couldn’t ${archived ? "archive" : "restore"} the session: ${error.message}`;
+  } finally { button.disabled = false; }
+}
+
+async function loadArchivedSessions() {
+  const host = $("#archive-list");
+  host.textContent = "Loading archived sessions…";
+  try {
+    const response = await fetch("/api/agents?include_hidden=true");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const sessions = (data.agents || []).filter(session => session.hidden);
+    host.textContent = "";
+    for (const session of sessions) {
+      archivedSessionIds.add(session.id);
+      const li = document.createElement("li");
+      const title = document.createElement("span");
+      title.textContent = `${session.surface || "Agent"} · ${session.title || "Untitled session"}`;
+      const restore = document.createElement("button");
+      restore.type = "button";
+      restore.textContent = "Restore";
+      restore.addEventListener("click", () => setSessionArchived(session, false, restore));
+      li.append(title, restore);
+      host.append(li);
+    }
+    if (!sessions.length) host.textContent = "No archived sessions.";
+  } catch (error) { host.textContent = `Couldn’t load archived sessions: ${error.message}`; }
+}
 
 function renderSupervisor(payload) {
-  const sessions = payload.sessions || payload.agents || [];
+  const sessions = (payload.sessions || payload.agents || []).filter(session => !archivedSessionIds.has(session.id));
   const counts = payload.counts || {};
   const assessment = payload.assessment || payload.intervention || null;
   const count = $("#supervisor-count");
@@ -1166,6 +1211,11 @@ function renderSupervisor(payload) {
     discuss.addEventListener("click", () => say(
       `Focus our conversation on agent session ${session.id} (${session.title || "Untitled"}). Check its current evidence and briefly explain the intent it understood, progress, and what needs me.`, "text"));
     body.append(next, evidence, discuss);
+    const archive = document.createElement("button");
+    archive.type = "button";
+    archive.textContent = "Archive from Brutus";
+    archive.addEventListener("click", () => setSessionArchived(session, true, archive));
+    body.append(archive);
     detail.append(summary, body);
     li.append(detail);
     host.append(li);
@@ -1215,6 +1265,9 @@ function setStatus(text) {
 /* --- wiring ------------------------------------------------------------- */
 
 function init() {
+  $("#archived-sessions")?.addEventListener("toggle", event => {
+    if (event.currentTarget.open) void loadArchivedSessions();
+  });
   $("#sessions-more")?.addEventListener("click", () => {
     sessionLimit += 12;
     if (supervisorSnapshot) renderSupervisor(supervisorSnapshot);
