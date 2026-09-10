@@ -7,6 +7,7 @@
 <script>(function(){try{var t=localStorage.getItem("brutus.theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;var d=localStorage.getItem("brutus.dir");if(d==="rtl"||d==="ltr")document.documentElement.setAttribute("dir",d);}catch(e){}})();</script>
 <link rel="stylesheet" href="/static/shine-tokens.css">
 <link rel="stylesheet" href="/static/session.css">
+<link rel="stylesheet" href="/static/overview.css">
 </head>
 <body data-cite="spectrum-ai-chat">
 <!-- Voice is the work surface. The transcript is durable evidence, the
@@ -16,7 +17,7 @@
   <header class="topbar">
     <div class="title">
       <h1>Brutus</h1>
-      <p class="tagline">Live work conversation</p>
+      <p class="tagline">Your AI work, at a glance</p>
     </div>
     <span id="live" class="live" data-connected="false" role="status" aria-live="polite">offline</span>
     <button type="button" id="theme-toggle" aria-pressed="false" aria-label="Toggle light/dark theme">
@@ -49,10 +50,6 @@
       </button>
     </header>
 
-    <div class="voice-current" id="voice-current">
-      <span class="voice-current-label">Current attention</span>
-      <p id="board-headline" class="headline" role="status">Loading the work that matters…</p>
-    </div>
 
     <section class="panel-inline" id="proposals-panel" aria-label="Proposed" hidden>
       <h3>Proposed <span class="count" id="proposals-count"></span></h3>
@@ -68,6 +65,13 @@
       </div>
     </section>
 
+    <section class="intent-readback" aria-label="Latest readback">
+      <div class="readback-heading"><span id="readback-label">Brutus · ready</span><button type="button" id="correct-intent">Correct intent</button></div>
+      <p id="intent-readback" aria-live="polite">Start voice. I’ll repeat the task I understood and keep you informed as work progresses.</p>
+    </section>
+    <p id="status-line" role="status"></p>
+    <details class="conversation-details" id="conversation-details">
+      <summary>Conversation &amp; keyboard</summary>
     <div class="conversation-wrap">
       <div class="scroll" id="conversation" tabindex="0" role="log" aria-label="Conversation history">
         <div class="conversation-empty" id="conversation-empty">
@@ -78,7 +82,6 @@
       </div>
       <button type="button" id="to-latest" class="to-latest" hidden>New messages ↓</button>
     </div>
-    <p id="status-line" role="status"></p>
     <form class="composer" id="composer">
       <label class="sr-only" for="say">Message</label>
       <textarea id="say" rows="1" placeholder="Message or capture — type when voice is not convenient…" autocomplete="off"
@@ -86,6 +89,7 @@
       <p id="composer-hint" class="sr-only">Press Enter to send, Shift and Enter for a new line.</p>
       <button type="submit" id="send" class="primary">Send</button>
     </form>
+    </details>
   </section>
 
   <aside class="supervisor-rail" aria-label="Work in motion">
@@ -97,10 +101,11 @@
         <p class="supervisor-evidence" id="supervisor-evidence"></p>
         <button type="button" id="supervisor-refresh">Check now</button>
       </div>
-      <details class="agent-details">
-        <summary>Session detail <span class="count" id="supervisor-count-detail"></span></summary>
+      <div class="agent-details">
+        <p class="session-coverage" id="supervisor-count-detail"></p>
         <ol class="agent-strip" id="supervisor-agents" aria-label="Observed agent sessions"></ol>
-      </details>
+        <button type="button" id="sessions-more" hidden>Show more sessions</button>
+      </div>
     </section>
 
     <aside id="ledger-detail" class="panel ledger-detail" aria-label="Thread detail" hidden>
@@ -121,13 +126,6 @@
       </div>
     </aside>
 
-    <details class="panel captured-details" aria-label="Session slots">
-      <summary>Session memory <span class="count" id="panel-fields-count"></span></summary>
-      <div class="scroll">
-        <p class="empty" id="fields-empty">Facts captured while you talk appear here.</p>
-        <dl id="fields"></dl>
-      </div>
-    </details>
   </aside>
 
   <!-- One surface. The console at / used to be a second document with its own
@@ -137,11 +135,22 @@
        use the one their last answer came from. -->
   <details class="panel queue work-tray" data-testid="work-tray" aria-label="Workspace tools">
     <summary class="work-tray-summary">
-      <span>Workspace tools</span>
+      <span>Projects &amp; work</span>
       <span class="work-tray-hint">What is running, and the work you have captured</span>
       <span class="count" id="ideas-count"></span>
     </summary>
 
+    <div class="voice-current" id="voice-current">
+      <span class="voice-current-label">Current attention</span>
+      <p id="board-headline" class="headline" role="status">Loading the work that matters…</p>
+    </div>
+    <details class="panel captured-details" aria-label="Session slots">
+      <summary>Session memory <span class="count" id="panel-fields-count"></span></summary>
+      <div class="scroll">
+        <p class="empty" id="fields-empty">Facts captured while you talk appear here.</p>
+        <dl id="fields"></dl>
+      </div>
+    </details>
     <div class="tray-tabs" role="tablist" aria-label="Workspace tools">
       <button type="button" role="tab" id="tab-running" aria-controls="panel-running"
               aria-selected="false" tabindex="-1">

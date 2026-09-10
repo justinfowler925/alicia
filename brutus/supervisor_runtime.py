@@ -124,11 +124,12 @@ class SupervisorRuntime:
         """Return current sessions and the highest-value earned intervention."""
         with self._lock:
             rows = filter_cockpit(self.scanner(force=force))[: max(1, min(limit, 100))]
+            rows.sort(key=lambda row: str(row.get("state")) not in {"approval_needed", "failed", "blocked"})
             sessions: list[dict[str, Any]] = []
             interventions: list[dict[str, Any]] = []
             # Lifecycle policy evaluates the whole population. A sweep may use
-            # one provider call to sharpen one earned intervention, never one
-            # call per observed session.
+            # one provider call to sharpen intent and progress, prioritizing
+            # lifecycle decisions. Ordinary updates remain silent.
             judgment_budget = 1
             for row in rows:
                 agent_id = str(row.get("id") or "")
@@ -157,7 +158,15 @@ class SupervisorRuntime:
                     or state != str((previous or {}).get("lifecycle_state") or "")
                     or stale_crossed
                 )
-                if changed:
+                needs_summary = bool(
+                    self.judge is not None and judgment_budget
+                    and (previous or {}).get("assessment", {}).get("judgment_profile", "policy") == "policy"
+                )
+                if changed or needs_summary:
+                    # Refresh the bounded context when backfilling a session skipped
+                    # by the previous sweep's single-call budget.
+                    if needs_summary and not delta.get("excerpt"):
+                        delta = read_transcript_delta(path, cursor=None)
                     if stale_crossed and not delta.get("excerpt"):
                         delta = read_transcript_delta(path, cursor=None)
                     age_seconds = 0.0 if row.get("live") else max(0.0, now - mtime)
@@ -182,7 +191,7 @@ class SupervisorRuntime:
                         evidence,
                         stale_after_seconds=self.stale_after_seconds,
                     )
-                    if self.judge is not None and assessment.should_intervene and judgment_budget:
+                    if self.judge is not None and judgment_budget and safe_delta:
                         assessment = assess_session(
                             session_record,
                             safe_delta,
@@ -191,6 +200,8 @@ class SupervisorRuntime:
                             stale_after_seconds=self.stale_after_seconds,
                         )
                         judgment_budget -= 1
+                        if assessment.judgment_source != "model":
+                            assessment = replace(assessment, judgment_profile="supervisor_unavailable")
                         if assessment.judgment_source == "model":
                             assessment = replace(
                                 assessment,
@@ -213,6 +224,8 @@ class SupervisorRuntime:
                     "state": state,
                     "live": bool(row.get("live")),
                     "age": row.get("age"),
+                    "mtime": row.get("mtime"),
+                    "project": row.get("project") or row.get("cwd") or "",
                     "status_source": row.get("status_source"),
                     "linked_rev": row.get("linked_rev") or "",
                     "assessment": assessment.to_dict(),

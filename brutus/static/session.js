@@ -218,6 +218,8 @@ async function hydrate(sessionId) {
   const snap = await fetch(`/api/session/${sessionId}`).then((r) => r.json());
   $("#conversation").innerHTML = "";
   state.seenTurns.clear();
+  $("#intent-readback").textContent = "Start voice or give Brutus a direction.";
+  $("#readback-label").textContent = "Brutus · ready";
   state.fields.clear();
   (snap.turns || []).forEach((t) => renderTurn(t, { animate: false }));
   restoreThinking(snap.turns || []);
@@ -330,6 +332,15 @@ function renderTurn(turn, { animate = true, live = animate } = {}) {
   if (!turn || state.seenTurns.has(turn.id)) return;
   state.seenTurns.add(turn.id);
   clearInterim();
+  if (turn.role !== "user") {
+    const text = String(turn.text || "").trim();
+    // A complete first sentence is a compact readback, never a chopped word stream.
+    const sentence = text.match(/^[\s\S]*?[.!?](?=\s|$)/)?.[0] || text.split("\n")[0];
+    renderText($("#intent-readback"), sentence);
+    $("#readback-label").textContent = "Brutus · latest reply";
+  } else {
+    $("#readback-label").textContent = "Brutus · considering your direction";
+  }
   const empty = $("#conversation-empty");
   if (empty) empty.hidden = true;
 
@@ -507,6 +518,7 @@ function resolveThinking(event) {
       jump.addEventListener("click", () => {
         const target = document.querySelector(`[data-turn-id="${CSS.escape(String(turnId))}"]`);
         if (!target) return;
+        $("#conversation-details").open = true;
         target.scrollIntoView({ block: "center", behavior: "smooth" });
         target.classList.remove("jumped");
         void target.offsetWidth;
@@ -1053,6 +1065,9 @@ function setVoicePhase(phase, detail = "") {
 
 /* --- supervised work ---------------------------------------------------- */
 
+let supervisorSnapshot = null;
+let sessionLimit = 6;
+
 function renderSupervisor(payload) {
   const sessions = payload.sessions || payload.agents || [];
   const counts = payload.counts || {};
@@ -1098,21 +1113,68 @@ function renderSupervisor(payload) {
       : "";
   }
   if (!host) return;
+  if (stateEl) stateEl.hidden = sessions.length > 0;
+  if (nextEl) nextEl.hidden = sessions.length > 0;
+  if (evidenceEl) evidenceEl.hidden = sessions.length > 0;
+  supervisorSnapshot = payload;
+  const ordered = [...sessions].sort((a, b) =>
+    Number(Boolean(b.assessment?.should_intervene)) - Number(Boolean(a.assessment?.should_intervene)) ||
+    Number(Boolean(b.live)) - Number(Boolean(a.live)));
+  if (count) count.textContent = `${sessions.length} observed · ${counts.needs_attention || 0} need you`;
+  if (detailCount) detailCount.textContent = `Showing ${Math.min(sessionLimit, sessions.length)} of ${sessions.length} observed sessions · local Claude, Cursor and OpenAI sources`;
+  // Keep open details and keyboard focus stable across monitoring frames.
+  const expanded = new Set([...host.querySelectorAll("details[open]")].map(el => el.dataset.sessionId));
+  const focused = host.contains(document.activeElement) ? document.activeElement.closest("[data-session-id]")?.dataset.sessionId : null;
   host.textContent = "";
-  for (const session of sessions.slice(0, 6)) {
+  for (const session of ordered.slice(0, sessionLimit)) {
+    const a = session.assessment || {};
     const li = document.createElement("li");
-    const provider = document.createElement("span");
-    provider.className = "agent-provider";
-    provider.textContent = session.surface || session.provider || "agent";
-    const title = document.createElement("span");
+    const detail = document.createElement("details");
+    detail.dataset.sessionId = session.id;
+    detail.open = expanded.has(session.id);
+    const summary = document.createElement("summary");
+    const title = document.createElement("strong");
     title.className = "agent-title";
     title.textContent = session.title || "Untitled session";
-    const sessionState = document.createElement("span");
-    sessionState.className = "agent-state";
-    sessionState.textContent = String(session.state || "unknown").replaceAll("_", " ");
-    li.append(provider, title, sessionState);
+    const status = document.createElement("span");
+    status.className = "agent-state";
+    status.dataset.attention = String(Boolean(a.should_intervene));
+    status.textContent = String(session.state || "unknown").replaceAll("_", " ");
+    const intent = document.createElement("p");
+    intent.className = "agent-intent";
+    intent.textContent = a.goal && a.goal !== session.title ? a.goal : "Intent summary pending";
+    const progress = document.createElement("p");
+    progress.className = "agent-progress";
+    const verified = Array.isArray(a.verified_progress) ? a.verified_progress.filter(Boolean) : [];
+    progress.textContent = a.should_intervene ? a.blocker_or_decision :
+      (verified[0] || (a.judgment_source === "model" ? a.recommended_next_action :
+        (session.live ? "Active; waiting for a meaningful progress update." : "Current progress is not verified.")));
+    const meta = document.createElement("span");
+    meta.className = "agent-provider";
+    const provider = session.surface === "codex" ? "OpenAI · Codex" : session.surface || session.provider || "Agent";
+    meta.textContent = `${provider} · ${session.age || "update time unknown"}`;
+    summary.append(title, status, intent, progress, meta);
+    const body = document.createElement("div");
+    body.className = "agent-expanded";
+    const next = document.createElement("p");
+    next.textContent = `Next: ${a.recommended_next_action || "No next action verified yet."}`;
+    const evidence = document.createElement("p");
+    evidence.textContent = `Source: ${session.status_source || "unknown"}. ${(a.evidence || []).join(" · ")}`;
+    const discuss = document.createElement("button");
+    discuss.type = "button";
+    discuss.textContent = "Discuss with Brutus";
+    discuss.addEventListener("click", () => say(
+      `Focus our conversation on agent session ${session.id} (${session.title || "Untitled"}). Check its current evidence and briefly explain the intent it understood, progress, and what needs me.`, "text"));
+    body.append(next, evidence, discuss);
+    detail.append(summary, body);
+    li.append(detail);
     host.append(li);
+    if (focused === session.id) summary.focus({ preventScroll: true });
   }
+  if (!sessions.length) host.textContent = "No sessions observed from the connected local sources.";
+  const more = $("#sessions-more");
+  if (more) more.hidden = sessions.length <= sessionLimit;
+
 }
 
 async function loadSupervisor({ force = false } = {}) {
@@ -1125,7 +1187,7 @@ async function loadSupervisor({ force = false } = {}) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     renderSupervisor(await response.json());
   } catch {
-    if (stateEl) stateEl.textContent = "Couldn’t verify agent work right now";
+    if (stateEl) { stateEl.hidden = false; stateEl.textContent = "Couldn’t verify agent work right now. Session summaries below are last known, not current."; }
     const nextEl = $("#supervisor-next");
     if (nextEl) nextEl.textContent = "I won’t guess. Check again when the local session catalog is reachable.";
   }
@@ -1153,6 +1215,17 @@ function setStatus(text) {
 /* --- wiring ------------------------------------------------------------- */
 
 function init() {
+  $("#sessions-more")?.addEventListener("click", () => {
+    sessionLimit += 12;
+    if (supervisorSnapshot) renderSupervisor(supervisorSnapshot);
+  });
+  $("#correct-intent")?.addEventListener("click", () => {
+    $("#readback-label").textContent = "Correct the intent · speak your correction";
+    if (state.voicePhase !== "listening") {
+      if (["thinking", "buffering", "speaking"].includes(state.voicePhase)) bargeIn();
+      else startVoice();
+    }
+  });
   $("#mic")?.addEventListener("click", () => {
     if (["thinking", "buffering", "speaking"].includes(state.voicePhase)) return bargeIn();
     if (state.voicePhase === "listening") return teardownVoice();

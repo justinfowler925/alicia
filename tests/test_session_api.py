@@ -42,6 +42,14 @@ def test_open_a_session(client):
     assert r.json()["session"]["title"] == "pricing"
 
 
+def test_voice_overview_stylesheet_is_served_and_linked(client):
+    assert '/static/overview.css' in client.get('/session').text
+    response = client.get('/static/overview.css')
+    assert response.status_code == 200
+    assert 'text/css' in response.headers['content-type']
+    assert '.shell.voice-shell' in response.text
+
+
 def test_voice_enrollment_status_is_available_without_exposing_a_profile(client):
     r = client.get("/api/voice-enrollment")
     assert r.status_code == 200

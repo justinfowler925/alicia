@@ -1515,6 +1515,7 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         # that never reaches the filesystem unchecked.
         types = {
             "session.css": "text/css",
+            "overview.css": "text/css",
             "session.js": "application/javascript",
             "operations.js": "application/javascript",
             "shine-tokens.css": "text/css",
