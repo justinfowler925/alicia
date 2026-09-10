@@ -155,6 +155,10 @@
               aria-selected="false" tabindex="-1">
         Projects <span class="count" id="projects-count"></span>
       </button>
+      <button type="button" role="tab" id="tab-sites" aria-controls="panel-sites"
+              aria-selected="false" tabindex="-1">
+        Sites <span class="count" id="sites-count"></span>
+      </button>
       <button type="button" role="tab" id="tab-queue" aria-controls="panel-queue"
               aria-selected="true" tabindex="0">
         Queue <span class="count" id="queue-tab-count"></span>
@@ -172,6 +176,8 @@
              role="tabpanel" aria-labelledby="tab-work" hidden></section>
     <section class="tray-panel ops" id="panel-projects" data-ops-panel="projects"
              role="tabpanel" aria-labelledby="tab-projects" hidden></section>
+    <section class="tray-panel ops" id="panel-sites" data-ops-panel="sites"
+             role="tabpanel" aria-labelledby="tab-sites" hidden></section>
 
     <section class="tray-panel" id="panel-queue" role="tabpanel" aria-labelledby="tab-queue">
     <h2>
@@ -224,6 +230,17 @@
 
   <!-- A cancel is not undoable, so it is confirmed against the thing itself:
        the dialog names the row, not the verb. -->
+  <!-- A status column without the log is a job you can restart and cannot
+       diagnose. This is the one thing the console's Studio detail pane had
+       that a row does not. -->
+  <dialog id="ops-log" class="ops-confirm ops-log" aria-labelledby="ops-log-title">
+    <h2 id="ops-log-title"></h2>
+    <pre id="ops-log-body" tabindex="0"></pre>
+    <form method="dialog" class="ops-confirm-actions">
+      <button value="close">Close</button>
+    </form>
+  </dialog>
+
   <dialog id="ops-confirm" class="ops-confirm" aria-labelledby="ops-confirm-title">
     <h2 id="ops-confirm-title">Stop this?</h2>
     <p id="ops-confirm-detail"></p>

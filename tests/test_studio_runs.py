@@ -115,16 +115,23 @@ def test_log_secret_redaction():
     assert all(secret not in value for secret in ["abcxyz", "hidden", "sk-testsecret"])
 
 
-def test_ui_javascript_parses(tmp_path):
-    import re
-    import subprocess
+def test_the_studio_job_surface_lives_on_the_one_page_now():
+    """The Studio tab was a page in a 2,432-line second document.
 
-    from brutus.ui import BRUTUS_HTML
+    Its jobs are a table in the Running panel with off / on / run-now, and the
+    one thing its detail pane had that a row does not — what the job actually
+    printed — is the Log action. A status column without the log is a job you
+    can restart and cannot diagnose.
+    """
+    from pathlib import Path
 
-    script = tmp_path / "page.js"
-    script.write_text("\n".join(re.findall(r"<script[^>]*>(.*?)</script>", BRUTUS_HTML, re.DOTALL)))
-    subprocess.run(["node", "--check", str(script)], check=True)
-    assert "nav-studio" in BRUTUS_HTML and "mob-nav-studio" in BRUTUS_HTML
+    ops = (Path(__file__).parents[1] / "brutus" / "static" / "operations.js").read_text()
+
+    assert '/api/studio-runs/${encodeURIComponent(row.id)}/disable' in ops
+    assert '/api/studio-runs/${encodeURIComponent(row.id)}/enable' in ops
+    assert '/api/studio-runs/${encodeURIComponent(row.id)}/run' in ops
+    assert "async function showLog(row)" in ops
+    assert "kind=stderr" in ops
 
 
 def test_collect_discovers_new_jobs_preserves_missing_and_reads_nevada(tmp_path, monkeypatch):

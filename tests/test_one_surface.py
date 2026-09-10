@@ -62,14 +62,25 @@ def test_session_stays_an_alias_because_it_is_bookmarked():
     assert client.get("/session").text == client.get("/").text
 
 
-def test_the_console_keeps_the_pages_that_have_not_moved_yet():
-    """Retiring a document that holds the only copy of a feature loses the
-    feature. Inbox, Projects, Studio, Sites, Avatar and Demos live only there."""
-    response = _client().get("/console")
+def test_the_console_is_gone_and_its_url_lands_on_the_one_surface():
+    """161 KB and 2,432 lines producing ten pages. Eight are panels here now,
+    Sites was six links given a nav entry, and Avatar and Demos were dormant
+    UI over endpoints that still work."""
+    from pathlib import Path as _P
 
-    assert response.status_code == 200
-    assert "no-store" in response.headers["Cache-Control"]
-    assert "nav-projects" in response.text
+    assert not (_P(__file__).parents[1] / "brutus" / "ui.py").exists()
+    assert not (_P(__file__).parents[1] / "brutus" / "studio_ui.py").exists()
+
+    response = _client().get("/console")
+    assert response.status_code == 308
+    assert response.headers["location"] == "/"
+
+
+def test_the_avatar_endpoints_survive_the_ui_that_is_gone():
+    """Deleting a page must not delete a capability."""
+    routes = {getattr(r, "path", "") for r in _client().app.routes}
+    for path in ("/api/avatar", "/api/avatar/apply", "/api/avatar/stage", "/api/avatar/configs"):
+        assert path in routes
 
 
 def test_the_one_surface_carries_every_daily_panel():
@@ -175,7 +186,9 @@ def test_the_running_panel_does_not_collide_with_the_shell_script():
         "operations.js must keep its own scope"
     )
     # Nothing but the one deliberate global.
-    assert ops.count("window.") == 1
+    # One deliberate global assignment. `window.open` for a site link is not one.
+    assert ops.count("window.brutusOps =") == 1
+    assert "window." not in ops.replace("window.brutusOps =", "").replace("window.open(", "")
 
 
 def test_a_grid_cell_cannot_blow_out_past_the_viewport():
@@ -205,3 +218,43 @@ def test_the_phone_width_is_the_real_surface_now():
     phone = css[css.index("@media (max-width: 30rem)"):]
     assert ".topbar {" in phone and "flex-wrap: wrap;" in phone
     assert ".topbar > .title { flex: 1 0 100%; }" in phone
+
+
+# --- the last two console pages -------------------------------------------
+
+
+def test_sites_is_a_panel_not_a_page():
+    """The console gave six links a nav entry, a page title and 192 lines."""
+    html = _client().get("/").text
+    ops = (_STATIC / "operations.js").read_text()
+
+    assert 'id="tab-sites"' in html and 'data-ops-panel="sites"' in html
+    assert 'const SITE_GROUPS' in ops
+    # A configured site with no address is a state to show, not a row to hide.
+    assert '"no address configured"' in ops
+
+
+def test_the_panel_chrome_is_built_once():
+    """Building it inside paint() was a race: two paints — one for "loading",
+    one for "loaded" — could both find no .ops-groups, both build fresh chrome,
+    and the second replaceChildren() throw away the container the first had
+    just filled. Sites rendered its toolbar and no rows while its own state
+    said `loaded` with six of them."""
+    ops = (_STATIC / "operations.js").read_text()
+
+    assert "function mount(panel)" in ops
+    assert ops.count("host.replaceChildren(") == 1
+    paint = ops[ops.index("function paint(panel)"):ops.index("function table(panel")]
+    # The comment in paint() explains the race, so check the code.
+    paint = "\n".join(l for l in paint.splitlines() if not l.lstrip().startswith("//"))
+    assert "replaceChildren" not in paint
+    assert "if (!groupHost) return;" in paint
+
+
+def test_the_studio_log_is_reachable_from_the_row():
+    ops = (_STATIC / "operations.js").read_text()
+    html = _client().get("/").text
+
+    assert 'label: "Log"' in ops
+    assert "async function showLog(row)" in ops
+    assert 'id="ops-log"' in html and 'id="ops-log-body"' in html

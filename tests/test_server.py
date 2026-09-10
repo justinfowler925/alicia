@@ -47,42 +47,6 @@ def test_supervisor_endpoint_forwards_force_and_returns_structured_snapshot():
     app.state.supervisor.observe.assert_called_once_with(force=True)
 
 
-def test_console_work_surface_no_broken_evidence_hrefs():
-    cfg = BrutusCfg(
-        atlas6_url="http://127.0.0.1:8767",
-        serve_port=8768,
-        local_llm=LocalLLMCfg(enabled=True),
-        watchdog_enabled=False,
-    )
-    with patch("brutus.server.AtlasClient") as cls:
-        cls.return_value = MagicMock()
-        app = create_app(cfg, start_watchdog=False)
-        client = TestClient(app)
-
-        html = client.get("/console")
-        assert html.status_code == 200
-        # The page is deliberately jargon-free. Check VISIBLE text only —
-        # endpoint paths like /api/requeue_stale live in the script and are not
-        # something a human reads.
-        assert "Needs you" in html.text  # the section header a human reads
-        import re as _re
-        visible = _re.sub(r"<script.*?</script>", "", html.text, flags=_re.DOTALL | _re.IGNORECASE)
-        visible = _re.sub(r"<style.*?</style>", "", visible, flags=_re.DOTALL | _re.IGNORECASE)
-        for jargon in ("stale", "fresh", "in-flight", "focus by kind",
-                       "working set", "unstick", "drain", "frontier",
-                       "reconcile", "dispatch", "executor", "pinned"):
-            assert jargon not in visible.lower(), f"jargon visible on screen: {jargon}"
-        assert "/api/board" in html.text  # the page drives off the board now
-        assert 'id="nav-agents"' in html.text
-        assert 'id="nav-canon"' in html.text
-        assert "/api/canon" in html.text
-        assert "/api/agents" in html.text
-        assert "/api/lessons" in html.text
-        assert 'href="inbox:' not in html.text
-        assert 'href="/Users/' not in html.text
-        assert "digest_markdown" not in html.text
-
-
 def test_focus_endpoint():
     cfg = BrutusCfg(watchdog_enabled=False, linear_workspace="clearspeed")
     surface = {"headline": "1 in review", "needs_you": [{"ticket": "REV-9", "title": "Gate"}], "working": [], "queued": [], "stuck": [], "counts": {}, "actions": []}
@@ -228,34 +192,6 @@ def test_agents_api_preserves_native_runtime_status(tmp_path):
     assert agent["status_observed_at"] > 0
 
 
-def test_console_has_live_and_speak_controls():
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
-        cls.return_value = MagicMock()
-        app = create_app(cfg, start_watchdog=False)
-        html = TestClient(app).get("/console")
-        assert html.status_code == 200
-        assert 'id="livebtn"' in html.text
-        assert 'id="speakbtn"' in html.text
-        assert "toggleLive" in html.text
-        assert "/api/speak" in html.text
-        assert "brutus.operator.session" in html.text
-        assert "/api/session/" in html.text
-        assert "conversation_id" not in html.text
-
-
-def test_console_defaults_to_nucleus_and_exposes_the_table_contract():
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
-        cls.return_value = MagicMock()
-        html = TestClient(create_app(cfg, start_watchdog=False)).get("/console").text
-
-    assert "data-cite=\"antd-pro-list\"" in html
-    assert "data-toolbar role=\"search\"" in html
-    assert "data-shine-contract=\"table\"" in html
-    assert "page=pageFromHash()||'nucleus'" in html
-
-
 def test_nucleus_api_and_project_overlay_share_exact_project_id(tmp_path, monkeypatch):
     monkeypatch.setenv("BRUTUS_STATE_DIR", str(tmp_path / "state"))
     snapshot = {
@@ -279,34 +215,6 @@ def test_nucleus_api_and_project_overlay_share_exact_project_id(tmp_path, monkey
     assert response.json()["project_id"] == "github.com/o/r"
     assert response.json()["overlay"]["pinned"] is True
     assert response.json()["source_records_changed"] is False
-
-
-def test_console_ui_build_plan_markers():
-    """Phase A–C DoD markers from docs/UI_BUILD_PLAN.md (HTML smoke, no JS)."""
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
-        cls.return_value = MagicMock()
-        app = create_app(cfg, start_watchdog=False)
-        html = TestClient(app).get("/console").text
-        assert 'class="nav-item"' in html or "class='nav-item'" in html or "nav-item" in html
-        assert "aria-current" in html
-        assert 'id="mob-tabs"' in html
-        assert 'id="confirm-overlay"' in html
-        assert 'aria-live="polite"' in html
-        assert "list-bar" in html
-        assert "sr-only" in html
-        assert "aria-expanded" in html
-        assert "confirmAction" in html
-        assert "listToolbarHtml" in html
-        assert "rail-chat-slot" in html
-        assert "chat-sheet" in html
-        assert ":focus-visible" in html
-        # Delete is a labelled button in the card's overflow menu, not a bare glyph.
-        assert 'class="del"' in html and ">Delete<" in html
-        assert "prompt(" not in html
-        assert "Nothing matches" in html
-        assert "onclick=\"checkNow()\"" in html
-        assert "<a onclick=" not in html
 
 
 def test_session_ideas_build_plan_markers():
@@ -389,25 +297,6 @@ def test_session_ideas_wave2_markers():
 
 
 
-def test_ops_ui_script_parses():
-    """BRUTUS_HTML is a Python string — bare JS \\n escapes become real newlines and break parse."""
-    import re
-    import subprocess
-    import tempfile
-    from pathlib import Path
-
-    from brutus.ui import BRUTUS_HTML
-
-    scripts = re.findall(r"<script>([\s\S]*?)</script>", BRUTUS_HTML)
-    assert scripts, "ops UI must embed a script"
-    main = max(scripts, key=len)
-    path = Path(tempfile.mkdtemp()) / "ops.js"
-    path.write_text(main)
-    r = subprocess.run(["node", "--check", str(path)], capture_output=True, text=True)
-    assert r.returncode == 0, r.stderr
-    assert "join(NL+NL)" in main
-
-
 def test_session_shine_audit_markers():
     """DoD markers from docs/SESSION_UI_SHINE_BUILD_PLAN.md Waves A–B + D."""
     cfg = BrutusCfg(watchdog_enabled=False)
@@ -441,33 +330,6 @@ def test_session_shine_audit_markers():
         assert 'className = "ideas-retry"' in js
 
 
-def test_ops_shine_token_cutover():
-    """DoD markers from docs/SESSION_UI_SHINE_BUILD_PLAN.md Wave C + OOS7/8."""
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
-        cls.return_value = MagicMock()
-        app = create_app(cfg, start_watchdog=False)
-        raw = TestClient(app).get("/console").text
-    assert "/static/shine-tokens.css" in raw
-    assert "var(--shine-font-sans)" in raw
-    assert "var(--shine-color-bg)" in raw
-    assert "toast-dismiss" in raw
-    assert "focusin" in raw
-    assert "/api/session/board/events" in raw
-    assert "setInterval(loadBoard" not in raw
-    assert "setInterval(loadAgents" in raw
-    assert "brutus.theme" in raw
-    assert "theme-toggle" in raw
-    assert '<main class="main"' in raw
-    assert 'aria-label="Command center navigation"' in raw
-    assert 'onclick="openCapture()"' in raw
-    assert 'onclick="openCommandChat()"' in raw
-    assert 'body.chatbig#chatdock{position:fixed;inset:0' in raw.replace(" ", "").replace("\n", "")
-    assert "--dim2:var(--shine-color-fg-muted)" in raw
-    # No raw hex colors left in the Ops HTML/CSS/JS payload.
-    assert not re.search(r"#[0-9a-fA-F]{3,8}\b", raw), "Ops surface still has hex colors"
-
-
 def test_shine_tokens_include_light_theme():
     css = (
         __import__("pathlib").Path(__file__).resolve().parents[1]
@@ -477,30 +339,6 @@ def test_shine_tokens_include_light_theme():
     ).read_text()
     assert '[data-theme="light"]' in css
     assert "--shine-color-bg: var(--shine-color-stone-50)" in css
-
-
-def test_console_narrow_header_rule_wins_on_source_order():
-    """`.rail{display:none}` must come AFTER `.rail{display:flex}`.
-
-    Asserting the rule merely *exists* is what let this regress for months: the
-    media query sat above the base `.rail` block, same specificity, so the base
-    rule won and the rail rendered as a full extra screen below the board on
-    phones. Order is the whole fix — assert the order.
-    """
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
-        cls.return_value = MagicMock()
-        app = create_app(cfg, start_watchdog=False)
-        raw = TestClient(app).get("/console").text
-    # Strip CSS comments first — prose about a rule is not the rule.
-    css = re.sub(r"/\*.*?\*/", "", raw, flags=re.DOTALL).replace(" ", "").replace("\n", "")
-    hide = css.find(".rail{display:none}")
-    show = css.find("display:flex", css.find(".rail{grid-row:1"))
-    assert hide != -1, "mobile rail-hide rule is missing"
-    assert show != -1, "base command-header display rule is missing"
-    assert hide > show, "mobile .rail override must come after the base .rail rule"
-    # And it must be the only max-width:900px block, so ordering stays provable.
-    assert css.count("@media(max-width:900px)") == 1
 
 
 def test_gate_reason_is_not_silently_truncated():

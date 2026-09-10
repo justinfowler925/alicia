@@ -1932,3 +1932,22 @@ body.workspace-open { overflow-y: auto; }
   .ops-toolbar input[type="search"] { flex-basis: 100%; }
   .ops-table { min-width: 34rem; }
 }
+
+/* The Studio job log. Monospace, scrolls in both directions, and wide —
+   a wrapped stack trace is a stack trace you have to reassemble. */
+.ops-log { max-width: min(70rem, 92vw); }
+.ops-log pre {
+  max-height: 60vh;
+  margin: 0;
+  overflow: auto;
+  padding: var(--shine-space-3);
+  border: 1px solid var(--shine-color-border);
+  border-radius: var(--shine-radius-md);
+  background: var(--shine-color-bg);
+  color: var(--shine-color-fg);
+  font-family: var(--shine-font-mono);
+  font-size: var(--shine-text-xs);
+  line-height: var(--shine-leading-normal);
+  white-space: pre;
+  tab-size: 2;
+}

@@ -68,7 +68,6 @@ from .session_bus import SessionEventBus, sse
 from .sites import check_sites
 from .supervisor_runtime import SupervisorRuntime
 from .todos import STAGES, TodoStore
-from .ui import BRUTUS_HTML
 from .voice import HAS_WHISPER, save_wav
 from .voice import speak as voice_speak
 from .voice import transcribe as voice_transcribe
@@ -517,16 +516,25 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         return HTMLResponse((_STATIC / "session.html").read_text(), headers=_NO_STORE)
 
     @app.get("/console", response_class=HTMLResponse)
-    async def console() -> HTMLResponse:
-        """The console's remaining pages, until each one is a panel on `/`.
+    async def console() -> RedirectResponse:
+        """The console is gone. Everything it answered, `/` answers.
 
-        Inbox, Projects, Studio, Sites, Avatar and Demos still live only here,
-        so this is kept reachable rather than deleted — retiring a document
-        that holds the only copy of a feature is losing the feature, not
-        consolidating it. Nucleus, Work, Agents and Notes are already answered
-        by the one surface and are the next to go.
+        It was 161 KB and 2,432 lines producing ten pages: Nucleus, Work,
+        Inbox, Agents, Studio, Projects, Notes, Sites, Avatar and Demos. Eight
+        are panels on the one surface now, and Sites was six links given a nav
+        entry and 192 lines of markup.
+
+        Avatar and Demos are the exception and it is worth naming: their UI is
+        deleted, their endpoints are not. /api/avatar, /api/avatar/{apply,
+        stage,configs,cursor-pass} and /api/frontier/apply all still work, and
+        avatars.py is untouched. The pipeline behind them is dormant — the
+        Studio peer it talks to has been asleep long enough that the endpoint
+        was the slowest thing on the laptop, and anam-avatar-chatbot,
+        avatar-lab and voicemaker-studio have all been untouched for weeks.
+        When that work restarts it gets a panel like everything else rather
+        than a second document.
         """
-        return HTMLResponse(BRUTUS_HTML, headers=_NO_STORE)
+        return RedirectResponse("/", status_code=308)
 
     @app.get("/api/healthz")
     async def healthz(request: Request) -> dict[str, Any]:

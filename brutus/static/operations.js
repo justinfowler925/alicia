@@ -132,6 +132,10 @@ const RUNNING_GROUPS = [
             run: () => post(`/api/studio-runs/${encodeURIComponent(row.id)}/enable`),
           },
       { label: "Run now", run: () => post(`/api/studio-runs/${encodeURIComponent(row.id)}/run`) },
+      // The console's Studio tab had a detail pane whose only irreplaceable
+      // content was this: what the job actually printed. A status column
+      // without the log is a job you can restart and cannot diagnose.
+      { label: "Log", run: () => showLog(row) },
     ],
   },
   {
@@ -367,10 +371,44 @@ async function canonGroup(name) {
   }));
 }
 
+/* Sites — six links. The console gave this a nav entry, a page title ("Your
+ * chatbots & sites") and 192 lines of markup; it is a bookmark list, and it
+ * belongs beside the work rather than behind a tab of its own. */
+const SITE_GROUPS = [
+  {
+    key: "sites",
+    title: "Sites",
+    subtitle: "Where the demos and consoles live",
+    empty: "No sites are configured.",
+    columns: [
+      { key: "name", label: "Site", grow: true },
+      { key: "where", label: "Address", grow: true },
+    ],
+    load: async () => {
+      const data = await getJSON("/api/sites");
+      return (data.sites || []).map((site, index) => ({
+        id: site.name || String(index),
+        key: `site:${site.name || index}`,
+        name: site.name || "(unnamed)",
+        url: site.url || "",
+        // A configured site with no address is the honest state to show, not a
+        // row to hide — it is a thing you meant to stand up and have not.
+        where: site.url || "no address configured",
+        live: Boolean(site.url),
+      }));
+    },
+    actions: (row) =>
+      row.url
+        ? [{ label: "Open", run: async () => { window.open(row.url, "_blank", "noopener"); return { detail: `Opened ${row.name}.` }; } }]
+        : [],
+  },
+];
+
 const PANELS = [
   { key: "running", title: "everything running", groups: RUNNING_GROUPS, liveLabel: "Running only" },
   { key: "work", title: "the canon ledger", groups: WORK_GROUPS, liveLabel: "Open only" },
   { key: "projects", title: "projects", groups: PROJECT_GROUPS, liveLabel: "Needs you only" },
+  { key: "sites", title: "sites", groups: SITE_GROUPS, liveLabel: "Reachable only" },
 ];
 const PANEL_BY_KEY = Object.fromEntries(PANELS.map((p) => [p.key, p]));
 
@@ -579,12 +617,13 @@ function paint(panel) {
   if (!host) return;
   const pState = panelState(panel.key);
 
-  let groupHost = host.querySelector(".ops-groups");
-  if (!groupHost) {
-    const built = chrome(panel);
-    host.replaceChildren(built.bar, built.note, built.groups);
-    groupHost = built.groups;
-  }
+  // The chrome is built once, by mount(). Building it here meant two paints —
+  // one for "loading", one for "loaded" — could both find no .ops-groups,
+  // both build fresh chrome, and the second replaceChildren() throw away the
+  // container the first had just filled. The Sites panel rendered its toolbar
+  // and no rows, while its state said `loaded` with six of them.
+  const groupHost = host.querySelector(".ops-groups");
+  if (!groupHost) return;
   groupHost.textContent = "";
 
   let liveTotal = 0;
@@ -752,6 +791,19 @@ function note(panel, message, tone = "") {
   el.hidden = !message;
 }
 
+async function showLog(row) {
+  const response = await fetch(
+    `/api/studio-runs/${encodeURIComponent(row.id)}/log?kind=stderr`,
+    { headers: { accept: "text/plain" } },
+  );
+  const text = response.ok ? await response.text() : await detail(response);
+  const dialog = $("#ops-log");
+  $("#ops-log-title").textContent = row.name;
+  $("#ops-log-body").textContent = (text || "").trim() || "This job has written nothing.";
+  dialog.showModal();
+  return { detail: `Showing the log for ${row.name}.` };
+}
+
 async function confirmAction(confirm) {
   const dialog = $("#ops-confirm");
   if (!dialog || !confirm) return true;
@@ -863,9 +915,19 @@ function initTabs() {
   selectTab(tabs.some((t) => t.id === remembered) ? remembered : tabs[0].id);
 }
 
+function mount(panel) {
+  const host = document.querySelector(`[data-ops-panel="${panel.key}"]`);
+  if (!host || host.querySelector(".ops-groups")) return;
+  const built = chrome(panel);
+  host.replaceChildren(built.bar, built.note, built.groups);
+}
+
 function start() {
   if (!document.querySelector("[data-ops-panel]")) return;
-  for (const panel of PANELS) paint(panel);
+  for (const panel of PANELS) {
+    mount(panel);
+    paint(panel);
+  }
   initTabs();
   document.querySelector(".work-tray")?.addEventListener("toggle", (event) => {
     if (!event.target.open) return;
