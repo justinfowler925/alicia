@@ -285,6 +285,14 @@ RETRIAGE_STEERING = (
 )
 
 
+def _supervisor_signature(payload: dict[str, Any]) -> str:
+    """Publish changed visual progress without treating a clock tick as work."""
+    return json.dumps(
+        {key: payload.get(key) for key in ("sessions", "counts", "assessment")},
+        sort_keys=True, default=str,
+    )
+
+
 def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> FastAPI:
     cfg = cfg or load_config()
     client = AtlasClient(cfg)
@@ -426,14 +434,13 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             await asyncio.sleep(REFINE_IDLE_SECONDS)
 
     async def _supervisor_loop(app: FastAPI) -> None:
-        """Observe agent deltas; publish only when the earned intervention changes."""
+        """Publish changed session progress; the assessment still gates speech."""
         app.state.bus.bind_loop(asyncio.get_running_loop())
         previous = ""
         while True:
             try:
                 payload = await asyncio.to_thread(app.state.supervisor.observe)
-                assessment = payload.get("assessment")
-                signature = json.dumps(assessment or {}, sort_keys=True, default=str)
+                signature = _supervisor_signature(payload)
                 if signature != previous:
                     previous = signature
                     app.state.bus.publish(
