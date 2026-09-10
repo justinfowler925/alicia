@@ -47,3 +47,17 @@ external reference comparison cannot establish proof for this design. Browser
 workflow/layout tests and visual inspection supply direct product evidence.
 Live microphone/speaker testing requires Justin's voice and is separate from
 browser state and layout verification.
+
+### Multiple browser tabs
+
+The session, board, ideas, and supervisor updates share one SSE connection per
+page (`events?workspace=true`). Four independent streams per page previously
+exhausted the browser's HTTP/1 connection pool: the second tab showed offline
+and a third could not finish loading even while the server was healthy. The
+legacy single-topic endpoint remains available to other clients. Navigation
+closes the stream and returning from the browser back/forward cache reconnects.
+
+Run `node scripts/verify-session-connections.cjs` with Playwright available to
+check three concurrent live tabs, API responsiveness, and reload reconnection.
+The check creates and closes one empty test session. Reload existing Brutus tabs
+after deployment to replace the old client and release its extra connections.

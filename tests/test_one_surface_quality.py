@@ -90,7 +90,9 @@ def test_live_state_and_spoken_replies_are_both_reachable():
 def test_work_state_arrives_on_the_event_stream_not_a_timer():
     """Results arrive, they are not polled."""
     js = (_STATIC / "session.js").read_text()
-    assert "/api/session/board/events" in js
+    assert "events?workspace=true" in js
+    assert 'case "board":' in js
+    assert "applyBoardEvent(event)" in js
     assert "setInterval(loadBoard" not in js
 
 

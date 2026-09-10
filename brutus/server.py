@@ -1684,11 +1684,17 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         return {"ok": True}
 
     @app.get("/api/session/{session_id}/events")
-    async def session_events(session_id: str, request: Request):
+    async def session_events(session_id: str, request: Request, workspace: bool = False):
         """Server-sent events, so the screen renders changes as they happen."""
         bus: SessionEventBus = request.app.state.bus
         bus.bind_loop(asyncio.get_running_loop())
-        queue = bus.subscribe(session_id)
+        # One connection per page leaves browser HTTP/1 slots for requests.
+        topics = list(dict.fromkeys(
+            [session_id, "board", "ideas", "supervisor"] if workspace else [session_id]
+        ))
+        queue = bus.subscribe(topics[0])
+        for topic in topics[1:]:
+            bus.subscribe(topic, queue)
 
         async def stream():
             # NOTE: no `request.is_disconnected()` poll. It never returns on
@@ -1710,7 +1716,8 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
                         continue
                     yield sse(event)
             finally:
-                bus.unsubscribe(session_id, queue)
+                for topic in topics:
+                    bus.unsubscribe(topic, queue)
 
         return StreamingResponse(
             stream(),

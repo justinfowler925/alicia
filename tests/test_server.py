@@ -253,9 +253,12 @@ def test_session_ideas_build_plan_markers():
         js = TestClient(app).get("/static/session.js").text
         assert "initIdeas" in js
         assert "ideaDelete" in js
-        assert "/api/session/ideas/events" in js
+        assert "events?workspace=true" in js
+        assert 'case "idea":' in js
         assert "/api/supervisor" in js
-        assert "connectSupervisor" in js
+        assert 'case "supervisor":' in js
+        assert "renderSupervisor(event)" in js
+        assert js.count("new EventSource(") == 1
 
 
 def test_session_ideas_wave2_markers():

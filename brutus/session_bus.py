@@ -74,8 +74,8 @@ class SessionEventBus:
 
     # --- consumer side ----------------------------------------------------
 
-    def subscribe(self, session_id: str) -> asyncio.Queue:
-        q: asyncio.Queue = asyncio.Queue(maxsize=QUEUE_DEPTH)
+    def subscribe(self, session_id: str, queue: asyncio.Queue | None = None) -> asyncio.Queue:
+        q = queue if queue is not None else asyncio.Queue(maxsize=QUEUE_DEPTH)
         with self._lock:
             self._subs.setdefault(session_id, []).append(q)
         return q

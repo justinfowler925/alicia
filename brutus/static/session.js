@@ -251,7 +251,7 @@ function renderConversationEmpty() {
 
 function connect(sessionId) {
   if (state.events) state.events.close();
-  const es = new EventSource(`/api/session/${sessionId}/events`);
+  const es = new EventSource(`/api/session/${sessionId}/events?workspace=true`);
   state.events = es;
   es.onopen = () => setLiveConnected(true);
   es.onerror = () => setLiveConnected(false);
@@ -268,6 +268,12 @@ function connect(sessionId) {
 
 function handle(event) {
   switch (event.kind) {
+    case "supervisor":
+      renderSupervisor(event);
+      break;
+    case "board":
+      applyBoardEvent(event);
+      break;
     case "turn":
       renderTurn(event.turn);
       break;
@@ -1243,18 +1249,6 @@ async function loadSupervisor({ force = false } = {}) {
   }
 }
 
-function connectSupervisor() {
-  const stream = new EventSource("/api/session/supervisor/events");
-  stream.onmessage = (event) => {
-    try {
-      const payload = JSON.parse(event.data);
-      if (payload.kind === "supervisor") renderSupervisor(payload);
-    } catch {
-      /* A malformed monitoring frame never breaks the conversation. */
-    }
-  };
-}
-
 const setMicState = () =>
   setVoicePhase(state.speaking ? "speaking" : state.listening ? "listening" : "idle");
 
@@ -1429,13 +1423,21 @@ function init() {
   setMicState();
   setConversationFilled();
   initTheme();
-  openSession();
+  openSession().catch(() => {
+    setLiveConnected(false);
+    setStatus("Couldn’t connect to Brutus. Reload to try again.");
+  });
   initIdeas();
   loadSupervisor();
-  connectSupervisor();
 }
 
 window.addEventListener("pagehide", teardownVoice);
+window.addEventListener("pagehide", () => {
+  state.events?.close();
+});
+window.addEventListener("pageshow", event => {
+  if (event.persisted && state.sessionId) connect(state.sessionId);
+});
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -1731,17 +1733,6 @@ function initBoard() {
   $("#board-clear").addEventListener("click", () => focusBoard(null));
   $("#ledger-detail-close")?.addEventListener("click", () => focusBoard(null));
 
-  // The board publishes on the same bus as a conversation, under the reserved
-  // id "board" — one stream mechanism for the whole screen, not two.
-  const es = new EventSource("/api/session/board/events");
-  es.onmessage = (e) => {
-    try {
-      const event = JSON.parse(e.data);
-      if (event.kind === "board") applyBoardEvent(event);
-    } catch {
-      /* ignore a malformed frame */
-    }
-  };
   loadBoard();
 }
 
@@ -1801,14 +1792,6 @@ function isMeetingDump(text) {
 }
 
 async function initIdeas() {
-  const es = new EventSource("/api/session/ideas/events");
-  es.onmessage = (e) => {
-    try {
-      applyIdeaEvent(JSON.parse(e.data));
-    } catch {
-      /* ignore a malformed frame */
-    }
-  };
   document.addEventListener("click", (e) => {
     if (e.target.closest("#ideas-list .idea")) return;
     if (ideasState.confirmDeleteId) {

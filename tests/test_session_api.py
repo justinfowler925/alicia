@@ -287,3 +287,33 @@ def test_events_are_isolated_per_session():
         assert b.qsize() == 0
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("workspace", [False, True])
+def test_event_stream_multiplexes_workspace_and_cleans_up(client, workspace):
+    import asyncio
+    import json
+    from starlette.requests import Request
+
+    async def run():
+        app = client.app
+        bus = SessionEventBus()
+        app.state.bus = bus
+        endpoint = next(r.endpoint for r in app.routes if getattr(r, "path", None) == "/api/session/{session_id}/events")
+        request = Request({"type": "http", "app": app})
+        response = await endpoint("s1", request, workspace=workspace)
+        stream = response.body_iterator
+        assert '"kind": "open"' in await anext(stream)
+        topics = ["s1", "board", "ideas", "supervisor"] if workspace else ["s1"]
+        bus.publish("turn", {"session_id": "unrelated"})
+        for topic in topics:
+            assert bus.subscriber_count(topic) == 1
+            bus.publish("turn" if topic == "s1" else topic, {"session_id": topic})
+            frame = await asyncio.wait_for(anext(stream), 1)
+            assert json.loads(frame.removeprefix("data: "))["session_id"] == topic
+        if not workspace:
+            assert bus.subscriber_count("supervisor") == 0
+        await stream.aclose()
+        assert all(bus.subscriber_count(topic) == 0 for topic in topics)
+
+    asyncio.run(run())
