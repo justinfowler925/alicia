@@ -132,7 +132,7 @@ class SupervisorRuntime:
             if previous and previous.get("lifecycle_state") == row.get("state"):
                 assessment = _assessment_from_dict(previous.get("assessment") or {})
             else:
-                assessment = assess_session(row, "")
+                assessment = assess_session({**row, "provider": row.get("surface") or "unknown", "status": row.get("state") or "unknown"}, "")
             sessions.append({
                 **{key: row.get(key) for key in ("id", "surface", "title", "state", "age", "mtime", "status_source")},
                 "live": bool(row.get("live")),
