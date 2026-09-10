@@ -23,12 +23,13 @@ def test_deploy_waits_for_the_replacement_actor_before_probing_surfaces():
 def test_user_facing_endpoints_retry_after_actor_stability():
     source = DEPLOY.read_text()
 
-    assert 'wait_for_http_200 "http://127.0.0.1:$PORT/"' in source
-    assert 'wait_for_http_200 "http://127.0.0.1:$PORT/session"' in source
-    assert 'wait_for_http_200 "http://127.0.0.1:$PORT/console"' in source
-    # /mobile is a 308 to the one surface, so a 200 assertion here is what
-    # failed the first deploy of that change — the verifier outlived the route.
-    assert '[ "$MOBILE_CODE" = "308" ]' in source
+    # Two lists, not a line per URL. Naming each individually failed two
+    # deploys in a row: /mobile then /console each became a redirect while the
+    # verifier still demanded 200 from it.
+    assert 'for path in "/" "/session"; do' in source
+    assert 'wait_for_http_200 "http://127.0.0.1:$PORT$path"' in source
+    assert 'for path in "/console" "/mobile"; do' in source
+    assert '[ "$CODE" = "308" ]' in source
     assert "if wait_for_todos; then" in source
     assert "if not isinstance(t, list): raise SystemExit(1)" in source
 

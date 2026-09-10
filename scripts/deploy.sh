@@ -443,18 +443,21 @@ if [ -f "$HOME/Library/LaunchAgents/$VOICE_AGENT_LABEL.plist" ]; then
 fi
 
 echo "==> verifying the layer you actually use"
-# `/` is the surface now, not a second document, so it is what gets checked.
-wait_for_http_200 "http://127.0.0.1:$PORT/" \
-  && echo "    / 200" || { echo "    / unavailable"; FAIL=1; }
-wait_for_http_200 "http://127.0.0.1:$PORT/session" \
-  && echo "    /session 200" || { echo "    /session unavailable"; FAIL=1; }
-wait_for_http_200 "http://127.0.0.1:$PORT/console" \
-  && echo "    /console 200" || { echo "    /console unavailable"; FAIL=1; }
-# /mobile is a permanent redirect to the one surface. Asserting 200 here is what
-# failed the first deploy of that change — the verifier outlived the route.
-MOBILE_CODE=$(curl -s -m 5 -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT/mobile")
-[ "$MOBILE_CODE" = "308" ] \
-  && echo "    /mobile 308 -> /" || { echo "    /mobile answered $MOBILE_CODE, expected 308"; FAIL=1; }
+# Two lists, because a URL either renders the surface or points at it. Naming
+# each individually is what failed two deploys in a row: /mobile then /console
+# each became a redirect while this block still demanded 200, so the release
+# installed, both actors restarted, and the deploy failed its own verification.
+# A verifier that outlives its routes is the same class of bug as a green
+# deploy that deployed nothing.
+for path in "/" "/session"; do
+  wait_for_http_200 "http://127.0.0.1:$PORT$path" \
+    && echo "    $path 200" || { echo "    $path unavailable"; FAIL=1; }
+done
+for path in "/console" "/mobile"; do
+  CODE=$(curl -s -m 5 -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT$path")
+  [ "$CODE" = "308" ] \
+    && echo "    $path 308 -> /" || { echo "    $path answered $CODE, expected 308"; FAIL=1; }
+done
 wait_for_http_200 "http://127.0.0.1:$PORT/api/supervisor" \
   && echo "    /api/supervisor 200" || { echo "    /api/supervisor unavailable"; FAIL=1; }
 
