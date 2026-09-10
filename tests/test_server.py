@@ -40,11 +40,11 @@ def test_supervisor_endpoint_forwards_force_and_returns_structured_snapshot():
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
         expected = {"sessions": [], "counts": {"total": 0}, "assessment": None}
-        app.state.supervisor.observe = MagicMock(return_value=expected)
+        app.state.supervisor.snapshot = MagicMock(return_value=expected)
         response = TestClient(app).get("/api/supervisor?force=true")
     assert response.status_code == 200
     assert response.json() == expected
-    app.state.supervisor.observe.assert_called_once_with(force=True)
+    app.state.supervisor.snapshot.assert_called_once_with(force=True)
 
 
 def test_focus_endpoint():
