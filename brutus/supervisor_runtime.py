@@ -120,6 +120,39 @@ class SupervisorRuntime:
                 ),
             )
 
+    def snapshot(self, *, force: bool = False, limit: int = 40) -> dict[str, Any]:
+        """Read catalog and persisted judgments without waiting on a model call."""
+        rows = filter_cockpit(self.scanner(force=force))[:max(1, min(limit, 100))]
+        sessions = []
+        for row in rows:
+            agent_id = str(row.get("id") or "")
+            if not agent_id:
+                continue
+            previous = self._previous(agent_id)
+            if previous and previous.get("lifecycle_state") == row.get("state"):
+                assessment = _assessment_from_dict(previous.get("assessment") or {})
+            else:
+                assessment = assess_session(row, "")
+            sessions.append({
+                **{key: row.get(key) for key in ("id", "surface", "title", "state", "age", "mtime", "status_source")},
+                "live": bool(row.get("live")),
+                "linked_rev": row.get("linked_rev") or "",
+                "project": row.get("project") or row.get("cwd") or "",
+                "assessment": assessment.to_dict(),
+            })
+        interventions = [{"session": row, **row["assessment"]} for row in sessions if row["assessment"]["should_intervene"]]
+        interventions.sort(key=lambda item: _PRIORITY.get(str(item.get("intervention_type")), 8))
+        return {
+            "sessions": sessions,
+            "counts": {
+                "total": len(sessions), "live": sum(row["live"] for row in sessions),
+                "needs_attention": len(interventions),
+                **{provider: sum(row["surface"] == provider for row in sessions) for provider in ("claude", "cursor", "codex")},
+            },
+            "assessment": interventions[0] if interventions else None,
+            "interventions": interventions, "observed_at": time.time(),
+        }
+
     def observe(self, *, force: bool = False, limit: int = 40) -> dict[str, Any]:
         """Return current sessions and the highest-value earned intervention."""
         with self._lock:

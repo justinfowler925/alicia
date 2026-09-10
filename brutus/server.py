@@ -1278,7 +1278,7 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
     @app.get("/api/supervisor")
     async def supervisor_status(request: Request, force: bool = False) -> dict[str, Any]:
         """One evidence-backed intervention across Claude, Cursor, and Codex."""
-        return await asyncio.to_thread(request.app.state.supervisor.observe, force=force)
+        return await asyncio.to_thread(request.app.state.supervisor.snapshot, force=force)
 
     @app.patch("/api/agents/{agent_id:path}")
     async def agents_update(agent_id: str, body: dict) -> dict[str, Any]:
