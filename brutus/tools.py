@@ -638,7 +638,7 @@ def _assess_agent_thread(
     agent_id: str = "",
     q: str = "",
 ) -> dict[str, Any]:
-    snapshot = supervisor.observe(force=True)
+    snapshot = supervisor.snapshot(force=True)
     rows = snapshot.get("sessions") or []
     aid = (agent_id or "").strip().casefold()
     qn = (q or "").strip().lower()
@@ -1326,7 +1326,7 @@ def build_default_registry(
                 "type": "object",
                 "properties": {"force": {"type": "boolean"}, "limit": {"type": "integer"}},
             },
-            fn=lambda **kwargs: {"ok": True, **supervisor.observe(**kwargs)},
+            fn=lambda **kwargs: {"ok": True, **supervisor.snapshot(**kwargs)},
         )
     )
     reg.register(
