@@ -48,6 +48,11 @@ _BUILD = re.compile(
 )
 _PUSH = re.compile(r"\b(?:continue|finish|complete|deploy|push|production|ship it)\b", re.IGNORECASE)
 _META = re.compile(r"\b(?:skill|agent|model|harness|runner|recipe|workflow|dashboard)\b", re.IGNORECASE)
+_REPOSITORY_MUTATION = re.compile(
+    r"\b(?:add|build|change|commit|create|delete|deploy|edit|fix|implement|install|land|merge|"
+    r"modify|patch|publish|push|refactor|release|remove|rename|run tests?|ship|update|write)\b",
+    re.IGNORECASE,
+)
 _EVENT_TYPES = frozenset(
     {
         "observed",
@@ -67,6 +72,12 @@ _EVENT_TYPES = frozenset(
 
 def _normalized(value: str) -> str:
     return _SPACE.sub(" ", (value or "").casefold()).strip()
+
+
+def _name_matches_request(name: str, request_words: set[str]) -> bool:
+    """Match complete repository names, including names split by '-' or '_'."""
+    tokens = set(_normalized(name).split())
+    return bool(tokens) and tokens.issubset(request_words)
 
 
 class DeliveryRequirement(BaseModel):
@@ -229,6 +240,76 @@ class RouteResult:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class RouteGuardDecision:
+    allow: bool
+    reason: str
+    message: str = ""
+    repository_path: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def _payload_value(payload: Mapping[str, Any], names: set[str]) -> str:
+    for key, value in payload.items():
+        if key.casefold() in names:
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                first = next((str(item) for item in value if str(item).strip()), "")
+                if first:
+                    return first
+        if isinstance(value, Mapping):
+            nested = _payload_value(value, names)
+            if nested:
+                return nested
+    return ""
+
+
+def evaluate_route_guard(
+    payload: Mapping[str, Any],
+    *,
+    projects: Sequence[Mapping[str, Any]] | None = None,
+) -> RouteGuardDecision:
+    """Deny repository mutations that begin at the broad Projects directory."""
+    cwd = _payload_value(
+        payload,
+        {"cwd", "working_directory", "workingdirectory", "workspace_root", "workspaceroot"},
+    )
+    if not cwd or Path(cwd).expanduser().resolve() != PROJECTS_ROOT.resolve():
+        return RouteGuardDecision(True, "working directory is not the broad Projects root")
+    prompt = _payload_value(payload, {"prompt", "user_prompt", "userprompt", "message", "query"})
+    if not prompt or not _REPOSITORY_MUTATION.search(prompt):
+        return RouteGuardDecision(True, "broad-root prompt is read-only or has no mutation intent")
+    repo_hint = _payload_value(payload, {"repository", "repo", "repo_hint", "repohint"})
+    candidates = (
+        list(projects)
+        if projects is not None
+        else _route_projects(prompt, repo_hint=repo_hint, cwd=cwd, sessions=())
+    )
+    repository, _ = _choose_repository(prompt, candidates, repo_hint=repo_hint, cwd=cwd)
+    if repository is not None:
+        target = str(repository.get("path") or "")
+        return RouteGuardDecision(
+            False,
+            "repository mutation was submitted from the broad Projects root",
+            (
+                f"Repository-changing work cannot start from {PROJECTS_ROOT}. "
+                f"Open or create the task in the saved project at {target}, then resubmit this prompt."
+            ),
+            target,
+        )
+    return RouteGuardDecision(
+        False,
+        "repository mutation has no unique repository match",
+        (
+            f"Repository-changing work cannot start from {PROJECTS_ROOT}. "
+            "Choose the saved project first, or name exactly one repository in the prompt."
+        ),
+    )
+
+
 def _choose_repository(
     request: str,
     projects: Sequence[Mapping[str, Any]],
@@ -265,13 +346,13 @@ def _choose_repository(
     named = [
         item
         for item in projects
-        if _normalized(str(item.get("name") or "")) in words
-        or _normalized(Path(str(item.get("path") or "")).name) in words
+        if _name_matches_request(str(item.get("name") or ""), words)
+        or _name_matches_request(Path(str(item.get("path") or "")).name, words)
     ]
     project_ids = {str(item.get("project_id") or "") for item in named}
     if len(project_ids) == 1 and named:
         named.sort(
-            key=lambda item: (not bool(item.get("is_worktree")), -float(item.get("last_commit_epoch") or 0))
+            key=lambda item: (bool(item.get("is_worktree")), -float(item.get("last_commit_epoch") or 0))
         )
         return named[0], broad
     return None, broad
@@ -773,11 +854,11 @@ def _route_projects(
     words = set(_normalized(request).split())
     if PROJECTS_ROOT.is_dir():
         for child in PROJECTS_ROOT.iterdir():
-            if child.is_dir() and _normalized(child.name) in words:
+            if child.is_dir() and _name_matches_request(child.name, words):
                 candidates.append(child)
     for session in sessions:
         session_cwd = Path(str(session.get("cwd") or "")).expanduser()
-        if session_cwd.name and _normalized(session_cwd.name) in words:
+        if session_cwd.name and _name_matches_request(session_cwd.name, words):
             candidates.append(session_cwd)
 
     roots: list[Path] = []

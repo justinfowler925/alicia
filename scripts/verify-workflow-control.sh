@@ -9,8 +9,11 @@ cd "$ROOT"
   brutus/workflow_control.py \
   brutus/workflow_cli.py \
   brutus/workflow_http.py \
+  scripts/route-guard.py \
+  scripts/weekly-workflow-efficiency.py \
   tests/test_workflow_control.py \
-  tests/test_workflow_http.py
+  tests/test_workflow_http.py \
+  tests/test_weekly_efficiency.py
 
 # The repository has a measured historical lint backlog. Keep every touched
 # integration seam free of syntax/undefined-name failures without pretending
@@ -25,4 +28,5 @@ cd "$ROOT"
   brutus/server.py \
   tests/test_mcp.py
 
-bash -n scripts/deploy.sh scripts/install-brutus.sh
+bash -n scripts/deploy.sh scripts/install-brutus.sh scripts/install-weekly-workflow-efficiency.sh
+/usr/bin/plutil -lint scripts/launchd/com.jfstudio.weekly-workflow-efficiency.plist >/dev/null

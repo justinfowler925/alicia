@@ -20,6 +20,7 @@ from brutus.workflow_control import (
     bind_delivery_policy,
     build_efficiency_scorecard,
     evaluate_delivery_receipts,
+    evaluate_route_guard,
     find_work_by_binding,
     load_delivery_policy,
     persist_feedback_batches,
@@ -199,6 +200,65 @@ def test_router_rejects_broad_root_and_selects_active_worktree():
     assert result.repository_path == "/repo/brutus"
     assert result.worktree_path == "/repo/brutus-wt/feature"
     assert result.needs_worktree is False
+
+
+@pytest.mark.parametrize(
+    ("prompt_text", "expected"),
+    [
+        ("Fix Brutus delivery", "/repo/brutus"),
+        ("Run tests in Brutus", "/repo/brutus"),
+        ("Deploy Brutus", "/repo/brutus"),
+        ("Update Fowler Brain rules", "/repo/fowler-brain"),
+        ("Fix the Fowler Brain workflow", "/repo/fowler-brain"),
+        ("Commit Fowler Brain changes", "/repo/fowler-brain"),
+        ("Build CRO Suite reporting", "/repo/cro-suite"),
+        ("Patch CRO Suite collector", "/repo/cro-suite"),
+        ("Run tests in CRO Suite", "/repo/cro-suite"),
+        ("Update Nucleus", "/repo/nucleus"),
+        ("Ship Nucleus", "/repo/nucleus"),
+        ("Refactor Nucleus", "/repo/nucleus"),
+        ("Fix Atlas Direct", "/repo/atlas-direct"),
+        ("Deploy Atlas Direct", "/repo/atlas-direct"),
+        ("Change Atlas Direct", "/repo/atlas-direct"),
+        ("Build Hollywood", "/repo/hollywood"),
+        ("Publish Hollywood", "/repo/hollywood"),
+        ("Update Hollywood", "/repo/hollywood"),
+        ("Fix Clarity", "/repo/clarity"),
+        ("Release Clarity", "/repo/clarity"),
+        ("Write Clarity tests", "/repo/clarity"),
+        ("Implement SHINE", "/repo/shine"),
+        ("Install SHINE", "/repo/shine"),
+        ("Patch SHINE", "/repo/shine"),
+    ],
+)
+def test_route_guard_routes_labeled_repository_mutations(prompt_text, expected):
+    names = ("brutus", "fowler-brain", "cro-suite", "nucleus", "atlas-direct", "hollywood", "clarity", "shine")
+    projects = [
+        {"name": name, "path": f"/repo/{name}", "project_id": f"github/{name}"}
+        for name in names
+    ]
+
+    decision = evaluate_route_guard(
+        {"cwd": str(__import__("pathlib").Path.home() / "Projects"), "prompt": prompt_text},
+        projects=projects,
+    )
+
+    assert decision.allow is False
+    assert decision.repository_path == expected
+
+
+def test_route_guard_blocks_ambiguous_mutation_but_allows_read_only_broad_work():
+    broad = str(__import__("pathlib").Path.home() / "Projects")
+    projects = [{"name": "brutus", "path": "/repo/brutus", "project_id": "github/brutus"}]
+
+    ambiguous = evaluate_route_guard({"cwd": broad, "prompt": "fix this"}, projects=projects)
+    inspection = evaluate_route_guard(
+        {"cwd": broad, "prompt": "inspect all repositories for stale branches"}, projects=projects
+    )
+
+    assert ambiguous.allow is False
+    assert ambiguous.repository_path == ""
+    assert inspection.allow is True
 
 
 def test_router_does_not_treat_unrelated_ticket_as_a_match():
