@@ -20,6 +20,7 @@
       <p class="tagline">Your AI work, at a glance</p>
     </div>
     <span id="live" class="live" data-connected="false" role="status" aria-live="polite">offline</span>
+    <span id="resilience-chip" class="resilience-chip" data-ok="false" role="status" title="Billing and canary status">brain:…</span>
     <button type="button" id="theme-toggle" aria-pressed="false" aria-label="Toggle light/dark theme">
       <span class="label">Dark</span>
     </button>
@@ -42,7 +43,8 @@
       </div>
       <button type="button" class="help-balloon-trigger" popovertarget="voice-help" aria-label="Voice help">?</button>
       <div id="voice-help" class="help-balloon" popover>
-        Start voice to talk naturally, interrupt Brutus, or say “capture” to save a thought. Text works too.
+        Start voice to talk naturally. Say “wrong” or “correct intent” to dispute the last claim.
+        Residue holds only what needs eyes. Say “capture” to save a thought. Text works too.
       </div>
       <button type="button" id="mic" class="mic voice-primary" data-testid="voice-control"
               aria-label="Start voice conversation" aria-pressed="false">
@@ -65,10 +67,59 @@
       </div>
     </section>
 
+    <!-- Glance Residue: voice owns the loop. Readback is the last spoken
+         claim; the operational claim is what needs Justin; residue is only
+         what eyes must verify. Sessions are attention targets, not a peer grid. -->
     <section class="intent-readback" aria-label="Latest readback">
-      <div class="readback-heading"><span id="readback-label">Brutus · ready</span><button type="button" id="correct-intent">Correct intent</button></div>
+      <div class="readback-heading">
+        <span id="readback-label">Brutus · ready</span>
+        <button type="button" id="correct-intent">Correct intent</button>
+      </div>
       <p id="intent-readback" aria-live="polite">Start voice. I’ll repeat the task I understood and keep you informed as work progresses.</p>
     </section>
+
+    <section class="spoken-claim" data-testid="spoken-claim" aria-label="What needs you">
+      <div class="claim-heading">
+        <span class="claim-kicker" id="claim-kicker">Needs you</span>
+        <button type="button" id="claim-discuss" hidden>Discuss this</button>
+      </div>
+      <p id="claim-text" aria-live="polite">Checking what needs you…</p>
+      <p id="claim-detail" class="claim-detail" hidden></p>
+    </section>
+
+    <section class="panel attention-block" data-testid="supervisor-guidance" aria-label="Attention">
+      <header class="attention-head">
+        <h2>Attention <span class="count" id="supervisor-count"></span></h2>
+        <div class="attention-controls">
+          <button type="button" id="supervisor-refresh">Check now</button>
+          <button type="button" id="sessions-mode" aria-pressed="false">Show all sessions</button>
+        </div>
+      </header>
+      <p class="attention-lead">Sessions that need a decision. Everything else stays quiet.</p>
+      <p class="supervisor-state" id="supervisor-state" hidden></p>
+      <p class="supervisor-next" id="supervisor-next" hidden></p>
+      <p class="supervisor-evidence" id="supervisor-evidence" hidden></p>
+      <p class="session-coverage" id="supervisor-count-detail"></p>
+      <ol class="agent-strip" id="supervisor-agents" data-mode="attention" aria-label="Attention sessions"></ol>
+      <button type="button" id="sessions-more" hidden>Show more sessions</button>
+      <p id="session-action-status" role="status"></p>
+      <details class="archive-sessions" id="archived-sessions">
+        <summary>Archived sessions</summary>
+        <p>Hidden from Brutus. Archiving does not stop the agent or delete its conversation.</p>
+        <ul class="archive-list" id="archive-list"></ul>
+      </details>
+    </section>
+
+    <section class="glance-residue" data-testid="glance-residue" aria-label="Needs eyes" hidden>
+      <header class="residue-head">
+        <h3>Needs eyes</h3>
+        <span class="count" id="residue-count"></span>
+      </header>
+      <p class="residue-hint">Only claims speech cannot safely settle.</p>
+      <ul class="residue-list" id="residue-list"></ul>
+      <p class="residue-empty" id="residue-empty" hidden>Nothing waiting for eyes.</p>
+    </section>
+
     <p id="status-line" role="status"></p>
     <details class="conversation-details" id="conversation-details">
       <summary>Conversation &amp; keyboard</summary>
@@ -92,28 +143,7 @@
     </details>
   </section>
 
-  <aside class="supervisor-rail" aria-label="Work in motion">
-    <section class="panel supervisor-guidance" data-testid="supervisor-guidance">
-      <h2>Work in motion <span class="count" id="supervisor-count"></span></h2>
-      <div class="supervisor-body" id="supervisor-guidance">
-        <p class="supervisor-state" id="supervisor-state">Checking Claude, Cursor, and Codex…</p>
-        <p class="supervisor-next" id="supervisor-next"></p>
-        <p class="supervisor-evidence" id="supervisor-evidence"></p>
-        <button type="button" id="supervisor-refresh">Check now</button>
-      </div>
-      <div class="agent-details">
-        <p class="session-coverage" id="supervisor-count-detail"></p>
-        <ol class="agent-strip" id="supervisor-agents" aria-label="Observed agent sessions"></ol>
-        <button type="button" id="sessions-more" hidden>Show more sessions</button>
-        <p id="session-action-status" role="status"></p>
-        <details class="archive-sessions" id="archived-sessions">
-          <summary>Archived sessions</summary>
-          <p>Hidden from Brutus. Archiving does not stop the agent or delete its conversation.</p>
-          <ul class="archive-list" id="archive-list"></ul>
-        </details>
-      </div>
-    </section>
-
+  <aside class="supervisor-rail" aria-label="Thread detail" hidden id="supervisor-rail-shell">
     <aside id="ledger-detail" class="panel ledger-detail" aria-label="Thread detail" hidden>
       <header class="ledger-detail-head">
         <h3 id="ledger-detail-ticket"></h3>
@@ -131,7 +161,6 @@
         <p class="ledger-detail-hint" id="ledger-detail-hint">Open work only when you need its evidence.</p>
       </div>
     </aside>
-
   </aside>
 
   <!-- One surface. The console at / used to be a second document with its own

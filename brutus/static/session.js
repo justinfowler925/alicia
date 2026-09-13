@@ -32,6 +32,40 @@ function applyTheme(theme) {
   }
 }
 
+
+async function refreshResilienceChip() {
+  const el = $("#resilience-chip");
+  if (!el) return;
+  try {
+    const res = await fetch("/api/resilience");
+    if (!res.ok) throw new Error(String(res.status));
+    const data = await res.json();
+    const bill = data.billing || {};
+    const conv = bill.conversation || {};
+    const can = data.canaries || {};
+    const plane = conv.plane === "claude_subscription_cli" ? "CLI" : "API";
+    const cli = can.cli && can.cli.ok ? "ok" : (can.cli && can.cli.skipped ? "—" : "down");
+    const convai = can.convai && can.convai.ok ? "ok" : (can.convai && can.convai.skipped ? "—" : "down");
+    el.textContent = `brain:${plane} cli:${cli} convai:${convai}`;
+    el.dataset.ok = data.ok ? "true" : "false";
+    el.title = JSON.stringify({
+      billing: {
+        conversation: conv.plane,
+        voice_convai: (bill.voice_convai || {}).plane,
+        kills: bill.kill_files,
+      },
+      canaries: {
+        cli: can.cli,
+        convai: can.convai,
+        supervisor: can.supervisor,
+      },
+    }, null, 0).slice(0, 500);
+  } catch (err) {
+    el.textContent = "brain:?";
+    el.dataset.ok = "false";
+  }
+}
+
 function initTheme() {
   let cur = "dark";
   try {
@@ -61,6 +95,10 @@ const state = {
   livekitRoom: null,
   livekitAudio: new Set(),
   livekitStopping: false,
+  convai: null,
+  convaiStopping: false,
+  brainPending: false,
+  lastBrainSpoken: "",
   muted: false,
   seenTurns: new Set(),
   fields: new Map(),
@@ -266,6 +304,17 @@ function connect(sessionId) {
   };
 }
 
+function voiceOwnsPlayback() {
+  // LiveKit and ConvAI already speak. Browser /api/speak on the same turn
+  // is the "two voices at once" bug.
+  return (
+    state.voiceTransport === "livekit"
+    || state.voiceTransport === "convai"
+    || Boolean(state.livekitRoom)
+    || Boolean(state.convai)
+  );
+}
+
 function handle(event) {
   switch (event.kind) {
     case "supervisor":
@@ -278,18 +327,20 @@ function handle(event) {
       renderTurn(event.turn);
       break;
     case "reply":
-      if (event.spoken && !state.livekitRoom && state.voiceTransport !== "livekit") speak(event.spoken);
+      if (event.spoken && !voiceOwnsPlayback()) speak(event.spoken);
       break;
     case "answer":
       resolveThinking(event);
       // Speak the ANSWER, not only the acknowledgement. It used to arrive
       // silently by design, which meant conversational mode said "Ok." and then
       // nothing at all — the thing you actually asked for never reached the ear.
-      if (event.spoken && !state.livekitRoom && state.voiceTransport !== "livekit") speak(event.spoken);
+      if (event.spoken && !voiceOwnsPlayback()) speak(event.spoken);
       break;
     case "thinking":
       renderThinking(event);
-      if (state.listening || state.voiceTransport === "livekit") setVoicePhase("thinking");
+      if (state.listening || state.voiceTransport === "livekit" || state.voiceTransport === "convai") {
+        setVoicePhase("thinking");
+      }
       break;
 
     case "field":
@@ -702,7 +753,21 @@ function flushUtterance() {
   utteranceTimer = null;
   const text = utteranceParts.join(" ").replace(/\s+/g, " ").trim();
   utteranceParts = [];
-  if (text) say(text, "voice");
+  if (!text) return;
+  if (CORRECT_INTENT_ONLY.test(text)) {
+    beginIntentCorrection({ speakHint: true });
+    return;
+  }
+  if (CORRECT_INTENT_PREFIX.test(text)) {
+    const correction = text.replace(CORRECT_INTENT_PREFIX, "").trim();
+    clearIntentDispute();
+    say(correction || text, "voice");
+    return;
+  }
+  if (glance.awaitingCorrection) {
+    clearIntentDispute();
+  }
+  say(text, "voice");
 }
 
 function queueVoiceFinal(text) {
@@ -753,6 +818,7 @@ function supportsSpeech() {
 }
 
 const LIVEKIT_CLIENT_URL = "https://esm.sh/livekit-client@2.15.13";
+const ELEVENLABS_CLIENT_URL = "https://esm.sh/@elevenlabs/client@1.25.0";
 
 async function startVoice() {
   state.voiceStartAbort?.abort();
@@ -760,6 +826,10 @@ async function startVoice() {
   state.voiceStartAbort = controller;
   setVoicePhase("buffering", "Connecting voice…");
   try {
+    const convaiOk = await startConvAI(controller.signal);
+    if (convaiOk) return;
+    if (controller.signal.aborted) return;
+
     const response = await fetch(`/api/session/${state.sessionId}/voice-token`, {
       method: "POST",
       signal: controller.signal,
@@ -823,6 +893,7 @@ async function startVoice() {
     setVoicePhase("listening");
   } catch (err) {
     if (err.name === "AbortError") return;
+    await teardownConvAI();
     await teardownLiveKit();
     state.voiceTransport = null;
     // Once owner-only voice is enabled, browser recognition is an unauthenticated
@@ -920,6 +991,7 @@ function stopListening() {
 
 async function speak(text) {
   if (state.muted || !text) return;
+  if (voiceOwnsPlayback()) return;
   state.speechAbort?.abort();
   const controller = new AbortController();
   state.speechAbort = controller;
@@ -970,6 +1042,215 @@ function stopSpeaking() {
   setVoicePhase(state.listening ? "listening" : "idle");
 }
 
+
+
+function isWeakBrainReply(spoken, error) {
+  const s = String(spoken || "").trim();
+  const e = String(error || "").trim().toLowerCase();
+  if (!s) return true;
+  if (e && !s) return true;
+  const low = s.toLowerCase();
+  const weak = [
+    "i couldn't finish",
+    "could not finish",
+    "brain_all_backends_failed",
+    "brain_credits_exhausted",
+    "brain_service_unavailable",
+    "cli_failed",
+    "no reply",
+    "try again",
+    "check `claude`",
+    "check claude",
+  ];
+  if (weak.some((w) => low.includes(w) || e.includes(w))) return true;
+  // Too short to be a real work answer after a real ask.
+  if (s.length < 12) return true;
+  return false;
+}
+
+async function startConvAI(signal) {
+  const response = await fetch(`/api/session/${state.sessionId}/convai-token`, {
+    method: "POST",
+    signal,
+  });
+  if (!response.ok) return false;
+  const grant = await response.json();
+  if (!grant.enabled || !grant.signedUrl) return false;
+
+  const { Conversation } = await import(ELEVENLABS_CLIENT_URL);
+  if (signal.aborted) return false;
+
+  const timeoutMs = Number(grant.connectTimeoutMs) || 40000;
+  let connected = false;
+  const watchdog = setTimeout(() => {
+    if (state.voiceTransport === "convai" && !connected) {
+      void teardownConvAI();
+      setVoicePhase("error", "ConvAI connect timed out. Tap Talk to retry.");
+    }
+  }, timeoutMs);
+
+  try {
+    const conversation = await Conversation.startSession({
+      signedUrl: grant.signedUrl,
+      connectionType: "websocket",
+      overrides: grant.overrides || {},
+      ...(grant.voiceId ? { voiceId: grant.voiceId } : {}),
+      clientTools: {
+        ask_brutus: async (params) => {
+          const text = String((params && params.message) || "").trim();
+          if (!text) return "Nothing to ask.";
+          // Hold thinking face through retries. Only speak when the brain
+          // returns something that looks like a real answer.
+          state.brainPending = true;
+          setVoicePhase("thinking", "Thinking — taking the time to get this right.");
+          const attempts = 3;
+          const gapMs = 2500;
+          let last = "";
+          try {
+            for (let i = 1; i <= attempts; i += 1) {
+              if (i > 1) {
+                setVoicePhase(
+                  "thinking",
+                  `Still thinking — retry ${i} of ${attempts}. Better wrong-and-silent than wrong-and-loud.`,
+                );
+                await new Promise((r) => setTimeout(r, gapMs));
+              } else {
+                setVoicePhase("thinking", "Thinking — face paused, working it out.");
+              }
+              try {
+                const controller = new AbortController();
+                const kill = setTimeout(() => controller.abort(), 170000);
+                const res = await fetch(`/api/session/${state.sessionId}/say`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    message: text,
+                    channel: "voice",
+                    wait: true,
+                    read_only: false,
+                  }),
+                  signal: controller.signal,
+                });
+                clearTimeout(kill);
+                const data = await res.json();
+                const spoken = String(data.spoken || data.reply || "").trim();
+                const err = String(data.error || "").trim();
+                last = spoken || err;
+                if (isWeakBrainReply(spoken, err)) {
+                  console.warn("ask_brutus weak reply, retrying", { attempt: i, err, spoken: spoken.slice(0, 120) });
+                  continue;
+                }
+                state.lastBrainSpoken = spoken.slice(0, 1500);
+                return spoken.slice(0, 1500);
+              } catch (err) {
+                last = err && err.name === "AbortError"
+                  ? "That turn took too long."
+                  : `Brutus tool failed: ${(err && err.message) || "unknown"}`;
+                console.warn("ask_brutus attempt failed", i, err);
+              }
+            }
+            // Exhausted retries — honest, not confident garbage.
+            return (
+              last
+                ? `I still don't have a solid answer. ${last.slice(0, 400)}`
+                : "I still don't have a solid answer. Ask me again in a moment."
+            ).slice(0, 1500);
+          } finally {
+            state.brainPending = false;
+          }
+        },
+      },
+      onMessage: ({ message, source }) => {
+        if (!message) return;
+        if (source === "user") {
+          setConversationFilled();
+          appendLocalTurn("user", message);
+          state.brainPending = true;
+          setVoicePhase("thinking", "Thinking — working that through.");
+        } else if (source === "ai") {
+          // Ignore soft-timeout / freelance chatter while the brain is pending.
+          if (state.brainPending) return;
+          setConversationFilled();
+          appendLocalTurn("brutus", message);
+          setVoicePhase("speaking");
+        }
+      },
+      onModeChange: ({ mode }) => {
+        // Do not drop the thinking face back to "listening" mid-brain.
+        if (state.brainPending) {
+          setVoicePhase("thinking", "Thinking — working that through.");
+          return;
+        }
+        if (mode === "speaking") setVoicePhase("speaking");
+        else setVoicePhase("listening");
+      },
+      onDisconnect: () => {
+        if (!state.convaiStopping) {
+          setVoicePhase("error", "ConvAI disconnected. Tap Talk to reconnect.");
+        }
+      },
+      onError: () => {
+        if (!state.convaiStopping) {
+          setVoicePhase("error", "ConvAI interrupted. Tap Talk to reconnect.");
+        }
+      },
+    });
+    clearTimeout(watchdog);
+    if (signal.aborted) {
+      await conversation.endSession();
+      return false;
+    }
+    stopSpeaking();
+    state.convai = conversation;
+    state.voiceTransport = "convai";
+    state.convaiStopping = false;
+    state.listening = true;
+    connected = true;
+    if (state.muted && typeof conversation.setMicMuted === "function") {
+      conversation.setMicMuted(true);
+    }
+    setVoicePhase("listening", "ConvAI · ElevenLabs voice");
+    return true;
+  } catch (err) {
+    clearTimeout(watchdog);
+    if (err && err.name === "AbortError") return false;
+    console.warn("ConvAI unavailable", err);
+    return false;
+  }
+}
+
+function appendLocalTurn(role, text) {
+  const log = $("#conversation");
+  if (!log || !text) return;
+  const key = `local:${role}:${text.slice(0, 80)}`;
+  if (state.seenTurns.has(key)) return;
+  state.seenTurns.add(key);
+  const article = document.createElement("article");
+  article.className = role === "user" ? "turn user" : "turn brutus";
+  const strong = document.createElement("strong");
+  strong.textContent = role === "user" ? "You" : "Brutus";
+  const body = document.createElement("div");
+  body.className = "body";
+  body.textContent = text;
+  article.append(strong, body);
+  log.append(article);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function teardownConvAI() {
+  const conversation = state.convai;
+  state.convaiStopping = true;
+  state.convai = null;
+  if (conversation) {
+    try {
+      await conversation.endSession();
+    } catch {
+      /* already closed */
+    }
+  }
+  state.convaiStopping = false;
+}
+
 async function teardownLiveKit() {
   const room = state.livekitRoom;
   state.livekitStopping = true;
@@ -993,6 +1274,7 @@ function teardownVoice() {
   state.voiceStartAbort = state.sayAbort = state.speechAbort = null;
   stopSpeaking();
   stopListening();
+  void teardownConvAI();
   void teardownLiveKit();
   state.voiceTransport = null;
   setVoicePhase("idle");
@@ -1016,6 +1298,7 @@ function bargeIn() {
    stage — never make someone hunt for a second control while it talks at
    them. State is carried by glyph shape AND label, never by colour alone. */
 function setVoicePhase(phase, detail = "") {
+  document.querySelector(".voice-shell")?.setAttribute("data-voice-phase", phase);
   state.voicePhase = phase;
   const btn = $("#mic");
   if (!btn) return;
@@ -1039,8 +1322,8 @@ function setVoicePhase(phase, detail = "") {
     label.textContent = "Stop";
     btn.setAttribute("aria-label", phase === "thinking" ? "Cancel reply and listen" : "Cancel spoken reply and listen");
     btn.setAttribute("aria-pressed", "true");
-    if (stateLabel) stateLabel.textContent = phase === "thinking" ? "Working the question" : "Joining the conversation";
-    if (stateDetail) stateDetail.textContent = detail || (phase === "thinking" ? "Checking current evidence before answering." : "Connecting the live voice session.");
+    if (stateLabel) stateLabel.textContent = phase === "thinking" ? "Thinking" : "Joining the conversation";
+    if (stateDetail) stateDetail.textContent = detail || (phase === "thinking" ? "Paused — working a real answer. No filler chatter." : "Connecting the live voice session.");
     setStatus(detail || (phase === "thinking" ? "Thinking…" : "Preparing reply…"));
   } else if (phase === "listening") {
     glyph.textContent = "●";
@@ -1067,13 +1350,366 @@ function setVoicePhase(phase, detail = "") {
     if (stateDetail) stateDetail.textContent = "Voice is off.";
     setStatus("");
   }
+  syncCorrectIntentControl();
 }
 
-/* --- supervised work ---------------------------------------------------- */
+/* --- Glance Residue -----------------------------------------------------
+ *
+ * Voice owns the serial loop. The screen holds only (1) the last spoken
+ * readback, (2) one operational needs-you claim, (3) eyes-only residue, and
+ * (4) attention sessions — not a peer dashboard of every observed agent.
+ */
+
+const glance = {
+  mode: "attention", // attention | all
+  focus: null,
+  focusError: null,
+  awaitingCorrection: false,
+  disputed: false,
+  primaryTarget: null,
+};
 
 let supervisorSnapshot = null;
 let sessionLimit = 6;
 const archivedSessionIds = new Set();
+const FOCUS_RESIDUE_CAP = 3;
+const CORRECT_INTENT_ONLY =
+  /^(?:wrong|correct(?:\s+the)?\s+intent|that'?s\s+not\s+(?:it|right)|nope|no(?:,?\s+that'?s\s+wrong)?)\s*[.!?]?\s*$/i;
+const CORRECT_INTENT_PREFIX =
+  /^(?:wrong|correct(?:\s+the)?\s+intent|that'?s\s+not\s+(?:it|right))[,:]?\s+/i;
+
+function sessionNeedsAttention(session) {
+  return Boolean(session?.assessment?.should_intervene);
+}
+
+function sessionJudgmentPending(session) {
+  const a = session?.assessment || {};
+  if (a.should_intervene) return false;
+  const source = String(a.judgment_source || "").toLowerCase();
+  if (source === "model") return false;
+  if (source === "pending" || source === "none" || source === "unknown") return true;
+  const verified = Array.isArray(a.verified_progress) ? a.verified_progress.filter(Boolean) : [];
+  const goal = String(a.goal || "").trim();
+  // Goal equal to title is common and not proof of missing judgment.
+  // Park only when there is no usable progress or next action yet.
+  return !verified.length && !String(a.recommended_next_action || "").trim()
+    && !String(a.blocker_or_decision || "").trim() && !goal;
+}
+
+function sessionProviderLabel(session) {
+  return session?.surface === "codex" ? "OpenAI · Codex" : session?.surface || session?.provider || "Agent";
+}
+
+function syncCorrectIntentControl() {
+  const btn = $("#correct-intent");
+  if (!btn) return;
+  const listening = state.voicePhase === "listening";
+  btn.hidden = listening;
+  btn.setAttribute("aria-hidden", listening ? "true" : "false");
+}
+
+function beginIntentCorrection({ speakHint = true } = {}) {
+  glance.awaitingCorrection = true;
+  glance.disputed = true;
+  const claim = $("#spoken-claim");
+  if (claim) claim.dataset.disputed = "true";
+  $("#readback-label").textContent = "Correct the intent · speak your correction";
+  const kicker = $("#claim-kicker");
+  if (kicker) kicker.textContent = "Disputed · speak the correction";
+  if (speakHint) setStatus("Listening for the correction.");
+  if (state.voicePhase !== "listening") {
+    if (["thinking", "buffering", "speaking"].includes(state.voicePhase)) bargeIn();
+    else startVoice();
+  }
+  syncCorrectIntentControl();
+}
+
+function clearIntentDispute() {
+  glance.awaitingCorrection = false;
+  glance.disputed = false;
+  const claim = $("#spoken-claim");
+  if (claim) claim.dataset.disputed = "false";
+}
+
+function discussTarget(target) {
+  if (!target) return;
+  if (target.kind === "agent") {
+    return say(
+      `Focus our conversation on agent session ${target.id} (${target.title || "Untitled"}). Check its current evidence and briefly explain the intent it understood, progress, and what needs me.`,
+      "text",
+    );
+  }
+  if (target.kind === "focus") {
+    return say(
+      `Focus our conversation on ${target.ticket}: ${target.title || "this Linear item"}. Tell me what needs me and the smallest next move.`,
+      "text",
+    );
+  }
+}
+
+function buildGlanceModel(sessions, counts, focus) {
+  const intervene = sessions.filter(sessionNeedsAttention);
+  const pending = sessions.filter(sessionJudgmentPending);
+  const focusNeeds = Array.isArray(focus?.needs_you) ? focus.needs_you : [];
+  const focusPriority = [...focusNeeds].sort(
+    (a, b) => Number(a.priority || 99) - Number(b.priority || 99),
+  );
+  const focusTop = focusPriority.slice(0, FOCUS_RESIDUE_CAP);
+  const focusRest = Math.max(0, focusNeeds.length - focusTop.length);
+
+  let claimText;
+  if (intervene.length === 1) {
+    const s = intervene[0];
+    const why = (s.assessment || {}).blocker_or_decision
+      || (s.assessment || {}).recommended_next_action
+      || String(s.state || "needs you").replaceAll("_", " ");
+    claimText = `${s.title || "Untitled session"} — ${why}`;
+  } else if (intervene.length > 1) {
+    claimText = `${intervene.length} agent sessions need you. Start with ${intervene[0].title || "the first one"}.`;
+  } else if (sessions.length) {
+    claimText = "Nothing in agents needs you right now.";
+  } else {
+    claimText = "No agent sessions observed yet.";
+  }
+
+  const detailBits = [];
+  if (intervene.length && focusNeeds.length) {
+    detailBits.push(`${focusNeeds.length} Linear in review — open Projects & work when you want them`);
+  } else if (!intervene.length && focusNeeds.length) {
+    detailBits.push(`${focusNeeds.length} Linear in review — not agent work; open Projects & work`);
+  }
+  if (counts?.live != null) detailBits.push(`${counts.live} live agents`);
+  if (pending.length) detailBits.push(`${pending.length} awaiting judgment`);
+  if (glance.focusError) detailBits.push("Linear focus unreachable");
+
+  // Intervene sessions live in Attention. Residue is eyes-only: unverified
+  // judgment and Linear reviews speech cannot safely settle alone.
+  const residue = [];
+  for (const session of pending.slice(0, 3)) {
+    residue.push({
+      id: `pending:${session.id}`,
+      kind: "Unverified",
+      title: session.title || "Untitled session",
+      why: "Intent not judged yet — parked until a real summary exists.",
+      target: { kind: "agent", id: session.id, title: session.title || "Untitled session" },
+      rank: 2,
+    });
+  }
+  // Linear reviews are speakable counts, not eyes residue. Dumping them here
+  // recreated a scan inbox and buried the agent sessions that actually need Justin.
+  residue.sort((a, b) => a.rank - b.rank || a.title.localeCompare(b.title));
+
+  const primary = intervene[0]
+    ? { kind: "agent", id: intervene[0].id, title: intervene[0].title || "Untitled session" }
+    : (focusTop[0]
+      ? { kind: "focus", ticket: focusTop[0].ticket, title: focusTop[0].title || "", link: focusTop[0].link || "" }
+      : null);
+
+  return {
+    claimText,
+    claimDetail: detailBits.join(" · "),
+    residue,
+    intervene,
+    pending,
+    focusNeeds,
+    primary,
+  };
+}
+
+function renderGlanceClaim(model) {
+  const claim = $("#spoken-claim");
+  const text = $("#claim-text");
+  const detail = $("#claim-detail");
+  const kicker = $("#claim-kicker");
+  const discuss = $("#claim-discuss");
+  if (!text) return;
+  if (claim) claim.dataset.disputed = glance.disputed ? "true" : "false";
+  if (kicker && !glance.disputed) {
+    kicker.textContent = model.intervene.length || model.focusNeeds.length ? "Needs you" : "Clear";
+  }
+  text.textContent = model.claimText;
+  if (detail) {
+    detail.textContent = model.claimDetail || "";
+    detail.hidden = !model.claimDetail;
+  }
+  glance.primaryTarget = model.primary;
+  if (discuss) {
+    discuss.hidden = !model.primary;
+    discuss.textContent = model.primary?.kind === "focus" ? "Discuss top Linear item" : "Discuss top session";
+  }
+}
+
+function renderGlanceResidue(model) {
+  const section = $(".glance-residue");
+  const list = $("#residue-list");
+  const empty = $("#residue-empty");
+  const count = $("#residue-count");
+  if (!list) return;
+  list.textContent = "";
+  if (count) count.textContent = model.residue.length ? String(model.residue.length) : "";
+  if (!model.residue.length) {
+    if (empty) empty.hidden = true;
+    if (section) section.hidden = true;
+    return;
+  }
+  if (section) section.hidden = false;
+  if (empty) empty.hidden = true;
+  for (const item of model.residue) {
+    const li = document.createElement("li");
+    li.dataset.residueId = item.id;
+    const kind = document.createElement("span");
+    kind.className = "residue-kind";
+    kind.textContent = item.kind;
+    const title = document.createElement("strong");
+    title.className = "residue-title";
+    title.textContent = item.title;
+    const action = document.createElement("button");
+    action.type = "button";
+    if (item.link) {
+      action.textContent = "Open";
+      action.addEventListener("click", () => window.open(item.link, "_blank", "noopener,noreferrer"));
+    } else {
+      action.textContent = "Discuss";
+      action.addEventListener("click", () => discussTarget(item.target));
+    }
+    const why = document.createElement("p");
+    why.className = "residue-why";
+    why.textContent = item.why;
+    li.append(kind, title, action, why);
+    list.append(li);
+  }
+}
+
+function renderAttentionSessions(sessions, counts, model) {
+  const host = $("#supervisor-agents");
+  const count = $("#supervisor-count");
+  const detailCount = $("#supervisor-count-detail");
+  const stateEl = $("#supervisor-state");
+  const nextEl = $("#supervisor-next");
+  const evidenceEl = $("#supervisor-evidence");
+  const modeBtn = $("#sessions-mode");
+  if (!host) return;
+
+  const attentionMode = glance.mode === "attention";
+  host.dataset.mode = glance.mode;
+  if (modeBtn) {
+    modeBtn.setAttribute("aria-pressed", attentionMode ? "false" : "true");
+    modeBtn.textContent = attentionMode ? "Show all sessions" : "Show attention only";
+  }
+
+  const ordered = [...sessions].sort((a, b) =>
+    Number(sessionNeedsAttention(b)) - Number(sessionNeedsAttention(a)) ||
+    Number(Boolean(b.live)) - Number(Boolean(a.live)));
+
+  const visible = attentionMode ? ordered.filter(sessionNeedsAttention) : ordered;
+  const page = attentionMode ? visible : ordered.slice(0, sessionLimit);
+
+  if (count) {
+    count.textContent = attentionMode
+      ? `${model.intervene.length} need you · ${sessions.length} observed`
+      : `${sessions.length} observed · ${counts.needs_attention || model.intervene.length} need you`;
+  }
+  if (detailCount) {
+    detailCount.textContent = attentionMode
+      ? (page.length
+        ? `Attention only · ${page.length} session${page.length === 1 ? "" : "s"} · local Claude, Cursor and OpenAI`
+        : `Attention only · none need you right now · ${sessions.length} observed stay quiet`)
+      : `Showing ${Math.min(sessionLimit, sessions.length)} of ${sessions.length} observed sessions · local Claude, Cursor and OpenAI sources`;
+  }
+  if (stateEl) { stateEl.hidden = true; stateEl.textContent = ""; }
+  if (nextEl) { nextEl.hidden = true; nextEl.textContent = ""; }
+  if (evidenceEl) { evidenceEl.hidden = true; evidenceEl.textContent = ""; }
+
+  const expanded = new Set([...host.querySelectorAll("details[open]")].map(el => el.dataset.sessionId));
+  const focused = host.contains(document.activeElement)
+    ? document.activeElement.closest("[data-session-id]")?.dataset.sessionId
+    : null;
+  host.textContent = "";
+
+  if (!sessions.length) {
+    host.textContent = "No sessions observed from the connected local sources.";
+  } else if (!page.length) {
+    const empty = document.createElement("li");
+    empty.className = "attention-empty";
+    empty.textContent = "No agent sessions need you. Residue above holds Linear reviews and unverified work.";
+    host.append(empty);
+  }
+
+  for (const session of page) {
+    const a = session.assessment || {};
+    const li = document.createElement("li");
+    const detail = document.createElement("details");
+    detail.dataset.sessionId = session.id;
+    detail.open = expanded.has(session.id);
+    const summary = document.createElement("summary");
+    const title = document.createElement("strong");
+    title.className = "agent-title";
+    title.textContent = session.title || "Untitled session";
+    const status = document.createElement("span");
+    status.className = "agent-state";
+    status.dataset.attention = String(sessionNeedsAttention(session));
+    status.textContent = String(session.state || "unknown").replaceAll("_", " ");
+    const progress = document.createElement("p");
+    progress.className = "agent-progress";
+    const verified = Array.isArray(a.verified_progress) ? a.verified_progress.filter(Boolean) : [];
+    if (sessionNeedsAttention(session)) {
+      progress.textContent = a.blocker_or_decision || a.recommended_next_action || "Needs your decision.";
+    } else if (sessionJudgmentPending(session)) {
+      progress.textContent = session.live
+        ? "Active; judgment pending — see Needs eyes."
+        : "Progress not verified — see Needs eyes.";
+    } else {
+      progress.textContent = verified[0]
+        || (a.judgment_source === "model" ? a.recommended_next_action : "Current progress is not verified.");
+    }
+    const intent = document.createElement("p");
+    intent.className = "agent-intent";
+    if (!sessionJudgmentPending(session) && a.goal && a.goal !== session.title) {
+      intent.textContent = a.goal;
+    } else {
+      intent.hidden = true;
+    }
+    const meta = document.createElement("span");
+    meta.className = "agent-provider";
+    meta.textContent = `${sessionProviderLabel(session)} · ${session.age || "update time unknown"}`;
+    summary.append(title, status, intent, progress, meta);
+    const body = document.createElement("div");
+    body.className = "agent-expanded";
+    const next = document.createElement("p");
+    next.textContent = `Next: ${a.recommended_next_action || "No next action verified yet."}`;
+    const evidence = document.createElement("p");
+    evidence.textContent = `Source: ${session.status_source || "unknown"}. ${(a.evidence || []).join(" · ")}`;
+    const discuss = document.createElement("button");
+    discuss.type = "button";
+    discuss.textContent = "Discuss with Brutus";
+    discuss.addEventListener("click", () => discussTarget({
+      kind: "agent", id: session.id, title: session.title || "Untitled session",
+    }));
+    const archive = document.createElement("button");
+    archive.type = "button";
+    archive.textContent = "Archive from Brutus";
+    archive.addEventListener("click", () => setSessionArchived(session, true, archive));
+    body.append(next, evidence, discuss, archive);
+    detail.append(summary, body);
+    li.append(detail);
+    host.append(li);
+    if (focused === session.id) summary.focus({ preventScroll: true });
+  }
+
+  const more = $("#sessions-more");
+  if (more) more.hidden = attentionMode || sessions.length <= sessionLimit;
+}
+
+function renderSupervisor(payload) {
+  const sessions = (payload.sessions || payload.agents || [])
+    .filter(session => !archivedSessionIds.has(session.id));
+  const counts = payload.counts || {};
+  supervisorSnapshot = payload;
+  const model = buildGlanceModel(sessions, counts, glance.focus);
+  renderGlanceClaim(model);
+  renderGlanceResidue(model);
+  renderAttentionSessions(sessions, counts, model);
+}
 
 async function setSessionArchived(session, archived, button) {
   button.disabled = true;
@@ -1090,7 +1726,7 @@ async function setSessionArchived(session, archived, button) {
     await loadSupervisor();
     if ($("#archived-sessions").open) await loadArchivedSessions();
   } catch (error) {
-    status.textContent = `Couldn’t ${archived ? "archive" : "restore"} the session: ${error.message}`;
+    status.textContent = `Couldn't ${archived ? "archive" : "restore"} the session: ${error.message}`;
   } finally { button.disabled = false; }
 }
 
@@ -1116,136 +1752,47 @@ async function loadArchivedSessions() {
       host.append(li);
     }
     if (!sessions.length) host.textContent = "No archived sessions.";
-  } catch (error) { host.textContent = `Couldn’t load archived sessions: ${error.message}`; }
+  } catch (error) { host.textContent = `Couldn't load archived sessions: ${error.message}`; }
 }
 
-function renderSupervisor(payload) {
-  const sessions = (payload.sessions || payload.agents || []).filter(session => !archivedSessionIds.has(session.id));
-  const counts = payload.counts || {};
-  const assessment = payload.assessment || payload.intervention || null;
-  const count = $("#supervisor-count");
-  const detailCount = $("#supervisor-count-detail");
-  const stateEl = $("#supervisor-state");
-  const nextEl = $("#supervisor-next");
-  const evidenceEl = $("#supervisor-evidence");
-  const host = $("#supervisor-agents");
-  const providerCounts = ["codex", "cursor", "claude"]
-    .map((provider) => [provider, Number(counts[provider] || sessions.filter((s) => (s.surface || s.provider) === provider).length)])
-    .filter(([, total]) => total > 0)
-    .map(([provider, total]) => `${total} ${provider}`)
-    .join(" · ");
-  const newest = sessions[0] || null;
-  const watched = assessment?.session || null;
-  const watchedProvider = watched?.surface || watched?.provider || "agent";
-  const watchedTitle = watched?.title || "Unnamed session";
-  const watchedState = String(watched?.state || assessment?.intervention_type || "unknown").replaceAll("_", " ");
-  const genericAction = /^(?:inspect the failing evidence|review the pending action|answer the blocking question|resume the session|let the session continue|complete or assign)/i;
-  const liveCount = String(counts.live ?? sessions.filter((s) => s.live).length ?? "");
-  if (count) count.textContent = liveCount;
-  if (detailCount) detailCount.textContent = liveCount;
-  if (stateEl) {
-    stateEl.textContent = assessment?.should_intervene
-      ? `${watchedProvider} · ${watchedTitle} · ${watchedState}`
-      : (providerCounts || "No agent sessions found");
+async function loadFocus() {
+  try {
+    const response = await fetch("/api/focus");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    glance.focus = await response.json();
+    glance.focusError = null;
+  } catch (error) {
+    glance.focus = null;
+    glance.focusError = error.message || "unreachable";
   }
-  if (nextEl) {
-    const action = String(assessment?.recommended_next_action || "").trim();
-    const verified = Array.isArray(assessment?.verified_progress) ? assessment.verified_progress.filter(Boolean) : [];
-    nextEl.textContent = assessment?.should_intervene
-      ? (genericAction.test(action) ? (verified[0] || "No verified next step yet.") : action)
-      : (newest ? `Most recent: ${newest.title || "Untitled session"} · ${String(newest.state || "unknown").replaceAll("_", " ")}` : "");
-  }
-  if (evidenceEl) {
-    const evidence = Array.isArray(assessment?.evidence) ? assessment.evidence : [];
-    const source = watched?.status_source || "";
-    const age = watched?.age || "";
-    evidenceEl.textContent = assessment?.should_intervene
-      ? [source && `Status from ${source.replaceAll("_", " ")}`, age].filter(Boolean).join(" · ")
-      : "";
-  }
-  if (!host) return;
-  if (stateEl) stateEl.hidden = sessions.length > 0;
-  if (nextEl) nextEl.hidden = sessions.length > 0;
-  if (evidenceEl) evidenceEl.hidden = sessions.length > 0;
-  supervisorSnapshot = payload;
-  const ordered = [...sessions].sort((a, b) =>
-    Number(Boolean(b.assessment?.should_intervene)) - Number(Boolean(a.assessment?.should_intervene)) ||
-    Number(Boolean(b.live)) - Number(Boolean(a.live)));
-  if (count) count.textContent = `${sessions.length} observed · ${counts.needs_attention || 0} need you`;
-  if (detailCount) detailCount.textContent = `Showing ${Math.min(sessionLimit, sessions.length)} of ${sessions.length} observed sessions · local Claude, Cursor and OpenAI sources`;
-  // Keep open details and keyboard focus stable across monitoring frames.
-  const expanded = new Set([...host.querySelectorAll("details[open]")].map(el => el.dataset.sessionId));
-  const focused = host.contains(document.activeElement) ? document.activeElement.closest("[data-session-id]")?.dataset.sessionId : null;
-  host.textContent = "";
-  for (const session of ordered.slice(0, sessionLimit)) {
-    const a = session.assessment || {};
-    const li = document.createElement("li");
-    const detail = document.createElement("details");
-    detail.dataset.sessionId = session.id;
-    detail.open = expanded.has(session.id);
-    const summary = document.createElement("summary");
-    const title = document.createElement("strong");
-    title.className = "agent-title";
-    title.textContent = session.title || "Untitled session";
-    const status = document.createElement("span");
-    status.className = "agent-state";
-    status.dataset.attention = String(Boolean(a.should_intervene));
-    status.textContent = String(session.state || "unknown").replaceAll("_", " ");
-    const intent = document.createElement("p");
-    intent.className = "agent-intent";
-    intent.textContent = a.goal && a.goal !== session.title ? a.goal : "Intent summary pending";
-    const progress = document.createElement("p");
-    progress.className = "agent-progress";
-    const verified = Array.isArray(a.verified_progress) ? a.verified_progress.filter(Boolean) : [];
-    progress.textContent = a.should_intervene ? a.blocker_or_decision :
-      (verified[0] || (a.judgment_source === "model" ? a.recommended_next_action :
-        (session.live ? "Active; waiting for a meaningful progress update." : "Current progress is not verified.")));
-    const meta = document.createElement("span");
-    meta.className = "agent-provider";
-    const provider = session.surface === "codex" ? "OpenAI · Codex" : session.surface || session.provider || "Agent";
-    meta.textContent = `${provider} · ${session.age || "update time unknown"}`;
-    summary.append(title, status, intent, progress, meta);
-    const body = document.createElement("div");
-    body.className = "agent-expanded";
-    const next = document.createElement("p");
-    next.textContent = `Next: ${a.recommended_next_action || "No next action verified yet."}`;
-    const evidence = document.createElement("p");
-    evidence.textContent = `Source: ${session.status_source || "unknown"}. ${(a.evidence || []).join(" · ")}`;
-    const discuss = document.createElement("button");
-    discuss.type = "button";
-    discuss.textContent = "Discuss with Brutus";
-    discuss.addEventListener("click", () => say(
-      `Focus our conversation on agent session ${session.id} (${session.title || "Untitled"}). Check its current evidence and briefly explain the intent it understood, progress, and what needs me.`, "text"));
-    body.append(next, evidence, discuss);
-    const archive = document.createElement("button");
-    archive.type = "button";
-    archive.textContent = "Archive from Brutus";
-    archive.addEventListener("click", () => setSessionArchived(session, true, archive));
-    body.append(archive);
-    detail.append(summary, body);
-    li.append(detail);
-    host.append(li);
-    if (focused === session.id) summary.focus({ preventScroll: true });
-  }
-  if (!sessions.length) host.textContent = "No sessions observed from the connected local sources.";
-  const more = $("#sessions-more");
-  if (more) more.hidden = sessions.length <= sessionLimit;
-
+  if (supervisorSnapshot) renderSupervisor(supervisorSnapshot);
 }
 
 async function loadSupervisor({ force = false } = {}) {
   const stateEl = $("#supervisor-state");
-  if (stateEl) stateEl.textContent = "Checking Claude, Cursor, and Codex…";
+  if (stateEl) {
+    stateEl.hidden = false;
+    stateEl.textContent = "Checking Claude, Cursor, and Codex…";
+  }
   try {
     const suffix = force ? "?force=true" : "";
     let response = await fetch(`/api/supervisor${suffix}`);
     if (response.status === 404) response = await fetch(`/api/agents${suffix}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    renderSupervisor(await response.json());
+    const payload = await response.json();
+    if (!glance.focus && !glance.focusError) await loadFocus();
+    else if (force) await loadFocus();
+    renderSupervisor(payload);
   } catch {
-    if (stateEl) { stateEl.hidden = false; stateEl.textContent = "Couldn’t verify agent work right now. Session summaries below are last known, not current."; }
+    if (stateEl) {
+      stateEl.hidden = false;
+      stateEl.textContent = "Couldn't verify agent work right now. Residue and claim may be incomplete.";
+    }
     const nextEl = $("#supervisor-next");
-    if (nextEl) nextEl.textContent = "I won’t guess. Check again when the local session catalog is reachable.";
+    if (nextEl) {
+      nextEl.hidden = false;
+      nextEl.textContent = "I won't guess. Check again when the local session catalog is reachable.";
+    }
   }
 }
 
@@ -1266,12 +1813,12 @@ function init() {
     sessionLimit += 12;
     if (supervisorSnapshot) renderSupervisor(supervisorSnapshot);
   });
-  $("#correct-intent")?.addEventListener("click", () => {
-    $("#readback-label").textContent = "Correct the intent · speak your correction";
-    if (state.voicePhase !== "listening") {
-      if (["thinking", "buffering", "speaking"].includes(state.voicePhase)) bargeIn();
-      else startVoice();
-    }
+  $("#correct-intent")?.addEventListener("click", () => beginIntentCorrection());
+  $("#claim-discuss")?.addEventListener("click", () => discussTarget(glance.primaryTarget));
+  $("#sessions-mode")?.addEventListener("click", () => {
+    glance.mode = glance.mode === "attention" ? "all" : "attention";
+    sessionLimit = 6;
+    if (supervisorSnapshot) renderSupervisor(supervisorSnapshot);
   });
   $("#mic")?.addEventListener("click", () => {
     if (["thinking", "buffering", "speaking"].includes(state.voicePhase)) return bargeIn();
@@ -1285,6 +1832,9 @@ function init() {
     for (const element of state.livekitAudio) {
       element.muted = state.muted;
       if (!state.muted) void element.play().catch(() => {});
+    }
+    if (state.convai && typeof state.convai.setMicMuted === "function") {
+      state.convai.setMicMuted(state.muted);
     }
     e.currentTarget.setAttribute("aria-pressed", String(state.muted));
     e.currentTarget.querySelector(".label").textContent = state.muted ? "Muted" : "Speaking on";
@@ -1421,14 +1971,17 @@ function init() {
   });
 
   setMicState();
+  syncCorrectIntentControl();
   setConversationFilled();
   initTheme();
+  refreshResilienceChip();
+  setInterval(refreshResilienceChip, 60000);
   openSession().catch(() => {
     setLiveConnected(false);
     setStatus("Couldn’t connect to Brutus. Reload to try again.");
   });
   initIdeas();
-  loadSupervisor();
+  loadFocus().then(() => loadSupervisor());
 }
 
 window.addEventListener("pagehide", teardownVoice);
@@ -1559,17 +2112,21 @@ function focusBoard(ticket) {
 
 function showLedgerDetail(ticket) {
   const panel = $("#ledger-detail");
+  const shell = $("#supervisor-rail-shell");
   if (!panel) return;
   if (!ticket) {
     panel.hidden = true;
+    if (shell) shell.hidden = true;
     return;
   }
   const row = boardState.rows.find((r) => r.ticket === ticket);
   if (!row) {
     panel.hidden = true;
+    if (shell) shell.hidden = true;
     return;
   }
   panel.hidden = false;
+  if (shell) shell.hidden = false;
   $("#ledger-detail-ticket").textContent = row.ticket || "—";
   $("#ledger-detail-title").textContent = row.title || "";
   const signal = row.question || row.reason || row.signal || "";

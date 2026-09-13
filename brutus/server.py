@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import secrets
+import urllib.parse
 import shutil
 import tempfile
 from contextlib import asynccontextmanager
@@ -576,12 +577,14 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             "atlas": {"enabled": False, "ignored": True},
             "local_llm": llm,
             "brain": {
-                "primary": "cursor",
+                "primary": "claude_cli",
                 "profiles": {
-                    "conversation": "cursor",
+                    "conversation": "claude_cli",
                     "supervisor": "claude",
                     "frontier": "codex",
                 },
+                "api_enabled": bool(cfg.claude and getattr(cfg.claude, "api_enabled", False)),
+                "transport": str(getattr(cfg.claude, "transport", "cli") if cfg.claude else "cli"),
                 "cursor_enabled": bool(cursor_cfg and cursor_cfg.enabled),
                 # This endpoint runs inside the launchd actor, so it proves the
                 # credential reached the process that will actually call Cursor.
@@ -1577,6 +1580,152 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             owner_verified=req.owner_verified,
         )
         return result.as_dict()
+
+
+    @app.get("/api/resilience")
+    async def resilience_status(request: Request) -> dict[str, Any]:
+        """Billing planes, kill files, canaries, outbox — proof, not hope."""
+        from . import resilience
+        from .claude import ask_claude
+
+        resilience.ensure_state_dirs()
+        resilience.ensure_api_killed_by_default()
+        voice_cfg = cfg.voice
+
+        def cli_probe() -> dict[str, Any]:
+            result = ask_claude(
+                cfg,
+                "Reply with exactly: pong",
+                system="You are a canary. Reply with exactly one word: pong",
+                timeout_s=resilience.timeouts()["canary_s"],
+            )
+            ok = bool(result.get("ok") and "pong" in str(result.get("reply") or "").casefold())
+            return {"ok": ok, "error": result.get("error"), "transport": result.get("transport")}
+
+        def supervisor_probe() -> dict[str, Any]:
+            try:
+                payload = request.app.state.supervisor.snapshot() if hasattr(request.app.state, "supervisor") else {}
+                return {"ok": True, "sessions": len((payload or {}).get("sessions") or [])}
+            except Exception as exc:  # noqa: BLE001
+                return {"ok": False, "error": str(exc)[:200]}
+
+        def convai_probe() -> dict[str, Any]:
+            if resilience.convai_killed():
+                return {"ok": False, "skipped": True, "reason": "voice.convai.off"}
+            agent_id = (voice_cfg.elevenlabs_agent_id if voice_cfg else "") or ""
+            key = (voice_cfg.elevenlabs_api_key if voice_cfg else "") or ""
+            if not agent_id or not key:
+                return {"ok": False, "skipped": True, "reason": "convai_not_configured"}
+            import urllib.request
+
+            url = (
+                "https://api.elevenlabs.io/v1/convai/conversation/get-signed-url"
+                f"?agent_id={agent_id}"
+            )
+            req = urllib.request.Request(url, headers={"xi-api-key": key})
+            try:
+                with urllib.request.urlopen(req, timeout=resilience.timeouts()["canary_s"]) as resp:
+                    data = json.loads(resp.read().decode())
+                signed = str(data.get("signed_url") or "")
+                return {"ok": signed.startswith("wss://"), "agent_configured": True}
+            except Exception as exc:  # noqa: BLE001
+                return {"ok": False, "error": str(exc)[:200], "agent_configured": True}
+
+        canaries = resilience.run_canaries(
+            cli_probe=cli_probe,
+            supervisor_probe=supervisor_probe,
+            convai_probe=convai_probe,
+            api_probe=None,
+        )
+        return {
+            "ok": bool(canaries.get("overall_ok")),
+            "billing": resilience.billing_planes(cfg),
+            "timeouts": resilience.timeouts(),
+            "canaries": canaries,
+            "outbox_pending": [
+                r for r in resilience.pending_outbox(10) if r.get("status") in {"pending", "running"}
+            ],
+        }
+
+    @app.post("/api/session/{session_id}/convai-token")
+    async def session_convai_token(session_id: str, request: Request) -> dict[str, Any]:
+        """William-style ElevenLabs ConvAI signed URL. Prefer over LiveKit when configured."""
+        from . import resilience
+        import urllib.request
+        from urllib.error import HTTPError, URLError
+
+        resilience.ensure_state_dirs()
+        if resilience.voice_killed():
+            return {"enabled": False, "reason": "Voice is paused (voice.off)."}
+        if resilience.convai_killed():
+            return {"enabled": False, "reason": "ConvAI is paused (voice.convai.off)."}
+        store: SessionStore = request.app.state.sessions
+        if not store.get_session(session_id):
+            raise HTTPException(status_code=404, detail="unknown session")
+        voice_cfg = cfg.voice
+        agent_id = (voice_cfg.elevenlabs_agent_id if voice_cfg else "") or ""
+        key = (voice_cfg.elevenlabs_api_key if voice_cfg else "") or ""
+        if not agent_id:
+            agent_id = (
+                os.environ.get("BRUTUS_ELEVENLABS_AGENT_ID")
+                or os.environ.get("ELEVENLABS_AGENT_ID")
+                or ""
+            ).strip()
+        # Never fall back to NUCLEUS_HELP_AGENT_ID — that is William's voice.
+        if not key:
+            key = (os.environ.get("ELEVENLABS_API_KEY") or "").strip()
+        if not (
+            voice_cfg
+            and voice_cfg.enabled
+            and agent_id
+            and key
+        ):
+            return {"enabled": False, "reason": "ConvAI not configured"}
+        url = (
+            "https://api.elevenlabs.io/v1/convai/conversation/get-signed-url"
+            f"?agent_id={urllib.parse.quote(agent_id)}"
+        )
+        req = urllib.request.Request(url, headers={"xi-api-key": key})
+        try:
+            with urllib.request.urlopen(
+                req, timeout=resilience.timeouts()["convai_connect_s"]
+            ) as resp:
+                data = json.loads(resp.read().decode())
+        except HTTPError as exc:
+            return {"enabled": False, "reason": f"ElevenLabs HTTP {exc.code}"}
+        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+            return {"enabled": False, "reason": str(exc)[:200]}
+        signed = str(data.get("signed_url") or "")
+        if not signed.startswith("wss://"):
+            return {"enabled": False, "reason": "invalid signed url"}
+        prompt = (
+            "You are Brutus — Justin's right hand on his laptop for Clearspeed RevOps. "
+            "Sharp coworker on a live call. Casual, direct, brief. You are NOT William. "
+            "For any factual work question, call the ask_brutus client tool and speak "
+            "its result. Never invent ticket states, approvals, or emails. If ask_brutus "
+            "fails, say so honestly."
+        )
+        # Same voice as /api/speak — one Brutus, never William's Nucleus voice.
+        voice_id = (voice_cfg.elevenlabs_voice_id or "").strip() or (
+            os.environ.get("ELEVENLABS_VOICE_ID") or ""
+        ).strip() or "iP95p4xoKVk53GoZ742B"
+        overrides: dict[str, Any] = {
+            "agent": {
+                "prompt": {"prompt": prompt},
+                "firstMessage": "I'm Brutus. What needs you?",
+            },
+            "tts": {"voiceId": voice_id},
+        }
+        return {
+            "enabled": True,
+            "signedUrl": signed,
+            "agentId": agent_id,
+            "voiceId": voice_id,
+            "connectTimeoutMs": int(resilience.timeouts()["convai_connect_s"] * 1000),
+            "overrides": overrides,
+            "clientTools": ["ask_brutus"],
+        }
+
 
     @app.post("/api/session/{session_id}/voice-token")
     async def session_voice_token(session_id: str, request: Request) -> dict[str, Any]:

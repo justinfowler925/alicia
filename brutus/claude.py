@@ -8,8 +8,10 @@ Brutus remains the only process allowed to execute Brutus tools or mutations.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
+from pathlib import Path
 from typing import Any
 
 from .config import BrutusCfg, ClaudeCfg
@@ -29,6 +31,7 @@ def ask_claude(
     message: str,
     *,
     system: str = "",
+    timeout_s: float | None = None,
 ) -> dict[str, Any]:
     """Run one read-only Claude CLI completion through subscription auth."""
     claude = cfg.claude if isinstance(cfg, BrutusCfg) else cfg
@@ -38,6 +41,15 @@ def ask_claude(
     if not body:
         return {"ok": False, "error": "message is required"}
     binary = shutil.which("claude")
+    if not binary:
+        for candidate in (
+            "/opt/homebrew/bin/claude",
+            "/usr/local/bin/claude",
+            str(Path.home() / ".local" / "bin" / "claude"),
+        ):
+            if Path(candidate).is_file():
+                binary = candidate
+                break
     if not binary:
         return {"ok": False, "error": "Claude CLI is unavailable."}
 
@@ -51,13 +63,24 @@ def ask_claude(
         "--model", _model_alias(claude.model), "--effort", claude.effort or "low",
         "--system-prompt", sys_prompt,
     ]
+    # Serve exports ANTHROPIC_API_KEY for the Messages brain. When that key is
+    # out of credits, Claude CLI inherits it and fails immediately — strip API
+    # key vars so the CLI uses Justin's subscription auth instead (William-style:
+    # conversation runtime must not share a dead API billing path).
+    cli_env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_API_KEY"}
+    }
+    budget = float(timeout_s if timeout_s is not None else (claude.timeout_s or 120))
     try:
         proc = subprocess.run(
             command,
             capture_output=True,
             text=True,
-            timeout=float(claude.timeout_s or 120),
+            timeout=budget,
             check=False,
+            env=cli_env,
         )
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": "Claude CLI timed out."}
