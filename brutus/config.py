@@ -82,6 +82,11 @@ class VoiceCfg:
     record_duration_s: float = 5.0
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = ""
+    # William-style Conversational AI agent. When set, /session prefers ConvAI
+    # over LiveKit. Soft-load BRUTUS_ELEVENLABS_AGENT_ID or ELEVENLABS_AGENT_ID.
+    elevenlabs_agent_id: str = ""
+    # Shared secret for optional ElevenLabs Custom LLM webhook (public URL).
+    custom_llm_secret: str = ""
     ear_hotkey: str = "alt_r"
     livekit_url: str = ""
     livekit_api_key: str = ""
@@ -99,7 +104,11 @@ class ClaudeCfg:
     # Reasoning effort for the conversational brain (low|medium|high). Chat
     # turns are dispatch and short answers; low keeps them on a spoken clock.
     effort: str = "low"
-    # Prefer ANTHROPIC_API_KEY env (brutus-serve.sh soft-load). Config field is fallback only.
+    # cli = Claude subscription CLI (default). api = Anthropic Messages (off unless
+    # explicitly enabled AND brain.api.off is absent). Never soft-fail into API.
+    transport: str = "cli"
+    api_enabled: bool = False
+    # Prefer ANTHROPIC_API_KEY env only when transport=api. Config field is fallback.
     api_key: str = ""
 
 
@@ -184,6 +193,13 @@ def _parse_voice(data: dict) -> VoiceCfg:
     elevenlabs_key = str(block.get("elevenlabs_api_key") or "")
     if not elevenlabs_key:
         elevenlabs_key = os.environ.get("ELEVENLABS_API_KEY", "")
+    agent_id = str(block.get("elevenlabs_agent_id") or "").strip()
+    if not agent_id:
+        agent_id = (
+            os.environ.get("BRUTUS_ELEVENLABS_AGENT_ID")
+            or os.environ.get("ELEVENLABS_AGENT_ID")
+            or ""
+        ).strip()
     return VoiceCfg(
         enabled=bool(block.get("enabled", False)),
         ear_enabled=bool(block.get("ear_enabled", False)),
@@ -193,6 +209,7 @@ def _parse_voice(data: dict) -> VoiceCfg:
         record_duration_s=float(block.get("record_duration_s") or 5.0),
         elevenlabs_api_key=elevenlabs_key,
         elevenlabs_voice_id=str(block.get("elevenlabs_voice_id") or ""),
+        elevenlabs_agent_id=agent_id,
         ear_hotkey=str(block.get("ear_hotkey") or "alt_r"),
         livekit_url=str(block.get("livekit_url") or os.environ.get("LIVEKIT_URL", "")),
         livekit_api_key=str(block.get("livekit_api_key") or os.environ.get("LIVEKIT_API_KEY", "")),
@@ -206,14 +223,21 @@ def _parse_claude(data: dict) -> ClaudeCfg:
     block = data.get("claude") or {}
     if not isinstance(block, dict):
         block = {}
+    transport = str(block.get("transport") or "cli").strip().lower()
+    if transport not in {"cli", "api"}:
+        transport = "cli"
+    api_enabled = bool(block.get("api_enabled", False))
     key = str(block.get("api_key") or "")
-    if not key:
+    if not key and api_enabled and transport == "api":
         key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_PCM3_API_KEY") or ""
     return ClaudeCfg(
         enabled=bool(block.get("enabled", False)),
         model=str(block.get("model") or "claude-sonnet-5"),
         timeout_s=float(block.get("timeout_s") or 120),
         max_tokens=int(block.get("max_tokens") or 8192),
+        effort=str(block.get("effort") or "low"),
+        transport=transport,
+        api_enabled=api_enabled,
         api_key=key,
     )
 

@@ -446,40 +446,35 @@ def brain_reply(
     on_tool_result: Callable[[str, dict[str, Any]], None] | None = None,
     recall: Callable[[str], dict[str, Any]] | None = None,
 ) -> tuple[str, dict[str, Any]]:
-    """One user turn through the brain. Returns (reply_text, meta).
+    """One user turn. Cascade: CLI subscription → Cursor → deterministic → optional API.
 
-    `history` is the whole session in {role, content} shape, current user
-    message last. `on_propose(tool, args)` drafts the artifact and returns a
-    payload for the model; `on_tool_result` lets the caller mirror note writes
-    onto the screen. Raises nothing — errors come back as honest reply text.
+    Anthropic Messages is never the default. It runs only when
+    claude.transport=api AND claude.api_enabled AND brain.api.off is absent.
     """
-    started = time.monotonic()
-    meta: dict[str, Any] = {"brain": True, "backend": "claude", "rounds": 0, "tools": []}
+    from . import resilience
 
-    system: list[dict[str, Any]] = [
-        {
-            "type": "text",
-            "text": BRAIN_SYSTEM,
-        }
-    ]
+    started = time.monotonic()
+    meta: dict[str, Any] = {"brain": True, "backend": "claude_cli", "rounds": 0, "tools": []}
+    claude = cfg.claude
+    if claude is None or not claude.enabled:
+        return (
+            "The conversational brain is offline. Check ~/.brutus/config.yaml claude.enabled.",
+            {**meta, "error": "brain_disabled", "backend": "none"},
+        )
+
+    system_text = BRAIN_SYSTEM
     if channel == "voice":
-        system.append(
-            {
-                "type": "text",
-                "text": (
-                    "THIS IS A LIVE VOICE TURN. Answer in one or two short sentences, "
-                    "normally under 45 spoken words. Lead with the answer, not a preamble. "
-                    "Ask at most one question. Do not narrate tools, internal state, or a "
-                    "status dump. Natural fragments are fine; conversational does not mean "
-                    "adding filler."
-                ),
-            }
+        system_text += (
+            "\n\nTHIS IS A LIVE VOICE TURN. You have time — Justin sees a thinking "
+            "face while you work. Prefer a correct, conversational spoken answer "
+            "over a fast empty one. Usually one to three short sentences, under "
+            "about 60 spoken words unless he asked for depth. Lead with the "
+            "answer. Ask at most one question. Do not narrate tools or invent "
+            "progress. Natural fragments are fine; never fill silence with filler."
         )
     if standing_notes.strip():
-        # Volatile — after the cache breakpoint on purpose.
-        system.append({"type": "text", "text": standing_notes.strip()})
+        system_text += "\n\n" + standing_notes.strip()
 
-    tools = anthropic_tools(registry)
     messages: list[dict[str, Any]] = [
         {"role": m["role"], "content": m["content"]}
         for m in history
@@ -490,25 +485,329 @@ def brain_reply(
 
     accepted_offer = _accepted_prior_offer(messages)
     if accepted_offer:
-        system.append(
-            {
-                "type": "text",
-                "text": (
-                    "JUSTIN ACCEPTED YOUR IMMEDIATELY PRIOR OFFER. Carry out that exact "
-                    "offered next step now, using the relevant tool if it is a lookup. "
-                    "Do not repeat what you already told him, offer the step again, or ask "
-                    "for permission again. After a lookup, state the result and the decision "
-                    "plainly; do not append a new 'want me to' offer in the same turn. "
-                    "Finish the sentence; never trail off mid-question. "
-                    "The accepted offer was: " + accepted_offer[:1200]
-                ),
-            }
+        system_text += (
+            "\n\nJUSTIN ACCEPTED YOUR IMMEDIATELY PRIOR OFFER. Carry out that exact "
+            "offered next step now, using the relevant tool if it is a lookup. "
+            "Do not repeat what you already told him, offer the step again, or ask "
+            "for permission again. The accepted offer was: " + accepted_offer[:1200]
         )
 
-    # Ticket ids the reply may legitimately carry: the conversation as it stood
-    # plus every tool payload. Built incrementally so the CHALLENGE message
-    # below can never launder an invented id into its own allowed set.
-    allowed = _ticket_ids(*[m.get("content") for m in messages], standing_notes)
+    tool_names = ", ".join(
+        [*(BRAIN_READS), *(BRAIN_FREE_WRITES), "recall", "propose_action"]
+    )
+    protocol = (
+        "\n\nTOOL PROTOCOL (when you need a Brutus tool):\n"
+        "Reply with exactly two lines and nothing else:\n"
+        "TOOL: <tool_name>\n"
+        "ARGS: <json object>\n"
+        f"Available tools: {tool_names}\n"
+        "When you are done with tools, reply with the spoken answer only — "
+        "no TOOL: line.\n"
+    )
+    cli_system = system_text + protocol
+    errors: list[str] = []
+    budgets = resilience.timeouts()
+
+    # 1) Claude subscription CLI with TOOL:/ARGS: loop (default)
+    use_api = (
+        bool(getattr(claude, "api_enabled", False))
+        and str(getattr(claude, "transport", "cli") or "cli").strip().lower() == "api"
+        and not resilience.api_killed()
+        and bool((claude.api_key or "").strip())
+    )
+    if not use_api:
+        reply, meta = _text_tool_loop(
+            cfg,
+            registry,
+            messages=messages,
+            system=cli_system,
+            meta=meta,
+            channel=channel,
+            on_propose=on_propose,
+            on_tool_result=on_tool_result,
+            recall=recall,
+            backend="claude_cli",
+            timeout_s=budgets["brain_cli_s"],
+        )
+        if reply and not meta.get("error"):
+            meta["ms"] = int((time.monotonic() - started) * 1000)
+            return reply, meta
+        if meta.get("error"):
+            errors.append(f"cli:{meta.get('error')}")
+        elif not reply:
+            errors.append("cli:empty")
+
+    # 2) Cursor Agent (subscription plane Justin already pays for)
+    try:
+        cursor_messages = [
+            {"role": "system", "content": cli_system},
+            *[
+                {
+                    "role": "user" if m["role"] == "user" else "assistant",
+                    "content": str(m["content"]),
+                }
+                for m in messages
+            ],
+        ]
+        cursor_text = complete(cfg, cursor_messages)
+        parsed = _parse_cursor_tool_call(cursor_text)
+        if parsed:
+            # One Cursor tool round, then one more completion for the spoken answer.
+            name, args = parsed
+            meta["tools"].append(name)
+            meta["backend"] = "cursor_agent"
+            payload = _run_tool(
+                registry,
+                name,
+                args,
+                channel=channel,
+                on_propose=on_propose,
+                on_tool_result=on_tool_result,
+                recall=recall,
+            )
+            follow = complete(
+                cfg,
+                [
+                    {"role": "system", "content": system_text},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Tool {name} returned: {json.dumps(payload, default=str)[:3000]}\n"
+                            "Give the final spoken answer only. No TOOL: line."
+                        ),
+                    },
+                ],
+            )
+            meta["fallback"] = "cursor_agent"
+            meta["prior_errors"] = errors[:5]
+            meta["ms"] = int((time.monotonic() - started) * 1000)
+            return drop_incomplete_tail(follow.strip()) or _NOT_FOUND, meta
+        if cursor_text.strip():
+            meta["backend"] = "cursor_agent"
+            meta["fallback"] = "cursor_agent"
+            meta["prior_errors"] = errors[:5]
+            meta["ms"] = int((time.monotonic() - started) * 1000)
+            return drop_incomplete_tail(cursor_text.strip()), meta
+        errors.append("cursor:empty")
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"cursor:{exc}")
+
+    # 3) Deterministic work-surface / social answers
+    det = _deterministic_reply(registry, messages, meta)
+    if det is not None:
+        spoken, det_meta = det
+        det_meta["prior_errors"] = errors[:5]
+        det_meta["ms"] = int((time.monotonic() - started) * 1000)
+        return spoken, det_meta
+
+    # 4) Anthropic Messages — explicit opt-in only
+    if use_api:
+        meta["backend"] = "claude_api"
+        reply, meta = _api_tool_loop(
+            cfg,
+            registry,
+            messages=messages,
+            system_text=system_text,
+            standing_notes=standing_notes,
+            channel=channel,
+            meta=meta,
+            on_propose=on_propose,
+            on_tool_result=on_tool_result,
+            recall=recall,
+            accepted_offer=accepted_offer,
+        )
+        meta["ms"] = int((time.monotonic() - started) * 1000)
+        if reply and not meta.get("error"):
+            return reply, meta
+        if meta.get("error"):
+            errors.append(f"api:{meta.get('error')}")
+
+    meta["prior_errors"] = errors[:8]
+    meta["ms"] = int((time.monotonic() - started) * 1000)
+    meta["error"] = "brain_all_backends_failed"
+    return (
+        "I couldn't finish that turn on CLI or Cursor. "
+        "Check `claude` login, or ask what's waiting on the work surface.",
+        meta,
+    )
+
+
+def _text_tool_loop(
+    cfg: BrutusCfg,
+    registry: ToolRegistry,
+    *,
+    messages: list[dict[str, Any]],
+    system: str,
+    meta: dict[str, Any],
+    channel: str,
+    on_propose: Callable[[str, dict[str, Any]], dict[str, Any]] | None,
+    on_tool_result: Callable[[str, dict[str, Any]], None] | None,
+    recall: Callable[[str], dict[str, Any]] | None,
+    backend: str,
+    timeout_s: float,
+) -> tuple[str, dict[str, Any]]:
+    """Claude CLI (or similar) with TOOL:/ARGS: protocol."""
+    from .claude import ask_claude
+
+    meta["backend"] = backend
+    transcript: list[str] = []
+    for m in messages[:-1]:
+        role = "Justin" if m["role"] == "user" else "Brutus"
+        transcript.append(f"{role}: {m['content']}")
+    working = str(messages[-1]["content"])
+    for _ in range(_MAX_ROUNDS):
+        meta["rounds"] += 1
+        prompt = working
+        if transcript:
+            prompt = "Prior turns:\n" + "\n".join(transcript[-16:]) + "\n\nJustin: " + working
+        cli = ask_claude(cfg, prompt, system=system, timeout_s=timeout_s)
+        if not cli.get("ok") or not str(cli.get("reply") or "").strip():
+            meta["error"] = str(cli.get("error") or "cli_failed")
+            return "", meta
+        body = str(cli["reply"]).strip()
+        directive = _parse_cursor_tool_call(body) or _loose_tool_directive(body)
+        if not directive:
+            return drop_incomplete_tail(body) or "Done.", meta
+        name, args = directive
+        meta["tools"].append(name)
+        log.info("brain %s tool_use name=%s", backend, name)
+        payload = _run_tool(
+            registry,
+            name,
+            args,
+            channel=channel,
+            on_propose=on_propose,
+            on_tool_result=on_tool_result,
+            recall=recall,
+        )
+        compact = json.dumps(payload, default=str)[:3000]
+        transcript.append(f"Brutus: TOOL:{name} ARGS:{json.dumps(args)}")
+        transcript.append(f"TOOL_RESULT: {compact}")
+        working = (
+            f"Tool {name} returned: {compact}\n"
+            "Continue. Either call another TOOL:/ARGS: or give the final spoken answer."
+        )
+    meta["error"] = "tool_loop_exhausted"
+    return (
+        "I got stuck in my own tools on that one — say it again and I'll take a straighter path.",
+        meta,
+    )
+
+
+def _loose_tool_directive(text: str) -> tuple[str, dict[str, Any]] | None:
+    """Accept TOOL:/ARGS: even when the model adds a trailing sentence."""
+    match = re.search(
+        r"TOOL:\s*([a-zA-Z0-9_]+)\s*\nARGS:\s*(\{.*\})",
+        text or "",
+        re.DOTALL,
+    )
+    if not match:
+        return None
+    try:
+        args = json.loads(match.group(2))
+    except ValueError:
+        return None
+    return (match.group(1), args) if isinstance(args, dict) else None
+
+
+def _deterministic_reply(
+    registry: ToolRegistry,
+    messages: list[dict[str, Any]],
+    meta: dict[str, Any],
+) -> tuple[str, dict[str, Any]] | None:
+    latest = next(
+        (
+            str(m.get("content") or "").strip()
+            for m in reversed(messages)
+            if m.get("role") == "user" and str(m.get("content") or "").strip()
+        ),
+        "",
+    )
+    folded = latest.casefold()
+    if any(
+        phrase in folded
+        for phrase in (
+            "what needs me",
+            "needs my attention",
+            "need my attention",
+            "what's waiting",
+            "whats waiting",
+            "what is waiting",
+        )
+    ):
+        try:
+            called = registry.call("get_work_surface", {})
+            surface = called.get("result") if called.get("ok") else None
+            if isinstance(surface, dict):
+                return spoken_next_decision(surface), {
+                    **meta,
+                    "backend": "deterministic",
+                    "fallback": "deterministic_work_surface",
+                }
+        except Exception:  # noqa: BLE001
+            pass
+    if "focus our conversation on agent session" in folded or (
+        "agent session" in folded and ("needs me" in folded or "intervene" in folded)
+    ):
+        try:
+            called = registry.call("get_supervised_work", {})
+            payload = called.get("result") if called.get("ok") else None
+            if isinstance(payload, dict):
+                sessions = payload.get("sessions") or payload.get("agents") or []
+                intervene = [
+                    s
+                    for s in sessions
+                    if isinstance(s, dict)
+                    and (s.get("assessment") or {}).get("should_intervene")
+                ]
+                if intervene:
+                    top = intervene[0]
+                    a = top.get("assessment") or {}
+                    title = top.get("title") or "Untitled session"
+                    why = (
+                        a.get("blocker_or_decision")
+                        or a.get("recommended_next_action")
+                        or top.get("state")
+                        or "needs you"
+                    )
+                    return (
+                        f"{title}. {why}. {len(intervene)} session"
+                        f"{'s' if len(intervene) != 1 else ''} need you.",
+                        {
+                            **meta,
+                            "backend": "deterministic",
+                            "fallback": "deterministic_supervised_work",
+                        },
+                    )
+        except Exception:  # noqa: BLE001
+            pass
+    if "hello" in folded or folded in {"hi", "hey", "you there?"}:
+        return (
+            "Hello — I'm here and ready to work.",
+            {**meta, "backend": "deterministic", "fallback": "deterministic_social"},
+        )
+    return None
+
+
+def _api_tool_loop(
+    cfg: BrutusCfg,
+    registry: ToolRegistry,
+    *,
+    messages: list[dict[str, Any]],
+    system_text: str,
+    standing_notes: str,
+    channel: str,
+    meta: dict[str, Any],
+    on_propose: Callable[[str, dict[str, Any]], dict[str, Any]] | None,
+    on_tool_result: Callable[[str, dict[str, Any]], None] | None,
+    recall: Callable[[str], dict[str, Any]] | None,
+    accepted_offer: str,
+) -> tuple[str, dict[str, Any]]:
+    """Anthropic Messages path — only when explicitly enabled."""
+    system: list[dict[str, Any]] = [{"type": "text", "text": system_text}]
+    tools = anthropic_tools(registry)
+    working = [dict(m) for m in messages]
+    allowed = _ticket_ids(*[m.get("content") for m in working], standing_notes)
     challenged = False
     challenged_action_claim = False
     challenged_not_found = False
@@ -516,14 +815,18 @@ def brain_reply(
     for _ in range(_MAX_ROUNDS):
         meta["rounds"] += 1
         try:
-            resp = _create(cfg, system=system, tools=tools, messages=messages)
-        except Exception as exc:  # noqa: BLE001 — network/API failure, fall back
+            resp = _create(cfg, system=system, tools=tools, messages=working)
+        except Exception as exc:  # noqa: BLE001
             log.warning("brain API call failed: %s", exc)
-            return _backend_fallback(cfg, registry, messages, str(exc), meta, channel=channel)
+            meta["error"] = str(exc)[:300]
+            meta["api_error"] = "brain_service_unavailable"
+            folded = str(exc).casefold()
+            if any(t in folded for t in ("credit balance", "too low", "billing")):
+                meta["api_error"] = "brain_credits_exhausted"
+            return "", meta
 
         _tick_usage(meta, getattr(resp, "usage", None))
         uses = _tool_uses(getattr(resp, "content", None))
-
         if not uses:
             reply = _blocks_text(getattr(resp, "content", None))
             if accepted_offer and meta["tools"]:
@@ -540,7 +843,6 @@ def brain_reply(
             )
             if unbacked_action and channel == "voice":
                 meta["blocked_action_claim"] = True
-                meta["ms"] = int((time.monotonic() - started) * 1000)
                 return (
                     "I didn't create a proposal. Nothing was queued or changed.",
                     meta,
@@ -548,34 +850,30 @@ def brain_reply(
             if unbacked_action and not challenged_action_claim:
                 challenged_action_claim = True
                 meta["challenged_action_claim"] = True
-                messages.append({"role": "assistant", "content": resp.content})
-                messages.append(
+                working.append({"role": "assistant", "content": resp.content})
+                working.append(
                     {
                         "role": "user",
                         "content": (
                             "You claimed a proposal was queued, but no propose_action tool call "
-                            "or stored artifact exists. Do not narrate an action. Either call "
-                            "propose_action now using the exact TOOL/ARGS protocol, or say plainly "
-                            "that no proposal was created."
+                            "exists. Call propose_action now or say plainly that no proposal "
+                            "was created."
                         ),
                     }
                 )
                 continue
             if unbacked_action:
                 meta["blocked_action_claim"] = True
-                meta["ms"] = int((time.monotonic() - started) * 1000)
                 return (
                     "I didn't create a proposal. Nothing was queued or changed.",
                     meta,
                 )
             invented = sorted(_ticket_ids(reply) - allowed)
             if invented and not challenged:
-                # One challenge, with the means to answer it. Asking is not a
-                # control; a re-ask WITH the surface in reach usually is.
                 challenged = True
                 meta["challenged_tickets"] = ",".join(invented)
-                messages.append({"role": "assistant", "content": resp.content})
-                messages.append(
+                working.append({"role": "assistant", "content": resp.content})
+                working.append(
                     {
                         "role": "user",
                         "content": (
@@ -591,19 +889,11 @@ def brain_reply(
                 meta["invented_tickets"] = ",".join(invented)
                 for tid in invented:
                     reply = re.sub(
-                        rf"\b{re.escape(tid)}\b", f"{tid} (unverified)", reply, flags=re.IGNORECASE
+                        rf"\b{re.escape(tid)}\b",
+                        f"{tid} (unverified)",
+                        reply,
+                        flags=re.IGNORECASE,
                     )
-            # The not-found line is reserved for a tool that came back empty, and
-            # "empty" has to mean every surface the work could be on. Asked for
-            # the status of "the UI/UX audit redesign", Brutus searched Linear
-            # and notes, said it could not find it, and then OFFERED to check
-            # agent threads — where 55 threads matched the words and two were
-            # running at that moment. Offering the surface that holds the answer
-            # is knowing where it is and declining to look.
-            #
-            # Challenged once, with the tool in reach, exactly the way an
-            # invented ticket is. Asking is not a control; a re-ask WITH the
-            # surface reachable usually is.
             if (
                 not challenged_not_found
                 and _looks_not_found(reply)
@@ -611,24 +901,21 @@ def brain_reply(
             ):
                 challenged_not_found = True
                 meta["challenged_not_found"] = True
-                messages.append({"role": "assistant", "content": resp.content})
-                messages.append(
+                working.append({"role": "assistant", "content": resp.content})
+                working.append(
                     {
                         "role": "user",
                         "content": (
-                            "You have not searched agent threads this turn, and most of his "
-                            "work in flight lives there rather than in Linear or notes. Call "
-                            "list_agent_threads with the words he used before you tell him it "
-                            "does not exist."
+                            "You have not searched agent threads this turn. Call "
+                            "list_agent_threads with the words he used before you tell him "
+                            "it does not exist."
                         ),
                     }
                 )
                 continue
-            meta["ms"] = int((time.monotonic() - started) * 1000)
             return reply or _NOT_FOUND, meta
 
-        # Execute every tool_use, answer all in ONE user message.
-        messages.append({"role": "assistant", "content": resp.content})
+        working.append({"role": "assistant", "content": resp.content})
         results: list[dict[str, Any]] = []
         for use in uses:
             name = _attr(use, "name")
@@ -655,12 +942,12 @@ def brain_reply(
                     "is_error": bool(isinstance(payload, dict) and payload.get("ok") is False),
                 }
             )
-        messages.append({"role": "user", "content": results})
+        working.append({"role": "user", "content": results})
 
-    meta["ms"] = int((time.monotonic() - started) * 1000)
+    meta["error"] = "tool round cap"
     return (
         "I got stuck in my own tools on that one — say it again and I'll take a straighter path.",
-        {**meta, "error": "tool round cap"},
+        meta,
     )
 
 
@@ -718,52 +1005,3 @@ def _run_tool(
             pass
     return result
 
-
-def _backend_fallback(
-    cfg: BrutusCfg,
-    registry: ToolRegistry,
-    messages: list[dict[str, Any]],
-    error: str,
-    meta: dict[str, Any],
-    *,
-    channel: str,
-) -> tuple[str, dict[str, Any]]:
-    """Claude unavailable — use deterministic local answers or fail honestly."""
-    folded = error.casefold()
-    if any(token in folded for token in ("api_key", "authentication", "unauthorized", "forbidden")):
-        error_code = "brain_auth_unavailable"
-    elif any(token in folded for token in ("timeout", "timed out")):
-        error_code = "brain_timeout"
-    else:
-        error_code = "brain_service_unavailable"
-    meta["api_error"] = error_code
-    honest = (
-        "I couldn't finish that turn. Your request is safe; I can take a note "
-        "or pick it up again on your next turn."
-    )
-    if channel == "voice":
-        latest = next(
-            (
-                str(m.get("content") or "").strip()
-                for m in reversed(messages)
-                if m.get("role") == "user" and str(m.get("content") or "").strip()
-            ),
-            "",
-        )
-        folded_latest = latest.casefold()
-        if any(
-            phrase in folded_latest for phrase in ("what needs me", "needs my attention", "need my attention")
-        ):
-            try:
-                called = registry.call("get_work_surface", {})
-                surface = called.get("result") if called.get("ok") else None
-                if not isinstance(surface, dict):
-                    raise RuntimeError("work surface unavailable")  # noqa: TRY004
-                meta["fallback"] = "deterministic_work_surface"
-                return spoken_next_decision(surface), meta
-            except Exception:  # noqa: BLE001, S110 — retain the honest failure below
-                pass
-        if "hello" in folded_latest or folded_latest in {"hi", "hey", "you there?"}:
-            meta["fallback"] = "deterministic_social"
-            return "Hello — I'm here and ready to work.", meta
-    return (honest, meta)

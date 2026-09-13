@@ -133,6 +133,7 @@ class ConversationManager:
         self._on_event = on_event or (lambda _kind, _payload: None)
         self._brain_threads: dict[str, threading.Thread] = {}
         self._brain_generation: dict[str, int] = {}
+        self._outbox_by_turn: dict[int, Any] = {}
 
     def emit(self, kind: str, payload: dict[str, Any]) -> None:
         try:
@@ -176,6 +177,21 @@ class ConversationManager:
         if not message:
             return TurnResult(session_id, "fast", "", "", 0, error="empty message")
 
+        from . import resilience
+
+        if channel == "voice" and resilience.voice_killed():
+            return TurnResult(
+                session_id,
+                "fast",
+                "Voice is paused (`~/.brutus/state/voice.off`). Type instead, or remove that file.",
+                "",
+                0,
+                error="voice_killed",
+            )
+
+        # Durable outbox before the model runs — restart-safe user words.
+        outbox = resilience.enqueue_say(session_id, message, channel)
+
         turn = self.store.append_turn(session_id, "user", message, channel=channel)
         self.emit("turn", {"session_id": session_id, "turn": turn.as_dict()})
 
@@ -187,7 +203,7 @@ class ConversationManager:
                 # A yes is the execution. Leave the artifact in draft so the
                 # approval can still happen on screen, and say so out loud —
                 # this used to be the point where the turn disappeared.
-                return self._land(
+                result = self._land(
                     session_id,
                     "fast",
                     "I couldn't place your voice on that, so I'm not going to run it "
@@ -195,23 +211,31 @@ class ConversationManager:
                     turn.id,
                     tool=pending["tool"],
                 )
+                resilience.mark_outbox(outbox, status="done", reply=result.reply)
+                return result
             settled = self._answer_proposal(session_id, pending, message, turn.id)
             if settled is not None:
+                resilience.mark_outbox(outbox, status="done", reply=settled.reply)
                 return settled
 
         # Cursor codeword — never invent a meaning for it here.
         if _REWIND_RE.match(message):
-            return self._land(session_id, "fast", _REWIND_REPLY, turn.id)
+            result = self._land(session_id, "fast", _REWIND_REPLY, turn.id)
+            resilience.mark_outbox(outbox, status="done", reply=result.reply)
+            return result
 
         # Machine intake: deterministic, free, and exactly as self-contained as
         # the agent wrote it.
         cap = _MACHINE_CAPTURE_RE.match(message)
         if cap and cap.group(1).strip():
-            return self._machine_capture(session_id, cap.group(1).strip(), turn.id)
+            result = self._machine_capture(session_id, cap.group(1).strip(), turn.id)
+            resilience.mark_outbox(outbox, status="done", reply=result.reply)
+            return result
 
         # Silence is an action, not a line of dialogue. The user turn still
         # lands and supersedes stale in-flight work, but Brutus says nothing.
         if _SILENCE_RE.match(message):
+            resilience.mark_outbox(outbox, status="done", reply="")
             return TurnResult(session_id, "fast", "", "", turn.id)
 
         # Explicit, labelled ticket contracts do not need a conversational
@@ -220,10 +244,21 @@ class ConversationManager:
         # Unfog decision and approval artifact used by every other write.
         ticket = self._ticket_intake(session_id, channel, turn.id)
         if ticket is not None:
+            resilience.mark_outbox(outbox, status="done", reply=ticket.reply)
             return ticket
 
+        resilience.mark_outbox(outbox, status="running")
         if wait:
-            return self._brain_now(session_id, message, turn.id, channel=channel)
+            result = self._brain_now(session_id, message, turn.id, channel=channel)
+            resilience.mark_outbox(
+                outbox,
+                status="failed" if result.error else "done",
+                reply=result.reply,
+                error=result.error or "",
+            )
+            return result
+        # Async brain — outbox stays running until _land_brain; stash id on meta via thread.
+        self._outbox_by_turn[turn.id] = outbox
         return self._start_brain(session_id, message, turn.id, channel=channel)
 
     # --- machine intake -----------------------------------------------------
@@ -547,6 +582,16 @@ class ConversationManager:
         turn_meta: dict[str, Any] = {"lane": "deep", "answers_turn": turn_id, **meta}
         landed = self.store.append_turn(session_id, "brutus", reply, meta=turn_meta)
         spoken = speechify(reply)
+        outbox = self._outbox_by_turn.pop(turn_id, None)
+        if outbox is not None:
+            from . import resilience
+
+            resilience.mark_outbox(
+                outbox,
+                status="failed" if meta.get("error") else "done",
+                reply=reply,
+                error=str(meta.get("error") or ""),
+            )
         self.emit("turn", {"session_id": session_id, "turn": landed.as_dict()})
         self.emit(
             "answer",
