@@ -85,6 +85,8 @@ class VoiceCfg:
     # William-style Conversational AI agent. When set, /session prefers ConvAI
     # over LiveKit. Soft-load BRUTUS_ELEVENLABS_AGENT_ID or ELEVENLABS_AGENT_ID.
     elevenlabs_agent_id: str = ""
+    # Shared secret for optional ElevenLabs Custom LLM webhook (public URL).
+    custom_llm_secret: str = ""
     ear_hotkey: str = "alt_r"
     livekit_url: str = ""
     livekit_api_key: str = ""

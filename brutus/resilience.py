@@ -179,6 +179,8 @@ def billing_planes(cfg: Any) -> dict[str, Any]:
             "plane": "elevenlabs_convai",
             "agent_id": bool(voice and (getattr(voice, "elevenlabs_agent_id", "") or "").strip()),
             "killed": convai_killed(),
+            "product_owned_brain": True,
+            "custom_llm_endpoint": "/api/convai/llm/v1/chat/completions",
         },
         "voice_livekit": {
             "plane": "livekit_local",

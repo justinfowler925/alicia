@@ -99,6 +99,9 @@ const state = {
   convaiStopping: false,
   brainPending: false,
   lastBrainSpoken: "",
+  lastUserUtterance: "",
+  productOwned: true,
+  productBrainSpeak: false,
   muted: false,
   seenTurns: new Set(),
   fields: new Map(),
@@ -305,8 +308,9 @@ function connect(sessionId) {
 }
 
 function voiceOwnsPlayback() {
-  // LiveKit and ConvAI already speak. Browser /api/speak on the same turn
-  // is the "two voices at once" bug.
+  // LiveKit and default ConvAI already speak. Product-owned turns mute the
+  // ConvAI agent and speak only through /api/speak — allow that path.
+  if (state.productBrainSpeak) return false;
   return (
     state.voiceTransport === "livekit"
     || state.voiceTransport === "convai"
@@ -989,8 +993,9 @@ function stopListening() {
 
 /* --- voice out ---------------------------------------------------------- */
 
-async function speak(text) {
+async function speak(text, { productOwned = false } = {}) {
   if (state.muted || !text) return;
+  if (productOwned) state.productBrainSpeak = true;
   if (voiceOwnsPlayback()) return;
   state.speechAbort?.abort();
   const controller = new AbortController();
@@ -1016,12 +1021,14 @@ async function speak(text) {
       state.speaking = false;
       state.audio = null;
       state.audioUrl = null;
+      state.productBrainSpeak = false;
       setVoicePhase(state.listening ? "listening" : "idle");
     };
     await audio.play();
     rememberSpoken(text);
   } catch (err) {
     state.speaking = false;
+    state.productBrainSpeak = false;
     if (err.name !== "AbortError") setVoicePhase("error", "Couldn’t play that reply. Tap Talk to try again.");
   } finally {
     if (state.speechAbort === controller) state.speechAbort = null;
@@ -1068,6 +1075,65 @@ function isWeakBrainReply(spoken, error) {
   return false;
 }
 
+async function runProductBrain(text) {
+  const attempts = 3;
+  const gapMs = 2500;
+  let last = "";
+  state.brainPending = true;
+  setVoicePhase("thinking", "Thinking — taking the time to get this right.");
+  try {
+    for (let i = 1; i <= attempts; i += 1) {
+      if (i > 1) {
+        setVoicePhase(
+          "thinking",
+          `Still thinking — retry ${i} of ${attempts}. Better wrong-and-silent than wrong-and-loud.`,
+        );
+        await new Promise((r) => setTimeout(r, gapMs));
+      } else {
+        setVoicePhase("thinking", "Thinking — face paused, working it out.");
+      }
+      try {
+        const controller = new AbortController();
+        const kill = setTimeout(() => controller.abort(), 170000);
+        const res = await fetch(`/api/session/${state.sessionId}/say`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: text,
+            channel: "voice",
+            wait: true,
+            read_only: false,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(kill);
+        const data = await res.json();
+        const spoken = String(data.spoken || data.reply || "").trim();
+        const err = String(data.error || "").trim();
+        last = spoken || err;
+        if (isWeakBrainReply(spoken, err)) {
+          console.warn("product brain weak reply, retrying", { attempt: i, err, spoken: spoken.slice(0, 120) });
+          continue;
+        }
+        state.lastBrainSpoken = spoken.slice(0, 1500);
+        return spoken.slice(0, 1500);
+      } catch (err) {
+        last = err && err.name === "AbortError"
+          ? "That turn took too long."
+          : `Brutus brain failed: ${(err && err.message) || "unknown"}`;
+        console.warn("product brain attempt failed", i, err);
+      }
+    }
+    return (
+      last
+        ? `I still don't have a solid answer. ${last.slice(0, 400)}`
+        : "I still don't have a solid answer. Ask me again in a moment."
+    ).slice(0, 1500);
+  } finally {
+    state.brainPending = false;
+  }
+}
+
 async function startConvAI(signal) {
   const response = await fetch(`/api/session/${state.sessionId}/convai-token`, {
     method: "POST",
@@ -1079,6 +1145,11 @@ async function startConvAI(signal) {
 
   const { Conversation } = await import(ELEVENLABS_CLIENT_URL);
   if (signal.aborted) return false;
+
+  // Full DoD: ConvAI = mic/ASR (+ optional Custom LLM). Product brain owns
+  // every answer; agent TTS stays muted so EL never invents work state.
+  const productOwned = grant.productOwned !== false;
+  state.productOwned = productOwned;
 
   const timeoutMs = Number(grant.connectTimeoutMs) || 40000;
   let connected = false;
@@ -1095,69 +1166,18 @@ async function startConvAI(signal) {
       connectionType: "websocket",
       overrides: grant.overrides || {},
       ...(grant.voiceId ? { voiceId: grant.voiceId } : {}),
+      ...(grant.customLlmExtraBody ? { customLlmExtraBody: grant.customLlmExtraBody } : {}),
       clientTools: {
         ask_brutus: async (params) => {
           const text = String((params && params.message) || "").trim();
           if (!text) return "Nothing to ask.";
-          // Hold thinking face through retries. Only speak when the brain
-          // returns something that looks like a real answer.
-          state.brainPending = true;
-          setVoicePhase("thinking", "Thinking — taking the time to get this right.");
-          const attempts = 3;
-          const gapMs = 2500;
-          let last = "";
-          try {
-            for (let i = 1; i <= attempts; i += 1) {
-              if (i > 1) {
-                setVoicePhase(
-                  "thinking",
-                  `Still thinking — retry ${i} of ${attempts}. Better wrong-and-silent than wrong-and-loud.`,
-                );
-                await new Promise((r) => setTimeout(r, gapMs));
-              } else {
-                setVoicePhase("thinking", "Thinking — face paused, working it out.");
-              }
-              try {
-                const controller = new AbortController();
-                const kill = setTimeout(() => controller.abort(), 170000);
-                const res = await fetch(`/api/session/${state.sessionId}/say`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    message: text,
-                    channel: "voice",
-                    wait: true,
-                    read_only: false,
-                  }),
-                  signal: controller.signal,
-                });
-                clearTimeout(kill);
-                const data = await res.json();
-                const spoken = String(data.spoken || data.reply || "").trim();
-                const err = String(data.error || "").trim();
-                last = spoken || err;
-                if (isWeakBrainReply(spoken, err)) {
-                  console.warn("ask_brutus weak reply, retrying", { attempt: i, err, spoken: spoken.slice(0, 120) });
-                  continue;
-                }
-                state.lastBrainSpoken = spoken.slice(0, 1500);
-                return spoken.slice(0, 1500);
-              } catch (err) {
-                last = err && err.name === "AbortError"
-                  ? "That turn took too long."
-                  : `Brutus tool failed: ${(err && err.message) || "unknown"}`;
-                console.warn("ask_brutus attempt failed", i, err);
-              }
-            }
-            // Exhausted retries — honest, not confident garbage.
-            return (
-              last
-                ? `I still don't have a solid answer. ${last.slice(0, 400)}`
-                : "I still don't have a solid answer. Ask me again in a moment."
-            ).slice(0, 1500);
-          } finally {
-            state.brainPending = false;
+          // Product-owned turns already answered this utterance — return cache
+          // so a late tool call cannot invent a second answer.
+          if (productOwned && state.lastBrainSpoken && state.lastUserUtterance === text) {
+            return state.lastBrainSpoken;
           }
+          const spoken = await runProductBrain(text);
+          return spoken;
         },
       },
       onMessage: ({ message, source }) => {
@@ -1165,11 +1185,28 @@ async function startConvAI(signal) {
         if (source === "user") {
           setConversationFilled();
           appendLocalTurn("user", message);
+          state.lastUserUtterance = message;
           state.brainPending = true;
           setVoicePhase("thinking", "Thinking — working that through.");
+          if (productOwned) {
+            void (async () => {
+              try {
+                if (typeof conversation.setVolume === "function") {
+                  conversation.setVolume({ volume: 0 });
+                }
+                const spoken = await runProductBrain(message);
+                if (!spoken) return;
+                appendLocalTurn("brutus", spoken);
+                await speak(spoken, { productOwned: true });
+              } catch (err) {
+                console.warn("product-owned turn failed", err);
+                setVoicePhase("error", "Couldn’t finish that turn. Tap Talk to retry.");
+              }
+            })();
+          }
         } else if (source === "ai") {
-          // Ignore soft-timeout / freelance chatter while the brain is pending.
-          if (state.brainPending) return;
+          // Product-owned: ignore all agent audio/transcript — product speaks.
+          if (productOwned || state.brainPending) return;
           setConversationFilled();
           appendLocalTurn("brutus", message);
           setVoicePhase("speaking");
@@ -1179,6 +1216,11 @@ async function startConvAI(signal) {
         // Do not drop the thinking face back to "listening" mid-brain.
         if (state.brainPending) {
           setVoicePhase("thinking", "Thinking — working that through.");
+          return;
+        }
+        if (productOwned) {
+          // Agent mode flips are noise; product speak drives the phase.
+          if (!state.speaking) setVoicePhase("listening");
           return;
         }
         if (mode === "speaking") setVoicePhase("speaking");
@@ -1206,10 +1248,17 @@ async function startConvAI(signal) {
     state.convaiStopping = false;
     state.listening = true;
     connected = true;
+    if (typeof conversation.setVolume === "function") {
+      // Mute EL agent TTS always in product-owned mode.
+      conversation.setVolume({ volume: productOwned ? 0 : 1 });
+    }
     if (state.muted && typeof conversation.setMicMuted === "function") {
       conversation.setMicMuted(true);
     }
-    setVoicePhase("listening", "ConvAI · ElevenLabs voice");
+    setVoicePhase(
+      "listening",
+      productOwned ? "ConvAI mic · product brain · Chris voice" : "ConvAI · ElevenLabs voice",
+    );
     return true;
   } catch (err) {
     clearTimeout(watchdog);

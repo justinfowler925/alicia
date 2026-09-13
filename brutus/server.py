@@ -1701,9 +1701,10 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         prompt = (
             "You are Brutus — Justin's right hand on his laptop for Clearspeed RevOps. "
             "Sharp coworker on a live call. Casual, direct, brief. You are NOT William. "
-            "For any factual work question, call the ask_brutus client tool and speak "
-            "its result. Never invent ticket states, approvals, or emails. If ask_brutus "
-            "fails, say so honestly."
+            "PRODUCT-OWNED BRAIN (hard): Stay silent. Do not invent ticket states, "
+            "approvals, or emails. The laptop client owns every answer via ask_brutus "
+            "and product TTS. If you must call a tool, call ask_brutus with the user's "
+            "exact question and speak nothing else."
         )
         # Same voice as /api/speak — one Brutus, never William's Nucleus voice.
         voice_id = (voice_cfg.elevenlabs_voice_id or "").strip() or (
@@ -1721,10 +1722,115 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             "signedUrl": signed,
             "agentId": agent_id,
             "voiceId": voice_id,
+            "productOwned": True,
             "connectTimeoutMs": int(resilience.timeouts()["convai_connect_s"] * 1000),
             "overrides": overrides,
             "clientTools": ["ask_brutus"],
+            "customLlmExtraBody": {"session_id": session_id},
         }
+
+    @app.post("/v1/chat/completions")
+    @app.post("/api/convai/llm/v1/chat/completions")
+    async def convai_custom_llm(request: Request) -> StreamingResponse:
+        """OpenAI-compatible Custom LLM for ElevenLabs — product brain owns tokens.
+
+        Requires a public HTTPS URL (tunnel) pointed at this host when wiring the
+        agent to llm=custom-llm. Local product-owned turns do not need this.
+        Auth: Authorization Bearer must match voice.custom_llm_secret or
+        BRUTUS_CUSTOM_LLM_SECRET.
+        """
+        from . import resilience
+
+        voice_cfg = cfg.voice
+        expected = (
+            (getattr(voice_cfg, "custom_llm_secret", "") or "").strip()
+            or (os.environ.get("BRUTUS_CUSTOM_LLM_SECRET") or "").strip()
+        )
+        auth = (request.headers.get("authorization") or "").strip()
+        token = auth[7:].strip() if auth.lower().startswith("bearer ") else auth
+        if not expected or token != expected:
+            raise HTTPException(status_code=401, detail="custom_llm_unauthorized")
+
+        try:
+            body = await request.json()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail="invalid_json") from exc
+
+        messages = body.get("messages") or []
+        user_text = ""
+        for msg in reversed(messages):
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                content = msg.get("content")
+                if isinstance(content, list):
+                    user_text = " ".join(
+                        str(part.get("text") or "")
+                        for part in content
+                        if isinstance(part, dict)
+                    ).strip()
+                else:
+                    user_text = str(content or "").strip()
+                if user_text:
+                    break
+        if not user_text:
+            raise HTTPException(status_code=400, detail="no_user_message")
+
+        extra = body.get("elevenlabs_extra_body") or {}
+        if not isinstance(extra, dict):
+            extra = {}
+        session_id = str(extra.get("session_id") or "").strip()
+        store: SessionStore = request.app.state.sessions
+        if not session_id or not store.get_session(session_id):
+            # Fall back to newest open session when extra body is missing.
+            sessions = store.list_sessions(limit=1, open_only=True)
+            session_id = str((sessions[0] if sessions else {}).get("id") or "").strip()
+        if not session_id or not store.get_session(session_id):
+            raise HTTPException(status_code=404, detail="unknown session")
+
+        mgr: ConversationManager = request.app.state.conversation
+
+        def _run() -> str:
+            result = mgr.handle(
+                session_id,
+                user_text,
+                channel="voice",
+                read_only=False,
+                wait=True,
+                owner_verified=True,
+            )
+            spoken = str(getattr(result, "spoken", None) or getattr(result, "reply", None) or "").strip()
+            if hasattr(result, "as_dict"):
+                data = result.as_dict()
+                spoken = str(data.get("spoken") or data.get("reply") or spoken).strip()
+            return spoken[:1500] or "I don't have a solid answer yet."
+
+        spoken = await asyncio.to_thread(_run)
+        model = str(body.get("model") or "brutus-product-brain")
+        chunk_id = f"chatcmpl-{secrets.token_hex(8)}"
+
+        async def event_stream():
+            payload = {
+                "id": chunk_id,
+                "object": "chat.completion.chunk",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"role": "assistant", "content": spoken},
+                        "finish_reason": None,
+                    }
+                ],
+                "model": model,
+            }
+            yield f"data: {json.dumps(payload)}\n\n"
+            done = {
+                "id": chunk_id,
+                "object": "chat.completion.chunk",
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                "model": model,
+            }
+            yield f"data: {json.dumps(done)}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
     @app.post("/api/session/{session_id}/voice-token")
