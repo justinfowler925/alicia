@@ -301,12 +301,8 @@ def evaluate_route_guard(
             target,
         )
     return RouteGuardDecision(
-        False,
-        "repository mutation has no unique repository match",
-        (
-            f"Repository-changing work cannot start from {PROJECTS_ROOT}. "
-            "Choose the saved project first, or name exactly one repository in the prompt."
-        ),
+        True,
+        "no repository could be identified, so there is nothing to route",
     )
 
 
