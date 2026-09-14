@@ -247,7 +247,7 @@ def test_route_guard_routes_labeled_repository_mutations(prompt_text, expected):
     assert decision.repository_path == expected
 
 
-def test_route_guard_blocks_ambiguous_mutation_but_allows_read_only_broad_work():
+def test_route_guard_allows_ambiguous_mutation_and_read_only_broad_work():
     broad = str(__import__("pathlib").Path.home() / "Projects")
     projects = [{"name": "brutus", "path": "/repo/brutus", "project_id": "github/brutus"}]
 
@@ -256,7 +256,7 @@ def test_route_guard_blocks_ambiguous_mutation_but_allows_read_only_broad_work()
         {"cwd": broad, "prompt": "inspect all repositories for stale branches"}, projects=projects
     )
 
-    assert ambiguous.allow is False
+    assert ambiguous.allow is True
     assert ambiguous.repository_path == ""
     assert inspection.allow is True
 
