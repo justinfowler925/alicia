@@ -21,3 +21,8 @@ config.yaml
 .claude/
 shine-diagnosis.json
 shine-usability.json
+
+# Native Gate0 / SwiftPM
+.build/
+native/**/.build/
+*.xcodeproj/

@@ -1,6 +1,6 @@
 # Brutus
 
-> **Current replacement direction (2026-09-07):** [Apple accessibility reset plan](docs/APPLE_ACCESSIBILITY_RESET_PLAN.md). Continuous Voice Control input and native Apple output; Siri excluded. The reset is planned, not deployed. Older architecture and completion claims below are historical where they conflict.
+> **Current replacement direction (2026-09-07):** [Apple accessibility reset plan](docs/APPLE_ACCESSIBILITY_RESET_PLAN.md). Continuous Voice Control input and native Apple output; Siri excluded. **Gate 0 Mac proof:** `native/Gate0Proof/` (`./scripts/run-mac.sh`). Physical samples + iPhone/Xcode still open. Older architecture and completion claims below are historical where they conflict.
 
 **Justin’s standalone MacBook coworker.** Voice is the primary work surface.
 Brutus uses explicit Cursor, Claude, and Codex profiles, reads current work

@@ -1,6 +1,6 @@
 # Brutus
 
-> **Current replacement direction (2026-09-07):** [Apple accessibility reset plan](docs/APPLE_ACCESSIBILITY_RESET_PLAN.md). Continuous Voice Control input and native Apple output; Siri excluded. The reset is planned, not deployed. Older architecture and completion claims below are historical where they conflict.
+> **Current replacement direction (2026-09-07):** [Apple accessibility reset plan](docs/APPLE_ACCESSIBILITY_RESET_PLAN.md). Continuous Voice Control input and native Apple output; Siri excluded. **Gate 0 Mac proof app:** `native/Gate0Proof/` — run `./scripts/run-mac.sh`. Physical VC samples + iPhone (needs Xcode) still open. Older architecture and completion claims below are historical where they conflict.
 
 Justin's right hand, running on the laptop. End state: reads email/Slack, tracks
 coworker requests, drafts everything, hands work to Atlas (wish front door) —

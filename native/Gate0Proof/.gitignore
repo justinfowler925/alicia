@@ -1,0 +1,4 @@
+.build/
+Gate0Proof.xcodeproj/
+*.xcuserdata/
+DerivedData/

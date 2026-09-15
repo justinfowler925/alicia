@@ -1,6 +1,6 @@
 # Brutus Apple accessibility reset
 
-Status: authoritative replacement direction and implementation plan; not implemented or accepted.
+Status: authoritative replacement direction and implementation plan; **Gate 0 Mac proof software landed** under `native/Gate0Proof/` (2026-09-14). Physical Voice Control acceptance samples and iPhone build (needs full Xcode) are still open — not product-accepted.
 Decision date: September 7, 2026.
 
 ## The decision
@@ -125,6 +125,8 @@ Avatar, Demo Maker, sites and other unrelated tools are outside the conversation
 ### Gate 0 — settle the architecture boundary
 
 Deliver the minimal Mac and iPhone Voice Control proof described above. This is the first build task and the go/no-go point. Report which input events the OS actually supplies, how turns end, how output is interrupted, and whether background speech can trigger actions. No production cutover, broad UI build or fallback recognizer precedes this result.
+
+**Implementation (2026-09-14):** shared core + Mac AppKit app + iOS UIKit sources live in [`native/Gate0Proof/`](../native/Gate0Proof/). Mac binary builds with Command Line Tools (`./scripts/run-mac.sh`). Smoke checks: `Gate0Smoke`. iPhone Xcode project via `xcodegen generate` after installing full Xcode — currently blocked on this machine (CLT only). Acceptance form: [`GATE0_GO_NOGO.md`](../native/Gate0Proof/GATE0_GO_NOGO.md). Software ≠ Gate 0 pass.
 
 Required initial sample on each of those two devices: 20 consecutive turns, including five deliberately long pauses, five corrections/revisions and five interruptions. All turns must be distinct, complete and replied to audibly without a required per-turn send action. The sample is a feasibility gate, not the final reliability claim. If it fails, the next work is resolving the specific compatibility failure, not another voice stack patch.
 
