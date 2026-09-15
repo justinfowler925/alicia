@@ -1,7 +1,18 @@
 # Brutus Apple accessibility reset
 
-Status: authoritative replacement direction and implementation plan; **Gate 0 Mac proof software landed** under `native/Gate0Proof/` (2026-09-14). Physical Voice Control acceptance samples and iPhone build (needs full Xcode) are still open — not product-accepted.
-Decision date: September 7, 2026.
+**Status (2026-09-14):** authoritative replacement direction. Gate 0 **software** is on
+`main` (`329368c`) under [`native/Gate0Proof/`](../native/Gate0Proof/). Gate 0
+**product acceptance** is still open — not a pass.
+
+| Gate | Software | Physical / product acceptance |
+|------|----------|-------------------------------|
+| **0** architecture boundary | **Shipped** — Mac app + shared core + iOS sources + smoke + go/no-go form | **Open** — Mac 20-turn Voice Control sample not recorded; **iPhone blocked** (no full Xcode / iOS SDK on this machine; CLT only) |
+| **1** durable conversation protocol | Not started | — |
+| **2** shared native client + Studio service | Not started (blocked on Gate 0 go) | — |
+| **3** cutover / retire LiveKit·Ear·ElevenLabs voice | Not started (blocked on Gates 0–2) | — |
+
+Decision date: September 7, 2026.  
+Latest plan update: September 14, 2026 (Gate 0 software publish).
 
 ## The decision
 
@@ -126,9 +137,31 @@ Avatar, Demo Maker, sites and other unrelated tools are outside the conversation
 
 Deliver the minimal Mac and iPhone Voice Control proof described above. This is the first build task and the go/no-go point. Report which input events the OS actually supplies, how turns end, how output is interrupted, and whether background speech can trigger actions. No production cutover, broad UI build or fallback recognizer precedes this result.
 
-**Implementation (2026-09-14):** shared core + Mac AppKit app + iOS UIKit sources live in [`native/Gate0Proof/`](../native/Gate0Proof/). Mac binary builds with Command Line Tools (`./scripts/run-mac.sh`). Smoke checks: `Gate0Smoke`. iPhone Xcode project via `xcodegen generate` after installing full Xcode — currently blocked on this machine (CLT only). Acceptance form: [`GATE0_GO_NOGO.md`](../native/Gate0Proof/GATE0_GO_NOGO.md). Software ≠ Gate 0 pass.
+#### Software delivery (done — `329368c` on `origin/main`)
 
-Required initial sample on each of those two devices: 20 consecutive turns, including five deliberately long pauses, five corrections/revisions and five interruptions. All turns must be distinct, complete and replied to audibly without a required per-turn send action. The sample is a feasibility gate, not the final reliability claim. If it fails, the next work is resolving the specific compatibility failure, not another voice stack patch.
+| Artifact | Location / command |
+|----------|-------------------|
+| Shared core (events, turn boundary, AVSpeech, session) | `native/Gate0Proof/Sources/Gate0Core/` |
+| Mac AppKit proof (accessible **Brutus draft**, Pause / Resume / Stop speaking) | `native/Gate0Proof/Sources/Gate0Mac/` — `./scripts/run-mac.sh` |
+| iOS UIKit sources (ready; not built here) | `native/Gate0Proof/Sources/Gate0iOS/` + `project.yml` (`xcodegen generate` after Xcode) |
+| Deterministic smoke (no XCTest / no mic) | `Gate0Smoke` — 9 checks green at publish |
+| Event logs | `~/.brutus/gate0-logs/*.jsonl` (Mac) |
+| Acceptance form | [`GATE0_GO_NOGO.md`](../native/Gate0Proof/GATE0_GO_NOGO.md) |
+| Operator README | [`native/Gate0Proof/README.md`](../native/Gate0Proof/README.md) |
+
+Constraints honored in the shipped proof: no microphone permission / capture APIs; Voice Control is the input owner; app Pause does not claim to disable the OS mic; replies are local (`Turn N. Heard: …`) — this gate proves the voice boundary, not the product brain.
+
+#### Product acceptance (open)
+
+Required initial sample on **each** of Mac and iPhone: 20 consecutive turns, including five deliberately long pauses, five corrections/revisions and five interruptions. All turns must be distinct, complete and replied to audibly without a required per-turn send action. The sample is a feasibility gate, not the final reliability claim. If it fails, the next work is resolving the specific compatibility failure, not another voice stack patch.
+
+| Probe | State (2026-09-14) |
+|-------|---------------------|
+| Mac 20-turn Voice Control sample + filled go/no-go | **Open** — Justin |
+| iPhone build + same sample | **Blocked** — `xcodebuild` requires full Xcode; active developer dir is Command Line Tools; no `/Applications/Xcode.app` |
+| Background / non-owner speech note on form | Open with samples (owner-voiceprint still not claimed) |
+
+**Next action:** run Mac sample → fill `GATE0_GO_NOGO.md`. Install Xcode → `xcodegen generate` → physical iPhone sample. Do not start Gate 1 until Gate 0 is **GO** (or an explicit product decision records a blocked compatibility failure).
 
 ### Gate 1 — make conversation state durable
 
@@ -174,7 +207,7 @@ Rollback preserves data. Keep the pre-cutover artifact and verified online backu
 
 One implementation lead owns the native adapter, protocol boundary and release evidence end to end. Platform-specific tasks may contribute to that same contract after Gate 0. Canon records the active task, repository, evidence and acceptance state; Linear remains source authority for its issues. Fowler Brain holds the durable user requirement and a pointer here, not another copy of this plan.
 
-This audit authorizes and delivers the plan. No service cutover, legacy deletion, new device permission or model/provider migration was performed. Product release remains incomplete until the gates above pass. Avoid spending the first milestone polishing a dashboard, re-enabling Atlas, swapping LLMs, loosening a speaker threshold, or rebuilding components already retained.
+This audit authorizes and delivers the plan. Gate 0 **proof software** shipped 2026-09-14 (`329368c`); no service cutover, legacy deletion, new device permission or model/provider migration was performed. Product release remains incomplete until the gates above pass — shipping Gate 0 code is not Gate 0 acceptance. Avoid spending the next milestone polishing a dashboard, re-enabling Atlas, swapping LLMs, loosening a speaker threshold, patching LiveKit/ElevenLabs/browser mic, or rebuilding components already retained.
 
 ## Primary Apple references
 
@@ -186,4 +219,4 @@ This audit authorizes and delivers the plan. No service cutover, legacy deletion
 - [Speech framework](https://developer.apple.com/documentation/speech): a separate app speech-recognition API; not selected as a hidden replacement for Voice Control.
 - [Vision Pro accessibility](https://support.apple.com/en-us/120052) and [Apple Watch Mirroring](https://support.apple.com/guide/watch/apple-watch-mirroring-apd890848603/26/watchos/26): platform-specific availability, not universal device parity.
 
-Apple capability claims were checked September 7, 2026. The native bridge and physical-device acceptance remain unverified. That limitation is deliberately visible at the front of the implementation sequence.
+Apple capability claims were checked September 7, 2026. Gate 0 Mac proof software published September 14, 2026 (`329368c`). The native bridge on physical Voice Control samples and iPhone acceptance remain unverified. That limitation stays visible at the front of the implementation sequence.
