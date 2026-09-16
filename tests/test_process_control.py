@@ -228,8 +228,8 @@ def test_the_services_endpoint_reports_every_brutus_service(tmp_path, monkeypatc
             labels[2]: _completed(returncode=3, stderr="Could not find service"),
         }[label]
 
+    client = TestClient(_app(tmp_path))
     with patch.object(pc.subprocess, "run", side_effect=launchctl) as run:
-        client = TestClient(_app(tmp_path))
         response = client.get("/api/services")
     assert response.status_code == 200
     services = {service["label"]: service for service in response.json()["services"]}
