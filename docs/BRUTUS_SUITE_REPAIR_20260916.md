@@ -198,3 +198,21 @@ The voice-contract test was renamed to
 `test_voice_turn_gets_the_current_short_spoken_contract`; every other listed
 node retains its name. Final JUnit counts by affected module: backends 12, brain
 56, conversation 34, process control 22, session voice client 18.
+
+## Independent operator verification and delivery preservation
+
+The frozen Forge run `723a329f66594890bca91a3a9a14cf20` remains blocked;
+its receipt above is preserved. Independent operator execution of source
+`487b4b385592121730c7a189cc3826a11d27405c` in the authorized private test
+state directory passed **1037 tests, zero failures, zero skips**. The network
+and provider/process isolation guard remained enabled.
+
+Delivery integration preserves two measured differences in the installed
+runtime: the 45-word voice contract and refusal of ambiguous repository
+mutations from the Projects root. The installed example configuration's
+explicit CLI/API controls and voice agent field are also preserved. Tests now
+enforce these existing behaviors. The complete integration suite passed
+**1037 tests, zero failures, zero skips**; workflow lint and shell/plist checks
+passed. Evidence is retained in Studio's
+`~/.local/share/forge-loop/20260916/remaining/brutus-preservation-final-suite.log`.
+This verification does not assert real provider or voice conversation UAT.

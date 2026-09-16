@@ -241,7 +241,7 @@ def test_voice_turn_gets_the_current_short_spoken_contract():
         brain_reply(_cfg(), _registry(), history=_history(("user", "status")), channel="voice")
     system = seen["system"]
     assert "LIVE VOICE TURN" in system[1]["text"]
-    assert "60 spoken words" in system[1]["text"]
+    assert "45 spoken words" in system[1]["text"]
 
 
 def test_a_tool_round_executes_and_answers_in_one_user_message():

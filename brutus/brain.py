@@ -466,12 +466,11 @@ def brain_reply(
     system_text = BRAIN_SYSTEM
     if channel == "voice":
         system_text += (
-            "\n\nTHIS IS A LIVE VOICE TURN. You have time — Justin sees a thinking "
-            "face while you work. Prefer a correct, conversational spoken answer "
-            "over a fast empty one. Usually one to three short sentences, under "
-            "about 60 spoken words unless he asked for depth. Lead with the "
-            "answer. Ask at most one question. Do not narrate tools or invent "
-            "progress. Natural fragments are fine; never fill silence with filler."
+            "\n\nTHIS IS A LIVE VOICE TURN. Answer in one or two short sentences, "
+            "normally under 45 spoken words. Lead with the answer, not a preamble. "
+            "Ask at most one question. Do not narrate tools, internal state, or a "
+            "status dump. Natural fragments are fine; conversational does not mean "
+            "adding filler."
         )
     if standing_notes.strip():
         system_text += "\n\n" + standing_notes.strip()
