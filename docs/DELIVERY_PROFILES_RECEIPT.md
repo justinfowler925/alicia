@@ -109,3 +109,21 @@ to obtain a green global result. The full-application profile remains blocked.
 Studio evidence: `~/.local/share/forge-loop/20260916/dod/independent-summary.json`,
 `operator-{baseline-final,final-full,focused,lint}.log`, and the independent
 future-date before/after probes. Runtime hashes and Canon readback follow installation.
+
+
+## Runtime package readback
+
+The first installation updated the service checkout; live readback correctly failed
+because the daemon imports its installed wheel from `.runtime-venv` site-packages.
+That checkout attempt was restored. The reviewed four-module patch was then applied
+to the actual imported package, retaining its pre-existing stricter broad-root route
+guard through a conflict-free three-way merge. The original application SHA was not
+changed. All 78 unrelated package files and all 255 checkout/configuration entries
+were preserved. A live GET now returns `delivery_policy_profile=workflow_control`
+and its exact bound digest. All 54 profile tests pass against the imported runtime
+package, including store/CLI/authorization and future-date rejection.
+
+Runtime evidence: Studio `forge-loop/20260916/dod/runtime-installation.json` and
+`runtime-profile-tests.log`. The receipt binds reviewed patch source `53d21db` and
+resulting module hashes; it explicitly identifies the preserved runtime-only guard.
+This does not certify a full application release or erase the 29 baseline failures.
