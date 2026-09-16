@@ -107,6 +107,7 @@ def test_ask_claude_disabled():
 
 def test_ask_claude_missing_cli(monkeypatch):
     monkeypatch.setattr("brutus.claude.shutil.which", lambda _name: None)
+    monkeypatch.setattr("brutus.claude.Path.is_file", lambda _path: False)
     cfg = BrutusCfg(claude=ClaudeCfg(enabled=True, api_key=""))
     out = ask_claude(cfg, "draft a reply")
     assert out["ok"] is False
@@ -145,10 +146,16 @@ def test_ask_claude_cli_failure(monkeypatch):
     assert "subscription exhausted" in out["error"]
 
 
-def test_registry_wires_backends():
+def test_registry_wires_backends(tmp_path):
+    from brutus.memory import MemoryStore
+    from brutus.todos import TodoStore
+
     client = MagicMock()
     client.chat.side_effect = ConnectionError("down")
-    reg = build_default_registry(client, cfg=BrutusCfg(cursor_runner=CursorRunnerCfg(enabled=False)))
+    reg = build_default_registry(
+        client, cfg=BrutusCfg(cursor_runner=CursorRunnerCfg(enabled=False)),
+        memory=MemoryStore(tmp_path / "memory.sqlite"), todos=TodoStore(tmp_path / "todos.sqlite"),
+    )
     names = {t["name"] for t in reg.list_schemas()}
     assert "ask_cursor" in names
     assert "ask_claude" not in names

@@ -4,9 +4,10 @@ These deliberately inspect the shipped client entry point: a helper-only unit te
 stay green when the page never wires the helper.
 """
 
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
+import pytest
 
 SOURCE = (Path(__file__).parents[1] / "brutus/static/session.js").read_text()
 
@@ -30,8 +31,7 @@ def test_voice_instructions_live_in_help_and_supervisor_names_providers():
     assert 'popovertarget="voice-help"' in html
     assert 'id="voice-help"' in html
     assert "Talk naturally. Pause when you are done." not in SOURCE
-    assert 'const providerCounts = ["codex", "cursor", "claude"]' in SOURCE
-    assert "Most recent:" in SOURCE
+    _client_contract("providers")
 
 
 def test_owner_voice_enrollment_is_a_visible_record_and_consent_flow():
@@ -45,7 +45,7 @@ def test_owner_voice_enrollment_is_a_visible_record_and_consent_flow():
 
 def test_shipped_session_client_is_valid_javascript():
     source_path = Path(__file__).parents[1] / "brutus/static/session.js"
-    result = subprocess.run(["node", "--check", str(source_path)], capture_output=True, text=True)
+    result = subprocess.run(["node", "--check", str(source_path)], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr
 
 
@@ -58,9 +58,7 @@ def test_workspace_disclosure_releases_the_fixed_conversation_layout():
 
 
 def test_supervisor_hides_generic_lifecycle_lectures():
-    assert "const genericAction" in SOURCE
-    assert "No verified next step yet." in SOURCE
-    assert "Status from" in SOURCE
+    _client_contract("lifecycle")
 
 
 def test_livekit_is_the_preferred_transport_and_attaches_agent_audio():
@@ -75,7 +73,7 @@ def test_livekit_claims_spoken_output_before_connecting():
     end = SOURCE.index("\nfunction startLegacyVoice", start)
     body = SOURCE[start:end]
     assert body.index("state.voiceTransport = \"livekit\"") < body.index("await room.connect")
-    assert "!state.livekitRoom && state.voiceTransport !== \"livekit\"" in SOURCE
+    _client_contract("playback")
 
 
 def test_livekit_capture_suppresses_echo_and_background_noise_before_stt():
@@ -132,3 +130,22 @@ def test_barge_in_cancels_work_without_inventing_a_user_request():
     assert "state.sayAbort?.abort()" in body
     assert "stopSpeaking()" in body
     assert 'setVoicePhase("listening"' in body
+
+
+def _client_contract(case, *, mutant=False):
+    harness = Path(__file__).with_name("session_client_contracts.cjs")
+    result = subprocess.run(
+        ["node", str(harness), case, *(["mutant"] if mutant else [])],
+        capture_output=True, text=True, timeout=20, check=False,
+    )
+    if mutant:
+        assert result.returncode != 0, "seeded regression escaped the behavioral check"
+        assert "AssertionError" in result.stderr, result.stderr
+    else:
+        assert result.returncode == 0, result.stderr
+        assert f"PASS {case}" in result.stdout
+
+
+@pytest.mark.parametrize("case", ["providers", "lifecycle", "playback"])
+def test_client_contract_rejects_seeded_regression(case):
+    _client_contract(case, mutant=True)

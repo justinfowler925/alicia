@@ -3,6 +3,7 @@
 import inspect
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
 
 import pytest
@@ -20,14 +21,23 @@ def _cfg() -> BrutusCfg:
 
 
 @pytest.fixture()
-def mgr(tmp_path):
+def mgr(tmp_path, monkeypatch):
+    from brutus.memory import MemoryStore
+    from brutus.todos import TodoStore
+
+    monkeypatch.setattr("brutus.resilience.STATE_DIR", tmp_path)
+    monkeypatch.setattr("brutus.resilience.OUTBOX_DIR", tmp_path / "outbox")
     store = SessionStore(tmp_path / "s.sqlite")
     events: list[tuple[str, dict]] = []
     m = ConversationManager(
-        MagicMock(), _cfg(), store, on_event=lambda k, p: events.append((k, p))
+        MagicMock(), _cfg(), store, on_event=lambda k, p: events.append((k, p)),
+        memory=MemoryStore(tmp_path / "memory.sqlite"), todos=TodoStore(tmp_path / "todos.sqlite")
     )
     m.events = events  # type: ignore[attr-defined]
-    return m
+    yield m
+    for thread in m._brain_threads.values():
+        thread.join(timeout=5)
+        assert not thread.is_alive(), "conversation worker escaped its fixture lifetime"
 
 
 def _brain(reply: str = "Here you go.", meta: dict | None = None):
@@ -335,14 +345,13 @@ def test_concurrent_approvals_execute_external_mutation_once(mgr):
         return {"ok": True, "result": {"ok": True, "ticket": "REV-900"}}
 
     registry.call.side_effect = external_write
-    with patch.object(mgr, "_registry", return_value=registry):
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            first = pool.submit(mgr.execute_artifact, sid, art["id"])
-            assert entered.wait(timeout=5)
-            second = pool.submit(mgr.execute_artifact, sid, art["id"])
-            loser = second.result(timeout=5)
-            release.set()
-            winner = first.result(timeout=5)
+    with patch.object(mgr, "_registry", return_value=registry), ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(mgr.execute_artifact, sid, art["id"])
+        assert entered.wait(timeout=5)
+        second = pool.submit(mgr.execute_artifact, sid, art["id"])
+        loser = second.result(timeout=5)
+        release.set()
+        winner = first.result(timeout=5)
 
     assert registry.call.call_count == 1
     assert winner.reply.startswith("Done")
@@ -404,9 +413,11 @@ def test_a_verified_voice_still_settles_a_pending_write(mgr):
     sid = mgr.store.open_session()
     _pending(mgr, sid)
 
-    with patch.object(mgr, "execute_artifact", return_value="executed") as run:
-        assert mgr.handle(sid, "yes", channel="voice", owner_verified=True) == "executed"
-    assert run.called
+    with patch.object(mgr, "execute_artifact", return_value=SimpleNamespace(reply="executed")) as run:
+        assert mgr.handle(sid, "yes", channel="voice", owner_verified=True).reply == "executed"
+    run.assert_called_once()
+    from brutus.resilience import pending_outbox
+    assert [(item["status"], item["reply"]) for item in pending_outbox()] == [("done", "executed")]
 
 
 def test_typing_is_never_asked_to_prove_a_voice(mgr):
@@ -414,16 +425,23 @@ def test_typing_is_never_asked_to_prove_a_voice(mgr):
     sid = mgr.store.open_session()
     _pending(mgr, sid)
 
-    with patch.object(mgr, "execute_artifact", return_value="executed") as run:
-        assert mgr.handle(sid, "yes") == "executed"
-    assert run.called
+    with patch.object(mgr, "execute_artifact", return_value=SimpleNamespace(reply="executed")) as run:
+        assert mgr.handle(sid, "yes").reply == "executed"
+    run.assert_called_once()
+    from brutus.resilience import pending_outbox
+    assert [(item["status"], item["reply"]) for item in pending_outbox()] == [("done", "executed")]
 
 
 def test_an_unplaced_voice_is_still_answered_when_nothing_is_pending(mgr):
     """Silence was the bug. An unrecognized voice gets a real reply."""
     sid = mgr.store.open_session()
-    verified = mgr.handle(sid, "how is the Holloway rollout reading?", channel="voice", owner_verified=True)
-    unplaced = mgr.handle(sid, "how is the Holloway rollout reading?", channel="voice", owner_verified=False)
+    with _brain("Here is the status.") as brain:
+        verified = mgr.handle(sid, "how is the Holloway rollout reading?", channel="voice",
+                              owner_verified=True, wait=True)
+        unplaced = mgr.handle(sid, "how is the Holloway rollout reading?", channel="voice",
+                              owner_verified=False, wait=True)
+    assert brain.call_count == 2
+    assert verified.reply == unplaced.reply == "Here is the status."
 
     # The verdict decides what a yes may execute, never whether Brutus answers.
     assert (unplaced.lane, unplaced.thinking, unplaced.error) == (
