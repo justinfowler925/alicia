@@ -229,8 +229,13 @@ def test_the_services_endpoint_reports_every_brutus_service(tmp_path, monkeypatc
         }[label]
 
     client = TestClient(_app(tmp_path))
-    with patch.object(pc.subprocess, "run", side_effect=launchctl) as run:
+    # Keep unrelated background app probes out of this module's call count.
+    # Replacing subprocess.run globally also intercepts credential discovery.
+    process_api = MagicMock(wraps=subprocess)
+    process_api.run.side_effect = launchctl
+    with patch.object(pc, "subprocess", process_api):
         response = client.get("/api/services")
+    run = process_api.run
     assert response.status_code == 200
     services = {service["label"]: service for service in response.json()["services"]}
     assert set(services) == set(labels)
