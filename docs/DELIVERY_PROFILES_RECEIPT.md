@@ -85,3 +85,27 @@ failures. Operator review must address the environment and unrelated failures
 and rerun the full suite before acceptance or deployment. No production gate was
 weakened or bypassed to make this receipt appear green. Project-knowledge MCP was
 unavailable; its SSH fallback was excluded by the repository-only task scope.
+
+
+## Independent integration review
+
+Codex preserved Forge source `95cf3d9ec027ac0b56cb5ca627a5f1fd30523e22` and its
+blocked run `c35ca52d2d6445d781721ffa3e651411` in the original checkout. In the
+separate integration clone, the operator added explicit repository profiles and
+fixed future-dated profile evidence after an independent failing probe.
+
+Independent workflow/HTTP/Canon/efficiency tests: **128 passed**. Changed-file
+verification script passed. Actual Brain policy probes preserve all 12 original
+Salesforce requirements; application policy preserves all 5 original Brutus gates.
+Cross-profile proof and missing/unknown profile selections are rejected.
+
+After installing declared optional voice dependencies in the isolated environment,
+full pytest was compared with baseline under identical process/network isolation:
+**baseline 933 passed, 29 failed; integration 987 passed, the same 29 failed**.
+There are 54 additional passing tests and no new failing test ids. This is bounded
+regression evidence, not a passing full-application release. No tests were skipped
+to obtain a green global result. The full-application profile remains blocked.
+
+Studio evidence: `~/.local/share/forge-loop/20260916/dod/independent-summary.json`,
+`operator-{baseline-final,final-full,focused,lint}.log`, and the independent
+future-date before/after probes. Runtime hashes and Canon readback follow installation.

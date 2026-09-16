@@ -274,7 +274,8 @@ def evaluate_delivery_receipts(
             if captured.tzinfo is None:
                 captured = captured.replace(tzinfo=UTC)
             max_age = work_item.delivery_freshness_hours.get(requirement_id, 24.0)
-            if (current - captured).total_seconds() > max_age * 3600:
+            age_seconds = (current - captured).total_seconds()
+            if age_seconds > max_age * 3600 or (work_item.delivery_policy_profile and age_seconds < 0):
                 stale.append(requirement_id)
                 continue
             if work_item.target_artifact_digest and (

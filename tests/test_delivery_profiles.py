@@ -470,3 +470,19 @@ def test_cli_defaults_and_invalid_provenance(tmp_path, monkeypatch, capsys):
     assert exc.value.code == 2
     with pytest.raises(CanonError, match="non-empty captured actor"):
         invoke(monkeypatch, db, *args, "--captured-by", " ")
+
+
+def test_profile_receipts_cannot_be_dated_in_the_future(tmp_path):
+    work = bind(tmp_path)
+    store = CanonStore(tmp_path / "future.db")
+    try:
+        store.save(work)
+        receipts = [attach(store, work, item) for item in work.delivery_requirements]
+        now = datetime.now(UTC)
+        assert evaluate_delivery_receipts(work, receipts, now=now).ok
+        for receipt in receipts:
+            receipt.captured_at = now + timedelta(seconds=1)
+        proof = evaluate_delivery_receipts(work, receipts, now=now)
+        assert not proof.ok and set(proof.stale) == set(work.delivery_requirements)
+    finally:
+        store.close()

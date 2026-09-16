@@ -1,25 +1,48 @@
-schema_version: 1
+schema_version: 2
 repository: github.com/justinfowler925/brutus
 requirements:
-  - id: tests
-    kind: test
-    command: .venv/bin/python -m pytest -q
-    freshness_hours: 4
-  - id: lint
-    kind: lint
-    command: ./scripts/verify-workflow-control.sh
-    freshness_hours: 4
-  - id: git
-    kind: git
-    probe: origin/main contains the delivered commit and the checkout is clean
-    freshness_hours: 4
-  - id: deploy
-    kind: deploy
-    command: ./scripts/deploy.sh
-    target: local-brutus
-    freshness_hours: 4
-  - id: production
-    kind: readback
-    probe: /version reports the delivered SHA and workflow endpoints answer from 127.0.0.1:8768
-    target: local-brutus
-    freshness_hours: 4
+- id: lint
+  kind: lint
+  command: ./scripts/verify-workflow-control.sh
+  freshness_hours: 4
+- id: git
+  kind: git
+  probe: origin/main contains the delivered commit and the checkout is clean
+  freshness_hours: 4
+profiles:
+  application:
+    requirements:
+    - id: tests
+      kind: test
+      command: .venv/bin/python -m pytest -q
+      freshness_hours: 4
+    - id: deploy
+      kind: deploy
+      command: ./scripts/deploy.sh
+      target: local-brutus
+      freshness_hours: 4
+    - id: production
+      kind: readback
+      probe: /version reports the delivered SHA and workflow endpoints answer from 127.0.0.1:8768
+      target: local-brutus
+      freshness_hours: 4
+  workflow_control:
+    requirements:
+    - id: workflow_tests
+      kind: test
+      command: .venv/bin/python -m pytest -q tests/test_workflow_control.py tests/test_delivery_profiles.py
+        tests/test_workflow_http.py tests/test_weekly_efficiency.py tests/test_canon.py
+      freshness_hours: 4
+    - id: workflow_install
+      kind: deploy
+      probe: The reviewed workflow CLI, policy evaluator and Canon model files match source SHA256 hashes
+        in the running service tree; unrelated tracked and untracked files and configuration are preserved
+      target: local-brutus
+      freshness_hours: 4
+    - id: workflow_readback
+      kind: readback
+      probe: The restarted local service returns the bound profile and policy digest via /api/workflow/status;
+        cross-profile evidence fails; existing health endpoint passes. Record original application version
+        separately; scoped module installation never relabels the whole application SHA
+      target: local-brutus
+      freshness_hours: 4

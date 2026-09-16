@@ -108,3 +108,18 @@ an independent human review happened. A worker principal cannot verify evidence;
 an automated verifier cannot replace the owner in this attachment operation.
 Canon's separately allowlisted automated-verifier store path remains unchanged.
 Independent review, approval and acceptance gates remain the operator's job.
+
+
+## Repository profiles and scoped installation
+
+Brutus selects `application` for a full application release: every prior v1
+requirement, including the full pytest suite and application SHA readback, remains.
+Select `workflow_control` only for policy/receipt/Canon workflow changes. It requires
+workflow, HTTP, identity/state and efficiency tests, lint, Git, an installed module
+hash manifest with unrelated-file preservation, and live bound-profile readback.
+It does not certify the unrelated voice/application surface or replace its gates.
+The full suite is still measured against baseline and failures recorded separately.
+Profiled receipts dated in the future fail freshness; schema1 behavior is unchanged.
+
+Codex integration preserves the original Forge commit/run and adds the repository
+profile migration plus future-date rejection. The original run remains blocked.
