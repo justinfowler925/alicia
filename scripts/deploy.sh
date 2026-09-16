@@ -316,7 +316,13 @@ esac
   'import asyncio,httpx; asyncio.run(httpx.AsyncClient().aclose())' ) || exit 1
 
 echo "==> tests, against the code about to run"
-( cd "$APP" && BRUTUS_CONFIG="$APP/config.yaml" "$RUNTIME_VENV/bin/python" -m pytest tests/ -q -p no:cacheprovider 2>&1 | tail -1 ) || exit 1
+TEST_LOG="$STATE/deploy-test-$TARGET_SHA.log"
+if ! ( cd "$APP" && BRUTUS_CONFIG="$APP/config.yaml" "$RUNTIME_VENV/bin/python" -m pytest tests/ -q -p no:cacheprovider ) >"$TEST_LOG" 2>&1; then
+  echo "    test gate failed; full output: $TEST_LOG"
+  tail -60 "$TEST_LOG"
+  exit 1
+fi
+tail -1 "$TEST_LOG"
 
 # Declared here, not at the verification block below, because the sibling-plist
 # loop can fail before that point — and a later `FAIL=0` would have wiped it.
