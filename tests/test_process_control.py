@@ -183,42 +183,83 @@ def test_a_failing_studio_command_surfaces_its_own_message():
 # --- the HTTP surface -------------------------------------------------------
 
 
-def _app():
+def _app(tmp_path):
     from brutus.config import BrutusCfg
+    from brutus.memory import MemoryStore
     from brutus.server import create_app
+    from brutus.session import SessionStore
+    from brutus.todos import TodoStore
 
-    with patch("brutus.server.AtlasClient") as atlas:
+    memory = MemoryStore(tmp_path / "memory.sqlite")
+    todos = TodoStore(tmp_path / "todos.sqlite")
+    with (
+        patch("brutus.server.MemoryStore", return_value=memory),
+        patch("brutus.conversation.MemoryStore", return_value=memory),
+        patch("brutus.server.TodoStore", return_value=todos),
+        patch("brutus.conversation.TodoStore", return_value=todos),
+        patch("brutus.server.SessionStore", return_value=SessionStore(tmp_path / "sessions.sqlite")),
+        patch("brutus.server.AtlasClient") as atlas,
+    ):
         atlas.return_value = MagicMock()
         return create_app(BrutusCfg(watchdog_enabled=False), start_watchdog=False)
 
 
-def test_the_services_endpoint_reports_every_brutus_service():
+def test_the_services_endpoint_reports_every_brutus_service(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
-    client = TestClient(_app())
-    payload = client.get("/api/services").json()
-    labels = [service["label"] for service in payload["services"]]
+    installed = tmp_path / "LaunchAgents"
+    installed.mkdir()
+    labels = [pc.CORE_LABEL, pc.CORE_LABEL + "-idle", pc.CORE_LABEL + "-unloaded"]
+    for label in labels[:2]:
+        (installed / f"{label}.plist").touch()
+    source = tmp_path / "launchd"
+    source.mkdir()
+    (source / f"{labels[2]}.plist").touch()
+    (installed / "com.apple.Finder.plist").touch()
+    monkeypatch.setattr(pc, "INSTALLED_AGENTS", installed)
+    monkeypatch.setattr(pc, "SOURCE_PLIST_DIR", source)
 
-    assert "com.clearspeed.brutus" in labels
-    core = next(s for s in payload["services"] if s["is_core"])
-    assert set(core) >= {"loaded", "running", "pid", "plist_installed"}
+    def launchctl(argv, **kwargs):
+        assert argv[:2] == ["/bin/launchctl", "print"]
+        label = argv[2].split("/")[-1]
+        return {
+            labels[0]: _completed(stdout="state = running\n pid = 4242\n last exit code = 0\n"),
+            labels[1]: _completed(stdout="state = waiting\n last exit code = 7\n"),
+            labels[2]: _completed(returncode=3, stderr="Could not find service"),
+        }[label]
+
+    with patch.object(pc.subprocess, "run", side_effect=launchctl) as run:
+        client = TestClient(_app(tmp_path))
+        response = client.get("/api/services")
+    assert response.status_code == 200
+    services = {service["label"]: service for service in response.json()["services"]}
+    assert set(services) == set(labels)
+    assert run.call_count == len(labels) == 3
+    assert services[labels[0]]["is_core"] is True
+    assert services[labels[0]]["running"] is True
+    assert services[labels[0]]["pid"] == 4242
+    assert services[labels[1]]["loaded"] is True
+    assert services[labels[1]]["running"] is False
+    assert services[labels[1]]["last_exit"] == 7
+    assert services[labels[2]]["loaded"] is False
+    assert services[labels[2]]["plist_installed"] is False
 
 
-def test_controlling_a_service_that_is_not_ours_is_a_400():
+def test_controlling_a_service_that_is_not_ours_is_a_400(tmp_path):
     from fastapi.testclient import TestClient
 
-    client = TestClient(_app())
+    client = TestClient(_app(tmp_path))
     response = client.post("/api/services/com.apple.Finder/stop")
 
     assert response.status_code == 400
     assert "not a Brutus service" in response.json()["detail"]
 
 
-def test_cancelling_a_thread_the_board_does_not_have_is_a_400():
+def test_cancelling_a_thread_the_board_does_not_have_is_a_400(tmp_path):
     from fastapi.testclient import TestClient
 
     with patch("brutus.server.scan_agent_sessions", return_value=[]):
-        client = TestClient(_app())
+        client = TestClient(_app(tmp_path))
         response = client.post("/api/agents/claude:ghost/cancel")
 
     assert response.status_code == 400

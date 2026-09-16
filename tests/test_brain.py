@@ -22,9 +22,21 @@ from brutus.tools import Tool, ToolRegistry, build_default_registry
 
 def _cfg() -> BrutusCfg:
     return BrutusCfg(
-        claude=ClaudeCfg(enabled=True, model="claude-sonnet-5", api_key="k"),
+        claude=ClaudeCfg(enabled=True, model="claude-sonnet-5", api_key="k", transport="api", api_enabled=True),
         cursor_runner=CursorRunnerCfg(enabled=True),
     )
+
+
+@pytest.fixture(autouse=True)
+def isolated_brain_stores(tmp_path, monkeypatch):
+    from brutus.memory import MemoryStore
+    from brutus.todos import TodoStore
+
+    memory = MemoryStore(tmp_path / "memory.sqlite")
+    todos = TodoStore(tmp_path / "todos.sqlite")
+    monkeypatch.setattr("brutus.tools.MemoryStore", lambda: memory)
+    monkeypatch.setattr("brutus.tools.TodoStore", lambda: todos)
+    monkeypatch.setattr("brutus.resilience.KILL_API", tmp_path / "brain.api.off")
 
 
 def _registry():
@@ -176,7 +188,7 @@ def test_accepted_offer_drops_an_amputated_follow_up_question():
     registry = ToolRegistry()
     registry.register(
         Tool(
-            name="get_thread",
+            name="list_notes",
             description="Look up one thread.",
             parameters={"type": "object", "properties": {"external_id": {"type": "string"}}},
             fn=lambda external_id="": {"ticket": external_id, "status": "review"},
@@ -184,7 +196,7 @@ def test_accepted_offer_drops_an_amputated_follow_up_question():
     )
     responses = iter(
         [
-            _tool_resp("get_thread", {"external_id": "REV-507"}),
+            _tool_resp("list_notes", {"external_id": "REV-507"}),
             _text_resp("REV-507 is in review. Which way you want to"),
         ]
     )
@@ -218,7 +230,7 @@ def test_native_claude_call_caches_stable_system_and_uses_low_effort():
     assert sent["tools"][0]["name"] == "list_notes"
 
 
-def test_voice_turn_gets_a_short_spoken_contract_after_the_cached_system_prompt():
+def test_voice_turn_gets_the_current_short_spoken_contract():
     seen: dict = {}
 
     def create(cfg, **kwargs):
@@ -229,7 +241,7 @@ def test_voice_turn_gets_a_short_spoken_contract_after_the_cached_system_prompt(
         brain_reply(_cfg(), _registry(), history=_history(("user", "status")), channel="voice")
     system = seen["system"]
     assert "LIVE VOICE TURN" in system[1]["text"]
-    assert "under 45 spoken words" in system[1]["text"]
+    assert "60 spoken words" in system[1]["text"]
 
 
 def test_a_tool_round_executes_and_answers_in_one_user_message():
@@ -455,11 +467,13 @@ def test_a_ticket_from_history_is_not_invented():
 
 def test_a_ticket_from_a_tool_result_is_not_invented():
     client = MagicMock()
-    client.list_threads.return_value = {"threads": [{"external_id": "REV-777", "title": "x", "id": "1"}]}
+    client.list_threads.return_value = {"threads": []}
     registry = build_default_registry(client, _cfg(), read_only=False)
+    registry.register(Tool(name="list_notes", description="Notes", parameters={"type": "object"},
+                           fn=lambda: {"notes": [{"text": "REV-777"}]}))
     responses = iter(
         [
-            _tool_resp("list_threads", {}),
+            _tool_resp("list_notes", {}),
             _text_resp("REV-777 is the only open one."),
         ]
     )
@@ -738,3 +752,105 @@ def test_the_not_found_guard_matches_the_sentence_as_actually_spoken():
     )
     assert _looks_not_found("I cannot find that anywhere.")
     assert not _looks_not_found("Two threads are on it — the company page audit is running.")
+
+
+@pytest.mark.parametrize("transport", ["api", "cli"])
+@pytest.mark.parametrize("failure", [False, True])
+def test_selected_conversation_transport_never_changes_provider(transport, failure):
+    cfg = _cfg()
+    cfg.claude.transport = transport
+    error = RuntimeError("selected provider unavailable") if failure else None
+    with (
+        patch("brutus.brain._create", return_value=_text_resp("Selected answer."), side_effect=error) as api,
+        patch("brutus.claude.ask_claude", return_value={
+            "ok": not failure, "reply": "Selected answer." if not failure else "", "error": "unavailable",
+        }) as cli,
+        patch("brutus.brain.complete") as alternate,
+    ):
+        reply, meta = brain_reply(cfg, ToolRegistry(), history=_history(("user", "explain the design")))
+    assert api.call_count == int(transport == "api")
+    assert cli.call_count == int(transport == "cli")
+    alternate.assert_not_called()
+    assert meta["backend"] == f"claude_{transport}"
+    assert ("couldn't finish" in reply) if failure else reply == "Selected answer."
+
+
+@pytest.mark.parametrize("gate", ["disabled", "kill_file", "missing_key", "unknown_transport"])
+def test_selected_api_refuses_missing_opt_in_without_running_another_transport(gate, tmp_path):
+    from brutus import resilience
+
+    cfg = _cfg()
+    if gate == "disabled":
+        cfg.claude.api_enabled = False
+    elif gate == "kill_file":
+        resilience.KILL_API.touch()
+    elif gate == "missing_key":
+        cfg.claude.api_key = ""
+    else:
+        cfg.claude.transport = "unknown"
+    with (
+        patch("brutus.brain._create") as api,
+        patch("brutus.claude.ask_claude") as cli,
+        patch("brutus.brain.complete") as alternate,
+    ):
+        reply, meta = brain_reply(cfg, ToolRegistry(), history=_history(("user", "explain the design")))
+    assert "couldn't finish" in reply and meta["error"]
+    api.assert_not_called()
+    cli.assert_not_called()
+    alternate.assert_not_called()
+
+
+@pytest.mark.parametrize("transport", ["cli", "api"])
+@pytest.mark.parametrize("case", ["unbacked", "failed_proposal", "invented", "search", "round_cap"])
+def test_each_transport_reaches_truthfulness_gates(transport, case):
+    import json
+
+    cfg = _cfg()
+    cfg.claude.transport = transport
+    registry = ToolRegistry()
+    observed = []
+    registry.register(Tool(name="list_agent_threads", description="Search", parameters={"type": "object"},
+                           fn=lambda: observed.append("searched") or {"threads": []}))
+    if case == "unbacked":
+        replies = [_text_resp("Queued it. Say yes to do it.")]
+    elif case == "failed_proposal":
+        replies = [_tool_resp("propose_action", {"tool": "capture_note", "args": {"text": "x"}}),
+                   _text_resp("Queued it. Say yes to do it.")]
+    elif case == "invented":
+        replies = [_text_resp("REV-99999 shipped."), _text_resp("REV-99999 shipped.")]
+    elif case == "search":
+        replies = [_text_resp("I can't find that work."), _tool_resp("list_agent_threads", {}),
+                   _text_resp("I can't find that work.")]
+    else:
+        replies = [_tool_resp("list_agent_threads", {})] * 8
+    api_replies = list(replies)
+    cli_replies = []
+    for reply in replies:
+        block = reply.content[0]
+        text = block.text if block.type == "text" else f"TOOL: {block.name}\nARGS: {json.dumps(block.input)}"
+        cli_replies.append({"ok": True, "reply": text})
+    with (
+        patch("brutus.brain._create", side_effect=api_replies) as api,
+        patch("brutus.claude.ask_claude", side_effect=cli_replies) as cli,
+        patch("brutus.brain.complete") as alternate,
+    ):
+        reply, meta = brain_reply(cfg, registry, history=_history(("user", "find the work")), channel="voice")
+    alternate.assert_not_called()
+    selected = api if transport == "api" else cli
+    assert selected.call_count == len(replies)
+    if case in {"unbacked", "failed_proposal"}:
+        assert reply == "I didn't create a proposal. Nothing was queued or changed."
+        assert meta.get("blocked_action_claim") is True
+    elif case == "invented":
+        assert meta["challenged_tickets"] == "REV-99999"
+        assert "REV-99999 (unverified)" in reply
+    elif case == "search":
+        assert observed == ["searched"]
+        assert meta["challenged_not_found"] is True
+    else:
+        assert len(observed) == 8
+        assert meta["error"] == "tool round cap"
+    if transport == "cli" and len(replies) > 1:
+        assert "assistant:" in cli.call_args.args[1]
+        if case in {"failed_proposal", "search", "round_cap"}:
+            assert "TOOL_RESULT:" in cli.call_args.args[1]

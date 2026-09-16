@@ -35,6 +35,7 @@ import logging
 import re
 import time
 from collections.abc import Callable
+from types import SimpleNamespace
 from typing import Any
 
 from .config import BrutusCfg
@@ -446,10 +447,10 @@ def brain_reply(
     on_tool_result: Callable[[str, dict[str, Any]], None] | None = None,
     recall: Callable[[str], dict[str, Any]] | None = None,
 ) -> tuple[str, dict[str, Any]]:
-    """One user turn. Cascade: CLI subscription → Cursor → deterministic → optional API.
+    """One turn on the selected Claude transport, never an alternate model.
 
-    Anthropic Messages is never the default. It runs only when
-    claude.transport=api AND claude.api_enabled AND brain.api.off is absent.
+    API requires explicit opt-in and an absent kill file. Both transports use
+    the same tool and truthfulness gates. Voice may recover deterministically.
     """
     from . import resilience
 
@@ -505,193 +506,75 @@ def brain_reply(
         "no TOOL: line.\n"
     )
     cli_system = system_text + protocol
-    errors: list[str] = []
-    budgets = resilience.timeouts()
-
-    # 1) Claude subscription CLI with TOOL:/ARGS: loop (default)
-    use_api = (
-        bool(getattr(claude, "api_enabled", False))
-        and str(getattr(claude, "transport", "cli") or "cli").strip().lower() == "api"
-        and not resilience.api_killed()
-        and bool((claude.api_key or "").strip())
-    )
-    if not use_api:
-        reply, meta = _text_tool_loop(
-            cfg,
-            registry,
-            messages=messages,
-            system=cli_system,
-            meta=meta,
-            channel=channel,
-            on_propose=on_propose,
-            on_tool_result=on_tool_result,
-            recall=recall,
-            backend="claude_cli",
-            timeout_s=budgets["brain_cli_s"],
+    transport = str(claude.transport or "cli").strip().lower()
+    meta["backend"] = f"claude_{transport}"
+    if transport == "api" and not (
+        claude.api_enabled and not resilience.api_killed() and claude.api_key.strip()
+    ):
+        meta["error"] = "selected API transport is disabled or unconfigured"
+        meta["api_error"] = "brain_auth_unavailable"
+        reply = ""
+    elif transport not in {"cli", "api"}:
+        meta["error"] = "unknown Claude transport"
+        reply = ""
+    else:
+        reply, meta = _guarded_tool_loop(
+            cfg, registry, messages=messages, system_text=system_text,
+            standing_notes=standing_notes, channel=channel, meta=meta,
+            on_propose=on_propose, on_tool_result=on_tool_result,
+            recall=recall, accepted_offer=accepted_offer,
+            create=_create if transport == "api" else _create_cli,
+            cli_system=cli_system,
         )
-        if reply and not meta.get("error"):
-            meta["ms"] = int((time.monotonic() - started) * 1000)
-            return reply, meta
-        if meta.get("error"):
-            errors.append(f"cli:{meta.get('error')}")
-        elif not reply:
-            errors.append("cli:empty")
-
-    # 2) Cursor Agent (subscription plane Justin already pays for)
-    try:
-        cursor_messages = [
-            {"role": "system", "content": cli_system},
-            *[
-                {
-                    "role": "user" if m["role"] == "user" else "assistant",
-                    "content": str(m["content"]),
-                }
-                for m in messages
-            ],
-        ]
-        cursor_text = complete(cfg, cursor_messages)
-        parsed = _parse_cursor_tool_call(cursor_text)
-        if parsed:
-            # One Cursor tool round, then one more completion for the spoken answer.
-            name, args = parsed
-            meta["tools"].append(name)
-            meta["backend"] = "cursor_agent"
-            payload = _run_tool(
-                registry,
-                name,
-                args,
-                channel=channel,
-                on_propose=on_propose,
-                on_tool_result=on_tool_result,
-                recall=recall,
-            )
-            follow = complete(
-                cfg,
-                [
-                    {"role": "system", "content": system_text},
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Tool {name} returned: {json.dumps(payload, default=str)[:3000]}\n"
-                            "Give the final spoken answer only. No TOOL: line."
-                        ),
-                    },
-                ],
-            )
-            meta["fallback"] = "cursor_agent"
-            meta["prior_errors"] = errors[:5]
-            meta["ms"] = int((time.monotonic() - started) * 1000)
-            return drop_incomplete_tail(follow.strip()) or _NOT_FOUND, meta
-        if cursor_text.strip():
-            meta["backend"] = "cursor_agent"
-            meta["fallback"] = "cursor_agent"
-            meta["prior_errors"] = errors[:5]
-            meta["ms"] = int((time.monotonic() - started) * 1000)
-            return drop_incomplete_tail(cursor_text.strip()), meta
-        errors.append("cursor:empty")
-    except Exception as exc:  # noqa: BLE001
-        errors.append(f"cursor:{exc}")
-
-    # 3) Deterministic work-surface / social answers
-    det = _deterministic_reply(registry, messages, meta)
-    if det is not None:
-        spoken, det_meta = det
-        det_meta["prior_errors"] = errors[:5]
-        det_meta["ms"] = int((time.monotonic() - started) * 1000)
-        return spoken, det_meta
-
-    # 4) Anthropic Messages — explicit opt-in only
-    if use_api:
-        meta["backend"] = "claude_api"
-        reply, meta = _api_tool_loop(
-            cfg,
-            registry,
-            messages=messages,
-            system_text=system_text,
-            standing_notes=standing_notes,
-            channel=channel,
-            meta=meta,
-            on_propose=on_propose,
-            on_tool_result=on_tool_result,
-            recall=recall,
-            accepted_offer=accepted_offer,
-        )
-        meta["ms"] = int((time.monotonic() - started) * 1000)
-        if reply and not meta.get("error"):
-            return reply, meta
-        if meta.get("error"):
-            errors.append(f"api:{meta.get('error')}")
-
-    meta["prior_errors"] = errors[:8]
     meta["ms"] = int((time.monotonic() - started) * 1000)
-    meta["error"] = "brain_all_backends_failed"
+    if reply:
+        return reply, meta
+    # A grounded voice answer is not a provider fallback. Text failures remain
+    # explicit; the durable conversation outbox owns retry, not another model.
+    if channel == "voice":
+        det = _deterministic_reply(registry, messages, meta)
+        if det is not None:
+            return det
     return (
-        "I couldn't finish that turn on CLI or Cursor. "
-        "Check `claude` login, or ask what's waiting on the work surface.",
+        "I couldn't finish that turn. Your request is safe; please try again.",
         meta,
     )
 
 
-def _text_tool_loop(
-    cfg: BrutusCfg,
-    registry: ToolRegistry,
-    *,
-    messages: list[dict[str, Any]],
-    system: str,
-    meta: dict[str, Any],
-    channel: str,
-    on_propose: Callable[[str, dict[str, Any]], dict[str, Any]] | None,
-    on_tool_result: Callable[[str, dict[str, Any]], None] | None,
-    recall: Callable[[str], dict[str, Any]] | None,
-    backend: str,
-    timeout_s: float,
-) -> tuple[str, dict[str, Any]]:
-    """Claude CLI (or similar) with TOOL:/ARGS: protocol."""
+def _create_cli(cfg: BrutusCfg, **kwargs: Any) -> Any:
+    """Adapt completion-only CLI output to the shared guarded tool loop."""
     from .claude import ask_claude
+    from .resilience import timeouts
 
-    meta["backend"] = backend
-    transcript: list[str] = []
-    for m in messages[:-1]:
-        role = "Justin" if m["role"] == "user" else "Brutus"
-        transcript.append(f"{role}: {m['content']}")
-    working = str(messages[-1]["content"])
-    for _ in range(_MAX_ROUNDS):
-        meta["rounds"] += 1
-        prompt = working
-        if transcript:
-            prompt = "Prior turns:\n" + "\n".join(transcript[-16:]) + "\n\nJustin: " + working
-        cli = ask_claude(cfg, prompt, system=system, timeout_s=timeout_s)
-        if not cli.get("ok") or not str(cli.get("reply") or "").strip():
-            meta["error"] = str(cli.get("error") or "cli_failed")
-            return "", meta
-        body = str(cli["reply"]).strip()
-        directive = _parse_cursor_tool_call(body) or _loose_tool_directive(body)
-        if not directive:
-            return drop_incomplete_tail(body) or "Done.", meta
-        name, args = directive
-        meta["tools"].append(name)
-        log.info("brain %s tool_use name=%s", backend, name)
-        payload = _run_tool(
-            registry,
-            name,
-            args,
-            channel=channel,
-            on_propose=on_propose,
-            on_tool_result=on_tool_result,
-            recall=recall,
-        )
-        compact = json.dumps(payload, default=str)[:3000]
-        transcript.append(f"Brutus: TOOL:{name} ARGS:{json.dumps(args)}")
-        transcript.append(f"TOOL_RESULT: {compact}")
-        working = (
-            f"Tool {name} returned: {compact}\n"
-            "Continue. Either call another TOOL:/ARGS: or give the final spoken answer."
-        )
-    meta["error"] = "tool_loop_exhausted"
-    return (
-        "I got stuck in my own tools on that one — say it again and I'll take a straighter path.",
-        meta,
+    turns = []
+    for message in kwargs["messages"]:
+        content = message["content"]
+        if not isinstance(content, str):
+            parts = []
+            for block in content:
+                kind = _attr(block, "type")
+                if kind == "tool_use":
+                    parts.append(f"TOOL: {_attr(block, 'name')}\nARGS: {json.dumps(_attr(block, 'input'))}")
+                elif kind == "tool_result":
+                    parts.append(f"TOOL_RESULT: {_attr(block, 'content')}")
+                elif kind == "text":
+                    parts.append(str(_attr(block, "text")))
+            content = "\n".join(parts)
+        turns.append(f"{message['role']}: {content}")
+    result = ask_claude(
+        cfg, "\n\n".join(turns), system=kwargs["cli_system"],
+        timeout_s=timeouts()["brain_cli_s"],
     )
+    body = str(result.get("reply") or "").strip()
+    if not result.get("ok") or not body:
+        raise BrainError(str(result.get("error") or "Claude CLI returned no reply"))
+    directive = _parse_cursor_tool_call(body) or _loose_tool_directive(body)
+    if directive:
+        name, args = directive
+        content = [SimpleNamespace(type="tool_use", name=name, input=args, id="cli_tool")]
+    else:
+        content = [SimpleNamespace(type="text", text=body)]
+    return SimpleNamespace(content=content, usage=None)
 
 
 def _loose_tool_directive(text: str) -> tuple[str, dict[str, Any]] | None:
@@ -744,8 +627,8 @@ def _deterministic_reply(
                     "backend": "deterministic",
                     "fallback": "deterministic_work_surface",
                 }
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            log.debug("Deterministic recovery unavailable", exc_info=True)
     if "focus our conversation on agent session" in folded or (
         "agent session" in folded and ("needs me" in folded or "intervene" in folded)
     ):
@@ -771,16 +654,16 @@ def _deterministic_reply(
                         or "needs you"
                     )
                     return (
-                        f"{title}. {why}. {len(intervene)} session"
-                        f"{'s' if len(intervene) != 1 else ''} need you.",
+                        (f"{title}. {why}. {len(intervene)} session"
+                         f"{'s' if len(intervene) != 1 else ''} need you."),
                         {
                             **meta,
                             "backend": "deterministic",
                             "fallback": "deterministic_supervised_work",
                         },
                     )
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            log.debug("Deterministic recovery unavailable", exc_info=True)
     if "hello" in folded or folded in {"hi", "hey", "you there?"}:
         return (
             "Hello — I'm here and ready to work.",
@@ -789,7 +672,7 @@ def _deterministic_reply(
     return None
 
 
-def _api_tool_loop(
+def _guarded_tool_loop(
     cfg: BrutusCfg,
     registry: ToolRegistry,
     *,
@@ -802,9 +685,14 @@ def _api_tool_loop(
     on_tool_result: Callable[[str, dict[str, Any]], None] | None,
     recall: Callable[[str], dict[str, Any]] | None,
     accepted_offer: str,
+    create: Callable[..., Any],
+    cli_system: str,
 ) -> tuple[str, dict[str, Any]]:
-    """Anthropic Messages path — only when explicitly enabled."""
-    system: list[dict[str, Any]] = [{"type": "text", "text": system_text}]
+    """Shared truthfulness and tool gates for the selected transport."""
+    system: list[dict[str, Any]] = [{"type": "text", "text": BRAIN_SYSTEM}]
+    volatile = system_text.removeprefix(BRAIN_SYSTEM).strip()
+    if volatile:
+        system.append({"type": "text", "text": volatile})
     tools = anthropic_tools(registry)
     working = [dict(m) for m in messages]
     allowed = _ticket_ids(*[m.get("content") for m in working], standing_notes)
@@ -815,14 +703,20 @@ def _api_tool_loop(
     for _ in range(_MAX_ROUNDS):
         meta["rounds"] += 1
         try:
-            resp = _create(cfg, system=system, tools=tools, messages=working)
+            call_args = {"system": system, "tools": tools, "messages": working}
+            if create is _create_cli:
+                call_args["cli_system"] = cli_system
+            resp = create(cfg, **call_args)
         except Exception as exc:  # noqa: BLE001
-            log.warning("brain API call failed: %s", exc)
+            log.warning("brain %s call failed: %s", meta["backend"], exc)
             meta["error"] = str(exc)[:300]
-            meta["api_error"] = "brain_service_unavailable"
+            error_key = "api_error" if meta["backend"] == "claude_api" else "cli_error"
+            meta[error_key] = "brain_service_unavailable"
             folded = str(exc).casefold()
             if any(t in folded for t in ("credit balance", "too low", "billing")):
-                meta["api_error"] = "brain_credits_exhausted"
+                meta[error_key] = "brain_credits_exhausted"
+            elif any(t in folded for t in ("api_key", "api key", "auth", "credential", "1password")):
+                meta[error_key] = "brain_auth_unavailable"
             return "", meta
 
         _tick_usage(meta, getattr(resp, "usage", None))
@@ -838,7 +732,7 @@ def _api_tool_loop(
             if completed != reply:
                 meta["dropped_incomplete_tail"] = True
                 reply = completed
-            unbacked_action = "propose_action" not in meta["tools"] and bool(
+            unbacked_action = not meta.get("proposed_artifacts") and bool(
                 _UNBACKED_ACTION_CLAIM.search(reply)
             )
             if unbacked_action and channel == "voice":
@@ -933,6 +827,8 @@ def _api_tool_loop(
                 on_tool_result=on_tool_result,
                 recall=recall,
             )
+            if name == "propose_action" and payload.get("ok") and payload.get("artifact_id"):
+                meta.setdefault("proposed_artifacts", []).append(payload["artifact_id"])
             allowed |= _ticket_ids(payload)
             results.append(
                 {
