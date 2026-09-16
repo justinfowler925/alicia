@@ -35,8 +35,9 @@ profiles:
       freshness_hours: 4
     - id: workflow_install
       kind: deploy
-      probe: The reviewed workflow CLI, policy evaluator and Canon model files match source SHA256 hashes
-        in the running service tree; unrelated tracked and untracked files and configuration are preserved
+      probe: The reviewed workflow CLI, policy evaluator and Canon model patch is applied to the actual
+        imported runtime package; record resulting module hashes and any preserved pre-existing runtime
+        differences; unrelated source, package files and configuration are preserved
       target: local-brutus
       freshness_hours: 4
     - id: workflow_readback
