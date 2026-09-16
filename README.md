@@ -70,6 +70,11 @@ deployment, production readback, and rollback evidence in
 cannot leave validation while a required receipt is missing, stale, failed, or
 bound to another artifact digest.
 
+Task-specific policies explicitly opt into schema2 and select `--profile`;
+common requirements always apply. See [delivery profiles](docs/DELIVERY_PROFILES.md)
+for launcher/Salesforce examples, digest binding, and truthful worker capture
+with `--captured-by codex --captured-by-kind worker`.
+
 `config.yaml`:
 
 ```yaml

@@ -41,10 +41,11 @@ def run(args: Any) -> None:
             print(dumps(work_status(store, args.work_item_id)))
             return
         if command == "policy":
-            loaded = load_delivery_policy(args.repository)
+            loaded = load_delivery_policy(args.repository, profile=getattr(args, "profile", None))
             payload: dict[str, Any] = {
                 "path": loaded.path,
                 "digest": loaded.digest,
+                "profile": loaded.profile,
                 "policy": loaded.policy.model_dump(mode="json"),
             }
             if args.bind:
@@ -77,6 +78,8 @@ def run(args: Any) -> None:
                 result=args.result,
                 target=args.target,
                 artifact_digest=args.artifact_digest,
+                captured_by=getattr(args, "captured_by", "owner-local-verifier"),
+                captured_by_kind=getattr(args, "captured_by_kind", "human"),
             )
             print(dumps(receipt.model_dump(mode="json")))
             return

@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .agent_sessions import (
     CLAUDE_PROJECTS,
@@ -29,7 +29,7 @@ from .agent_sessions import (
     read_transcript_excerpt,
     scan_agent_sessions,
 )
-from .canon.identity import CanonError
+from .canon.identity import CanonError, require_owner
 from .canon.models import (
     TERMINAL_STATES,
     Evidence,
@@ -116,11 +116,65 @@ class DeliveryPolicy(BaseModel):
         return value
 
 
+class ProfileRequirement(DeliveryRequirement):
+    # V1 keeps its historical coercion/extra-field behavior.
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+
+
+class DeliveryProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    requirements: list[ProfileRequirement]
+
+
+class EffectiveProfilePolicy(DeliveryPolicy):
+    schema_version: Literal[2]
+
+
+class ProfileDeliveryPolicy(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    schema_version: Literal[2]
+    repository: str = Field(min_length=1)
+    requirements: list[ProfileRequirement]
+    profiles: dict[str, DeliveryProfile] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_profiles(self) -> ProfileDeliveryPolicy:
+        if not self.repository.strip():
+            raise ValueError("repository must not be blank")
+        for name, profile in self.profiles.items():
+            if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name):
+                raise ValueError("profile name must use lowercase letters, digits, _ or -")
+            # An unselected malformed profile is still a malformed policy.
+            # Concatenation forbids overrides by duplicate id.
+            self.effective(profile)
+        return self
+
+    def effective(self, profile: DeliveryProfile) -> EffectiveProfilePolicy:
+        return EffectiveProfilePolicy(
+            schema_version=2,
+            repository=self.repository,
+            requirements=[*self.requirements, *profile.requirements],
+        )
+
+
+class _UniquePolicyLoader(yaml.SafeLoader):
+    def construct_mapping(self, node: Any, deep: bool = False) -> dict:
+        self.flatten_mapping(node)
+        result = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if not isinstance(key, str) or key in result:
+                raise ValueError("schema2 policy mapping keys must be unique strings")
+            result[key] = self.construct_object(value_node, deep=deep)
+        return result
+
+
 @dataclass(frozen=True)
 class LoadedPolicy:
-    policy: DeliveryPolicy
+    policy: DeliveryPolicy | EffectiveProfilePolicy
     path: str
     digest: str
+    profile: str = ""
 
 
 @dataclass(frozen=True)
@@ -137,13 +191,27 @@ class DeliveryProof:
         return asdict(self)
 
 
-def load_delivery_policy(repo: str | Path) -> LoadedPolicy:
+def load_delivery_policy(repo: str | Path, *, profile: str | None = None) -> LoadedPolicy:
     root = Path(repo).expanduser().resolve()
     path = root / ".codex" / "delivery.yaml"
     if not path.is_file():
         raise FileNotFoundError(f"delivery policy not found: {path}")
     raw = path.read_bytes()
     body = yaml.safe_load(raw) or {}
+    if isinstance(body, dict) and body.get("schema_version") == 2:
+        if type(body["schema_version"]) is not int:
+            raise ValueError("schema_version must be an integer")
+        declared = ProfileDeliveryPolicy.model_validate(yaml.load(raw, Loader=_UniquePolicyLoader))
+        if not isinstance(profile, str) or not profile or profile not in declared.profiles:
+            raise ValueError("schema2 delivery policy requires an explicit known profile")
+        policy = declared.effective(declared.profiles[profile])
+        # Bind raw bytes AND identity even for profiles with identical gates.
+        digest = hashlib.sha256(
+            b"brutus-delivery-policy-v2\0" + profile.encode("utf-8") + b"\0" + raw
+        ).hexdigest()
+        return LoadedPolicy(policy=policy, path=str(path), digest=digest, profile=profile)
+    if profile is not None:
+        raise ValueError("profile selection requires a schema2 delivery policy")
     policy = DeliveryPolicy.model_validate(body)
     return LoadedPolicy(policy=policy, path=str(path), digest=hashlib.sha256(raw).hexdigest())
 
@@ -152,6 +220,7 @@ def bind_delivery_policy(work_item: WorkItem, loaded: LoadedPolicy) -> WorkItem:
     work_item.repository_id = loaded.policy.repository
     work_item.delivery_policy_ref = loaded.path
     work_item.delivery_policy_digest = loaded.digest
+    work_item.delivery_policy_profile = loaded.profile
     work_item.delivery_requirements = [item.id for item in loaded.policy.requirements if item.required]
     work_item.delivery_freshness_hours = {
         item.id: item.freshness_hours for item in loaded.policy.requirements if item.required
@@ -190,6 +259,17 @@ def evaluate_delivery_receipts(
             continue
         usable = []
         for receipt in receipts:
+            if work_item.delivery_policy_profile and (
+                not work_item.delivery_policy_digest
+                or receipt.metadata.get("delivery_policy_digest") != work_item.delivery_policy_digest
+                or receipt.linked_object_id != work_item.id
+                or (
+                    receipt.source_repository is not None
+                    and receipt.source_repository != work_item.repository_id
+                )
+            ):
+                mismatched.append(requirement_id)
+                continue
             captured = receipt.captured_at
             if captured.tzinfo is None:
                 captured = captured.replace(tzinfo=UTC)
@@ -529,6 +609,7 @@ def attach_delivery_receipt(
     target: str = "",
     artifact_digest: str = "",
     captured_by: str = "owner-local-verifier",
+    captured_by_kind: str = "human",
 ) -> Evidence:
     """Attach an owner-verified structured delivery receipt to one Work Item."""
     work = store.get(WorkItem, work_item_id)
@@ -538,22 +619,29 @@ def attach_delivery_receipt(
         raise CanonError(f"'{requirement_id}' is not required by the bound delivery policy")
     if not content_ref.strip():
         raise CanonError("delivery receipt requires a non-empty content reference")
+    if not isinstance(captured_by, str) or not captured_by.strip():
+        raise CanonError("delivery receipt requires a non-empty captured actor")
+    if not isinstance(captured_by_kind, str) or captured_by_kind not in {"human", "worker"}:
+        raise CanonError("delivery receipt captured actor kind must be human or worker")
     normalized_result = result.strip().casefold()
     if normalized_result not in {"pass", "fail"}:
         raise CanonError("delivery receipt result must be pass or fail")
     principal = store.identity_registry.owner_principal()
+    require_owner(principal.identity, principal, registry=store.identity_registry)
     receipt = Evidence(
         type=EvidenceType(evidence_type),
         captured_by=captured_by,
-        captured_by_kind="human",
+        captured_by_kind=captured_by_kind,
         linked_object_id=work.id,
         content_ref=content_ref,
         verified=True,
         verified_by=principal.identity,
+        source_repository=work.repository_id or None,
         requirement_id=requirement_id,
         result=normalized_result,
         target=target or None,
         artifact_digest=artifact_digest or None,
+        metadata={"delivery_policy_digest": work.delivery_policy_digest},
     )
     store.save(receipt, authenticated_principal=principal)
     work.evidence_refs.append(receipt.id)

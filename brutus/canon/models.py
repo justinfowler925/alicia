@@ -184,6 +184,7 @@ class WorkItem(BaseModel):
     contract_id: str = ""
     delivery_policy_ref: str = ""
     delivery_policy_digest: str = ""
+    delivery_policy_profile: str = ""
     delivery_requirements: list[str] = Field(default_factory=list)
     delivery_freshness_hours: dict[str, float] = Field(default_factory=dict)
     delivery_targets: dict[str, str] = Field(default_factory=dict)

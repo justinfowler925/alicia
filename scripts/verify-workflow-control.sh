@@ -12,6 +12,7 @@ cd "$ROOT"
   scripts/route-guard.py \
   scripts/weekly-workflow-efficiency.py \
   tests/test_workflow_control.py \
+  tests/test_delivery_profiles.py \
   tests/test_workflow_http.py \
   tests/test_weekly_efficiency.py
 
