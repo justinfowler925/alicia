@@ -1,14 +1,52 @@
 """Durability, retry, conversation context, cancellation and local boundary."""
+import asyncio
 import json
 import sqlite3
+import threading
+import time
 import uuid
 from contextlib import contextmanager
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from brutus import forge_bridge, forge_chat
+
+
+def test_slow_brutus_canary_does_not_block_forge(monkeypatch):
+    from brutus import resilience
+    from brutus.config import BrutusCfg
+    from brutus.server import create_app
+
+    started, release = threading.Event(), threading.Event()
+    def slow_probe(**kwargs):
+        started.set()
+        release.wait(5)
+        return {"overall_ok": True}
+    monkeypatch.setattr(resilience, "run_canaries", slow_probe)
+    monkeypatch.setattr(resilience, "ensure_state_dirs", lambda: None)
+    monkeypatch.setattr(resilience, "ensure_api_killed_by_default", lambda: None)
+    monkeypatch.setattr(resilience, "pending_outbox", lambda limit: [])
+    monkeypatch.setattr(forge_chat, "remote", lambda request: {"threads": []})
+    app = create_app(BrutusCfg(watchdog_enabled=False), start_watchdog=False)
+
+    async def exercise():
+        transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 50000))
+        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
+            before = time.monotonic()
+            probe = asyncio.create_task(client.get("/api/resilience"))
+            try:
+                assert await asyncio.to_thread(started.wait, 2)
+                response = await client.post("/api/forge/request", json={"action": "list"}, headers={"X-Brutus-Chat": "forge"})
+                assert response.status_code == 200
+                assert time.monotonic() - before < 2
+                assert not probe.done()
+            finally:
+                release.set()
+                await probe
+    asyncio.run(exercise())
 
 
 def test_real_brutus_serves_forge_assets_and_transport(monkeypatch):

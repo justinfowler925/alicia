@@ -1592,8 +1592,10 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
 
 
     @app.get("/api/resilience")
-    async def resilience_status(request: Request) -> dict[str, Any]:
+    def resilience_status(request: Request) -> dict[str, Any]:
         """Billing planes, kill files, canaries, outbox — proof, not hope."""
+        # CLI/network probes are blocking. FastAPI runs this synchronous route
+        # in its thread pool so opening Brutus cannot freeze Forge or healthz.
         from . import resilience
         from .claude import ask_claude
 
