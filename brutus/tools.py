@@ -19,7 +19,7 @@ from .agent_sessions import (
 )
 from .client import AtlasClient
 from .config import BrutusCfg
-from .cursor_runner import run_cursor_chat
+from .openai_chat import run_openai_chat
 from .focus import spoken_next_decision
 from .linear_surface import (
     create_linear_ticket,
@@ -350,7 +350,7 @@ def _ask_atlas6(client: AtlasClient, message: str, mode: str = "manager", ticket
             "atlas6_unreachable": True,
             "error": str(exc),
             "hint": (
-                "Studio Atlas6 is unreachable. For coding use ask_cursor (allowlisted repos). "
+                "Studio Atlas6 is unreachable. For coding use ask_model. "
                 "For drafting/research use ask_claude. Ledger status needs Studio back."
             ),
         }
@@ -362,7 +362,7 @@ def _ask_atlas6(client: AtlasClient, message: str, mode: str = "manager", ticket
             "atlas6_unreachable": True,
             "error": str(raw.get("error") or "Atlas6 unreachable"),
             "hint": (
-                "Studio Atlas6 is unreachable. For coding use ask_cursor; "
+                "Studio Atlas6 is unreachable. For coding use ask_model; "
                 "for drafting/research use ask_claude."
             ),
             "raw": _slim_atlas6_result(raw),
@@ -370,9 +370,9 @@ def _ask_atlas6(client: AtlasClient, message: str, mode: str = "manager", ticket
     return _slim_atlas6_result(raw)
 
 
-def _ask_cursor(cfg: BrutusCfg, message: str, repo_hint: str = "") -> dict[str, Any]:
-    """Route complex coding to a one-shot Cursor SDK run on an allowlisted cwd."""
-    return run_cursor_chat(cfg, message, repo_hint=repo_hint)
+def _ask_model(cfg: BrutusCfg, message: str, repo_hint: str = "") -> dict[str, Any]:
+    """Route complex questions to a one-shot OpenAI completion. Read-only."""
+    return run_openai_chat(cfg, message, repo_hint=repo_hint)
 
 
 def _ask_claude(cfg: BrutusCfg, message: str) -> dict[str, Any]:
@@ -918,7 +918,7 @@ def build_default_registry(
         )
         reg.register(
             Tool(
-                name="ask_cursor",
+                name="ask_model",
                 description=(
                     "Run a one-shot Cursor SDK agent on an allowlisted laptop repo "
                     "(default repo_hint=brutus; atlas6 also allowed). Use for coding "
@@ -935,7 +935,7 @@ def build_default_registry(
                     },
                     "required": ["message"],
                 },
-                fn=lambda **kwargs: _ask_cursor(cfg or BrutusCfg(), **kwargs),
+                fn=lambda **kwargs: _ask_model(cfg or BrutusCfg(), **kwargs),
             )
         )
         reg.register(
@@ -1530,7 +1530,7 @@ def format_tool_catalog(registry: ToolRegistry) -> str:
 
     Listing only names and descriptions left the model guessing argument names,
     and it guessed wrong most of the time — `get_thread(ticket_id=...)` instead
-    of `external_id`, `ask_cursor(question=...)` instead of `message`. Every one
+    of `external_id`, `ask_model(question=...)` instead of `message`. Every one
     of those raised TypeError inside ToolRegistry.call and came back as a value
     the model then narrated around.
     """

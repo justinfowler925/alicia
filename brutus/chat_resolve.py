@@ -49,7 +49,7 @@ Memory loop: list_notes / capture_note / update_note / delete_note /
 the Ideas pad; list_working_notes / save_working_note for
 longer context; draft_lesson / list_lessons for local lesson drafts
 (never auto-send email/Slack).
-If he wants an autonomous coding handoff, use ask_cursor (keyboard only and gated).
+If he wants an autonomous coding handoff, use ask_model (keyboard only and gated).
 If Cursor is unavailable, say so honestly; never cross to another model.
 If a FACTORY ALARM line is present, say it in your first sentence.
 
@@ -634,7 +634,7 @@ def _summarize_tool_result(
             "Nothing happened, so nothing changed."
         )
     # Prefer the slim reply field for backends — full JSON dumps drown the answer.
-    if tool_name in ("ask_atlas6", "ask_cursor", "ask_claude") and isinstance(
+    if tool_name in ("ask_atlas6", "ask_model", "ask_claude") and isinstance(
         tool_result.get("result"), dict
     ):
         inner = tool_result["result"]
@@ -645,7 +645,7 @@ def _summarize_tool_result(
     if tool_name in ("get_work_surface", "get_digest"):
         surface = inner if isinstance(inner, dict) else (board or {})
         return spoken_next_decision(surface if isinstance(surface, dict) else board)
-    if tool_name in ("ask_atlas6", "ask_cursor", "ask_claude") and inner.get("reply"):
+    if tool_name in ("ask_atlas6", "ask_model", "ask_claude") and inner.get("reply"):
         result_text = str(inner.get("reply"))[:3500]
         if inner.get("ok") is False or inner.get("error"):
             result_text = json.dumps(
@@ -664,7 +664,7 @@ def _summarize_tool_result(
         parts.append(
             "The tool failed. Explain the failure honestly. Do not cross to another model."
         )
-    elif tool_name == "ask_cursor":
+    elif tool_name == "ask_model":
         parts.append(
             "Summarize the backend reply in plain English for Justin. "
             "Keep code/path details that matter; drop boilerplate."
@@ -693,7 +693,7 @@ def _summarize_tool_result(
 def _tool_followup_user(tool_name: str, tool_result: dict[str, Any]) -> str:
     inner = tool_result.get("result") if isinstance(tool_result.get("result"), dict) else tool_result
     if (
-        tool_name == "ask_cursor"
+        tool_name == "ask_model"
         and isinstance(inner, dict)
         and inner.get("reply")
         and inner.get("ok") is not False

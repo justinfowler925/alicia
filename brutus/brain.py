@@ -232,21 +232,21 @@ def complete(
     if not body:
         raise BrainError("empty prompt")
     _ = (prefer, allow_alternate)
-    result = _call(cfg, "cursor", system, body)
+    result = _call(cfg, "openai", system, body)
     reply = str(result.get("reply") or "").strip()
     if result.get("ok") and reply:
         return reply
-    raise BrainError(f"cursor: {result.get('error') or 'empty reply'}", tried=["cursor"])
+    raise BrainError(f"openai: {result.get('error') or 'empty reply'}", tried=["openai"])
 
 
 def _call(cfg: BrutusCfg, backend: str, system: str, body: str) -> dict[str, Any]:
-    if backend != "cursor":
+    if backend != "openai":
         return {"ok": False, "error": f"backend {backend!r} is disabled"}
-    from .cursor_runner import run_cursor_chat
+    from .openai_chat import run_openai_chat
 
     prompt = f"{system}\n\n{body}".strip() if system else body
-    root = cfg.cursor_runner.reasoning_root if cfg.cursor_runner else "~/.brutus/app"
-    return run_cursor_chat(cfg, prompt, repo_hint=root, mutate=False)
+    root = cfg.openai.reasoning_root if cfg.openai else "~/.brutus/app"
+    return run_openai_chat(cfg, prompt, repo_hint=root)
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +281,7 @@ def _create(cfg: BrutusCfg, **kwargs: Any) -> Any:
     )
 
 
-def _parse_cursor_tool_call(text: str) -> tuple[str, dict[str, Any]] | None:
+def _parse_tool_call_text(text: str) -> tuple[str, dict[str, Any]] | None:
     """Accept the exact protocol with optional Markdown fence, never surrounding prose."""
     value = (text or "").strip()
     if value.startswith("```") and value.endswith("```"):
@@ -324,7 +324,7 @@ PROPOSABLE = (
     "organize_agent_thread",
     "organize_project",
     "delete_note",
-    "ask_cursor",
+    "ask_model",
     "ask_frontier",
     "create_linear_ticket",
 )
@@ -539,7 +539,7 @@ def brain_reply(
 
     # 2) Cursor Agent (subscription plane Justin already pays for)
     try:
-        cursor_messages = [
+        openai_messages = [
             {"role": "system", "content": cli_system},
             *[
                 {
@@ -549,13 +549,13 @@ def brain_reply(
                 for m in messages
             ],
         ]
-        cursor_text = complete(cfg, cursor_messages)
-        parsed = _parse_cursor_tool_call(cursor_text)
+        openai_text = complete(cfg, openai_messages)
+        parsed = _parse_tool_call_text(openai_text)
         if parsed:
             # One Cursor tool round, then one more completion for the spoken answer.
             name, args = parsed
             meta["tools"].append(name)
-            meta["backend"] = "cursor_agent"
+            meta["backend"] = "openai_agent"
             payload = _run_tool(
                 registry,
                 name,
@@ -578,19 +578,19 @@ def brain_reply(
                     },
                 ],
             )
-            meta["fallback"] = "cursor_agent"
+            meta["fallback"] = "openai_agent"
             meta["prior_errors"] = errors[:5]
             meta["ms"] = int((time.monotonic() - started) * 1000)
             return drop_incomplete_tail(follow.strip()) or _NOT_FOUND, meta
-        if cursor_text.strip():
-            meta["backend"] = "cursor_agent"
-            meta["fallback"] = "cursor_agent"
+        if openai_text.strip():
+            meta["backend"] = "openai_agent"
+            meta["fallback"] = "openai_agent"
             meta["prior_errors"] = errors[:5]
             meta["ms"] = int((time.monotonic() - started) * 1000)
-            return drop_incomplete_tail(cursor_text.strip()), meta
-        errors.append("cursor:empty")
+            return drop_incomplete_tail(openai_text.strip()), meta
+        errors.append("openai:empty")
     except Exception as exc:  # noqa: BLE001
-        errors.append(f"cursor:{exc}")
+        errors.append(f"openai:{exc}")
 
     # 3) Deterministic work-surface / social answers
     det = _deterministic_reply(registry, messages, meta)
@@ -665,7 +665,7 @@ def _text_tool_loop(
             meta["error"] = str(cli.get("error") or "cli_failed")
             return "", meta
         body = str(cli["reply"]).strip()
-        directive = _parse_cursor_tool_call(body) or _loose_tool_directive(body)
+        directive = _parse_tool_call_text(body) or _loose_tool_directive(body)
         if not directive:
             return drop_incomplete_tail(body) or "Done.", meta
         name, args = directive

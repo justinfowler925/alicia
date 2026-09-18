@@ -1,7 +1,7 @@
 """Brutus is not Atlas's scheduler — Phase 4 step 4.
 
 The watchdog used to drive Atlas's loop from the laptop: ``/api/status``,
-``/api/reconcile``, ``/api/dispatch/tick`` and ``run_cursor_tick``, every 60
+``/api/reconcile`` and ``/api/dispatch/tick``, every 60
 seconds. Atlas now runs that loop itself, inside the process that serves
 :8767 on the Studio, so a laptop lid stops being load-bearing for a Studio
 service.
@@ -57,21 +57,19 @@ def test_tick_does_not_run_the_cursor_lane(monkeypatch):
         return {}
 
     # The import is gone; belt-and-braces in case someone re-adds it.
-    monkeypatch.setattr("brutus.cursor_runner.run_cursor_tick", _boom)
     wd, _client = _wd()
     wd.tick_once()
     assert called is False
 
 
-def test_watchdog_module_does_not_import_the_cursor_runner():
+def test_watchdog_module_does_not_import_a_model_runner():
     import brutus.watchdog as mod
 
     src = open(mod.__file__).read()
     code = "\n".join(
         line for line in src.splitlines() if not line.strip().startswith("#")
     )
-    assert "from .cursor_runner import" not in code
-    assert "run_cursor_tick(" not in code
+    assert "from .openai_chat import" not in code
 
 
 def test_tick_still_probes_the_local_router(monkeypatch):

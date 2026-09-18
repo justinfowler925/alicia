@@ -157,7 +157,7 @@ def billing_planes(cfg: Any) -> dict[str, Any]:
     """Name the money planes so empty API credits are never mysterious."""
     voice = getattr(cfg, "voice", None)
     claude = getattr(cfg, "claude", None)
-    cursor = getattr(cfg, "cursor_runner", None)
+    openai_cfg = getattr(cfg, "openai", None)
     transport = str(getattr(claude, "transport", "cli") or "cli")
     api_enabled = bool(getattr(claude, "api_enabled", False)) and not api_killed()
     return {
@@ -167,9 +167,9 @@ def billing_planes(cfg: Any) -> dict[str, Any]:
             "api_enabled": api_enabled,
             "api_killed": api_killed(),
         },
-        "cursor": {
-            "plane": "cursor_api",
-            "enabled": bool(cursor and cursor.enabled),
+        "openai": {
+            "plane": "openai_api",
+            "enabled": bool(openai_cfg and openai_cfg.enabled),
         },
         "voice_tts": {
             "plane": "elevenlabs",

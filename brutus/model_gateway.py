@@ -10,7 +10,7 @@ from typing import Any
 
 from .claude import ask_claude
 from .config import BrutusCfg, ClaudeCfg
-from .cursor_runner import run_cursor_chat
+from .openai_chat import run_openai_chat
 from .model_profiles import ModelCandidate, ModelProfile, select_model_profile
 
 
@@ -18,7 +18,7 @@ def default_profile(name: str, cfg: BrutusCfg) -> ModelProfile:
     """Return the explicit provider order for a workload, never a hidden fallback."""
     candidates = {
         "conversation": (
-            ModelCandidate("cursor", cfg.cursor_runner.model, {"conversation", "low_latency"}, priority=10),
+            ModelCandidate("openai", cfg.openai.model, {"conversation", "low_latency"}, priority=10),
         ),
         "supervisor": (
             ModelCandidate("claude", "sonnet", {"structured_output", "session_reasoning"}, priority=10),
@@ -29,7 +29,6 @@ def default_profile(name: str, cfg: BrutusCfg) -> ModelProfile:
             ModelCandidate("claude", "opus", {"frontier_reasoning", "unfog"}, priority=20),
         ),
         "builder": (
-            ModelCandidate("cursor", cfg.cursor_runner.model, {"workspace_tools", "code_editing"}, priority=10),
             ModelCandidate("codex", "gpt-5.6-sol", {"workspace_tools", "code_editing"}, priority=20),
             ModelCandidate("claude", "sonnet", {"workspace_tools", "code_editing"}, priority=30),
         ),
@@ -45,9 +44,9 @@ def run_profile(
     cwd: str | Path | None = None,
 ) -> dict[str, Any]:
     candidate = select_model_profile(default_profile(profile_name, cfg))
-    root = Path(cwd or cfg.cursor_runner.reasoning_root).expanduser().resolve()
-    if candidate.provider == "cursor":
-        result = run_cursor_chat(cfg, prompt, repo_hint=str(root), mutate=False)
+    root = Path(cwd or cfg.openai.reasoning_root).expanduser().resolve()
+    if candidate.provider == "openai":
+        result = run_openai_chat(cfg, prompt, repo_hint=str(root), system=_system(profile_name))
     elif candidate.provider == "claude":
         claude = ClaudeCfg(
             enabled=True,

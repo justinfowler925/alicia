@@ -116,7 +116,7 @@ def compile_proposal(tool: str, args: dict[str, Any]) -> IntentContract:
             evidence=evidence,
         )
 
-    if tool in {"ask_atlas6", "ask_claude", "ask_cursor", "ask_frontier"}:
+    if tool in {"ask_atlas6", "ask_claude", "ask_model", "ask_frontier"}:
         _require(tool, a, ("message", "question"))
         backend = tool.removeprefix("ask_")
         return IntentContract(

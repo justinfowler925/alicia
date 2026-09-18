@@ -55,18 +55,15 @@ class LocalLLMCfg:
 
 
 @dataclass
-class CursorRunnerCfg:
-    enabled: bool = False
-    timeout_s: float = 900.0
-    model: str = "composer-2.5"
-    max_per_tick: int = 1
+class OpenAICfg:
+    """The single hosted model backend. Replaced the Cursor SDK runner."""
+
+    enabled: bool = True
+    timeout_s: float = 300.0
+    model: str = "gpt-5.5"
     reasoning_root: str = "~/.brutus/app"
-    allowlist_roots: list[str] = field(
-        default_factory=lambda: [
-            "~/.brutus/app",
-            "~/Projects/brutus",
-        ]
-    )
+    # Prefer OPENAI_API_KEY from the environment; this field is the fallback.
+    api_key: str = ""
 
 
 @dataclass
@@ -131,15 +128,15 @@ class BrutusCfg:
     # stays answerable in about a minute; overflow is summarised, never dropped.
     max_actions: int = 7
     local_llm: LocalLLMCfg | None = None
-    cursor_runner: CursorRunnerCfg | None = None
+    openai: OpenAICfg | None = None
     voice: VoiceCfg | None = None
     claude: ClaudeCfg | None = None
 
     def __post_init__(self) -> None:
         if self.local_llm is None:
             self.local_llm = LocalLLMCfg()
-        if self.cursor_runner is None:
-            self.cursor_runner = CursorRunnerCfg()
+        if self.openai is None:
+            self.openai = OpenAICfg()
         if self.voice is None:
             self.voice = VoiceCfg()
         if self.claude is None:
@@ -165,23 +162,16 @@ def _parse_local_llm(data: dict) -> LocalLLMCfg:
     )
 
 
-def _parse_cursor_runner(data: dict) -> CursorRunnerCfg:
-    block = data.get("cursor_runner") or {}
+def _parse_openai(data: dict) -> OpenAICfg:
+    block = data.get("openai") or {}
     if not isinstance(block, dict):
         block = {}
-    roots = block.get("allowlist_roots")
-    if not isinstance(roots, list) or not roots:
-        roots = [
-            "~/.brutus/app",
-            "~/Projects/brutus",
-        ]
-    return CursorRunnerCfg(
-        enabled=bool(block.get("enabled", False)),
-        timeout_s=float(block.get("timeout_s") or 900),
-        model=str(block.get("model") or "composer-2.5"),
-        max_per_tick=int(block.get("max_per_tick") or 1),
+    return OpenAICfg(
+        enabled=bool(block.get("enabled", True)),
+        timeout_s=float(block.get("timeout_s") or 300),
+        model=str(block.get("model") or "gpt-5.5"),
         reasoning_root=str(block.get("reasoning_root") or "~/.brutus/app"),
-        allowlist_roots=[str(r) for r in roots],
+        api_key=str(block.get("api_key") or ""),
     )
 
 
@@ -273,7 +263,7 @@ def load_config(path: Path | None = None) -> BrutusCfg:
         max_working_set=int(data.get("max_working_set") or 5),
         max_actions=int(data.get("max_actions") or 7),
         local_llm=_parse_local_llm(data),
-        cursor_runner=_parse_cursor_runner(data),
+        openai=_parse_openai(data),
         voice=_parse_voice(data),
         claude=_parse_claude(data),
     )

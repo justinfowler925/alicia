@@ -1,4 +1,4 @@
-"""Wave 3 backends — ask_cursor / ask_claude / ask_atlas6 slim + Atlas-down."""
+"""Wave 3 backends — ask_model / ask_claude / ask_atlas6 slim + Atlas-down."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from brutus.claude import ask_claude
-from brutus.config import BrutusCfg, ClaudeCfg, CursorRunnerCfg
-from brutus.cursor_runner import build_chat_prompt, run_cursor_chat
+from brutus.config import BrutusCfg, ClaudeCfg, OpenAICfg
+from brutus.openai_chat import build_chat_prompt, run_openai_chat
 from brutus.tools import _ask_atlas6, _slim_atlas6_result, build_default_registry
 
 
@@ -36,7 +36,7 @@ def test_ask_atlas6_unreachable_is_honest():
     out = _ask_atlas6(client, "status please")
     assert out["ok"] is False
     assert out["atlas6_unreachable"] is True
-    assert "ask_cursor" in out["hint"]
+    assert "ask_model" in out["hint"]
     assert "ask_claude" in out["hint"]
 
 
@@ -52,50 +52,69 @@ def test_ask_atlas6_slims_success():
     assert "digest_markdown" not in out.get("skill", {})
 
 
-def test_run_cursor_chat_disabled():
-    cfg = BrutusCfg(cursor_runner=CursorRunnerCfg(enabled=False))
-    out = run_cursor_chat(cfg, "refactor me")
+def test_run_openai_chat_disabled():
+    cfg = BrutusCfg(openai=OpenAICfg(enabled=False))
+    out = run_openai_chat(cfg, "refactor me")
     assert out["ok"] is False
-    assert out["error"] == "Cursor runner is unavailable."
+    assert out["error"] == "OpenAI backend is disabled."
 
 
-def test_run_cursor_chat_success(tmp_path: Path):
-    repo = tmp_path / "brutus"
-    repo.mkdir()
-    subprocess.run(["git", "init", "-q", "-b", "feature/x", str(repo)], check=True)
-    cfg = BrutusCfg(
-        cursor_runner=CursorRunnerCfg(enabled=True, allowlist_roots=[str(repo)], timeout_s=30)
-    )
+def test_run_openai_chat_requires_a_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    cfg = BrutusCfg(openai=OpenAICfg(enabled=True))
+    out = run_openai_chat(cfg, "refactor me")
+    assert out["ok"] is False
+    assert "OPENAI_API_KEY" in out["error"]
 
-    def fake_prompt(prompt, *, cwd, model, api_key):
-        assert "UNTRUSTED" not in prompt  # chat prompt, not queue envelope
-        assert "refactor the resolver" in prompt
-        assert Path(cwd) == repo.resolve()
-        return {"status": "completed", "result": "Renamed the helper and added a test."}
 
-    out = run_cursor_chat(
-        cfg, "refactor the resolver", repo_hint="brutus", prompt_fn=fake_prompt
-    )
+def test_run_openai_chat_success(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    cfg = BrutusCfg(openai=OpenAICfg(enabled=True, model="gpt-5.5", timeout_s=30))
+    seen: dict = {}
+
+    class _Resp:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"choices": [{"message": {"content": "Renamed the helper."}}]}
+
+    def fake_post(url, *, json, headers, timeout):
+        seen["url"] = url
+        seen["model"] = json["model"]
+        seen["prompt"] = json["messages"][-1]["content"]
+        seen["auth"] = headers["Authorization"]
+        return _Resp()
+
+    monkeypatch.setattr("brutus.openai_chat.httpx.post", fake_post)
+    out = run_openai_chat(cfg, "refactor the resolver", repo_hint="brutus")
+
     assert out["ok"] is True
     assert "Renamed the helper" in out["reply"]
-    assert out["cwd"] == str(repo.resolve())
+    assert seen["model"] == "gpt-5.5"
+    assert seen["auth"] == "Bearer sk-test"
+    assert "refactor the resolver" in seen["prompt"]
+    assert "brutus" in seen["prompt"]
 
 
-def test_run_cursor_chat_refuses_sfdc(tmp_path: Path):
-    sfdc = tmp_path / "sfdc"
-    sfdc.mkdir()
-    cfg = BrutusCfg(
-        cursor_runner=CursorRunnerCfg(enabled=True, allowlist_roots=[str(sfdc)])
-    )
-    out = run_cursor_chat(cfg, "deploy", repo_hint="sfdc", prompt_fn=lambda *a, **k: {})
+def test_run_openai_chat_surfaces_http_errors(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    cfg = BrutusCfg(openai=OpenAICfg(enabled=True))
+
+    class _Resp:
+        status_code = 401
+        text = "invalid api key"
+
+    monkeypatch.setattr("brutus.openai_chat.httpx.post", lambda *a, **k: _Resp())
+    out = run_openai_chat(cfg, "hello")
     assert out["ok"] is False
-    assert "allowlist" in out["error"].lower() or "resolve" in out["error"].lower()
+    assert "401" in out["error"]
 
 
 def test_build_chat_prompt_no_verdict_contract():
     p = build_chat_prompt("fix the bug")
     assert "fix the bug" in p
-    assert "CURSOR_VERDICT" not in p or "No CURSOR_VERDICT" in p
+    assert "VERDICT" not in p
 
 
 def test_ask_claude_disabled():
@@ -148,9 +167,9 @@ def test_ask_claude_cli_failure(monkeypatch):
 def test_registry_wires_backends():
     client = MagicMock()
     client.chat.side_effect = ConnectionError("down")
-    reg = build_default_registry(client, cfg=BrutusCfg(cursor_runner=CursorRunnerCfg(enabled=False)))
+    reg = build_default_registry(client, cfg=BrutusCfg(openai=OpenAICfg(enabled=False)))
     names = {t["name"] for t in reg.list_schemas()}
-    assert "ask_cursor" in names
+    assert "ask_model" in names
     assert "ask_claude" not in names
     assert "ask_atlas6" not in names
     atlas = reg.call("ask_atlas6", {"message": "hi"})

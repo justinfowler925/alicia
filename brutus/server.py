@@ -39,7 +39,6 @@ from .chat_resolve import resolve_chat_reply
 from .client import AtlasClient, AtlasDisabled
 from .config import BrutusCfg, load_config
 from .conversation import ConversationManager
-from .cursor_runner import run_cursor_tick
 from .focus import clip as clip_text
 from .github_evidence import GitHubEvidenceReceiver
 from .linear_surface import linear_work_surface
@@ -565,12 +564,11 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             # completion per poll would keep the GPU busy for nothing.
             llm["generation"] = wd.snapshot().get("local_llm") or {"ok": None}
             llm["ok"] = bool(llm.get("ok")) and llm["generation"].get("ok") is not False
-        cursor_cfg = cfg.cursor_runner
+        openai_cfg = cfg.openai
         voice_cfg = cfg.voice
-        cursor_credential_loaded = bool(
-            (os.environ.get("CURSOR_API_KEY") or os.environ.get("CURSOR_APIKEY") or "").strip()
+        openai_credential_loaded = bool(
+            (os.environ.get("OPENAI_API_KEY") or (openai_cfg.api_key if openai_cfg else "")).strip()
         )
-        cursor_sdk_importable = importlib.util.find_spec("cursor_sdk") is not None
         return {
             "service": "brutus",
             "mode": "standalone",
@@ -585,13 +583,12 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
                 },
                 "api_enabled": bool(cfg.claude and getattr(cfg.claude, "api_enabled", False)),
                 "transport": str(getattr(cfg.claude, "transport", "cli") if cfg.claude else "cli"),
-                "cursor_enabled": bool(cursor_cfg and cursor_cfg.enabled),
+                "openai_enabled": bool(openai_cfg and openai_cfg.enabled),
                 # This endpoint runs inside the launchd actor, so it proves the
-                # credential reached the process that will actually call Cursor.
+                # credential reached the process that will actually call OpenAI.
                 # Reporting only the configured flag let a caller shell fail a
                 # healthy deployment—or bless a process that never loaded its key.
-                "cursor_credential_loaded": cursor_credential_loaded,
-                "cursor_sdk_importable": cursor_sdk_importable,
+                "openai_credential_loaded": openai_credential_loaded,
                 "claude_enabled": bool(cfg.claude and cfg.claude.enabled),
                 "claude_executable": bool(shutil.which("claude")),
                 "codex_executable": bool(shutil.which("codex")),
@@ -1487,23 +1484,6 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             )
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    @app.post("/api/cursor/run")
-    async def cursor_run(request: Request) -> dict[str, Any]:
-        """Drain the cursor queue once, on demand.
-
-        The watchdog used to call this every 60s. It no longer schedules
-        anything (see brutus/watchdog.py), and the cursor runner was NOT moved
-        to the Studio in that change — its allowlist names laptop checkouts and
-        a Studio home for it needs a dedicated worktree, not a shared one.
-        Keeping one explicit entry point is the difference between "parked" and
-        "silently deleted".
-        """
-        if not request.app.state.cfg.atlas_enabled:
-            return {"ok": True, "skipped": True, "reason": "Atlas queue is ignored"}
-        return await asyncio.to_thread(
-            run_cursor_tick, request.app.state.cfg, request.app.state.client
-        )
 
     # --- the conversation screen -----------------------------------------
 

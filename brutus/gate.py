@@ -52,7 +52,7 @@ GATED = frozenset(
         "delete_note",
         "ask_atlas6",
         "ask_claude",
-        "ask_cursor",
+        "ask_model",
         "ask_frontier",
         "create_linear_ticket",
         "organize_agent_thread",
@@ -60,12 +60,12 @@ GATED = frozenset(
     }
 )
 
-# Not reachable by talking at all, gate or no gate. ask_cursor launches an
+# Not reachable by talking at all, gate or no gate. ask_model launches an
 # autonomous agent with a shell, and its allowlist includes ~/Projects/brutus —
 # so a spoken instruction could put an agent inside the gate's own source. Its
 # "do not commit or push" instruction is prose to something that can run git,
 # and "prescribe, don't prohibit" says that is how you get the banned action.
-VOICE_FORBIDDEN = frozenset({"ask_cursor"})
+VOICE_FORBIDDEN = frozenset({"ask_model"})
 
 
 @dataclass(frozen=True)
@@ -157,7 +157,7 @@ def describe(tool: str, args: dict[str, Any]) -> tuple[str, str]:
     if tool == "delete_note":
         target = _short(a.get("q") or a.get("note_id") or "?")
         return (f"Delete idea: “{target}”", f"Delete that idea — {target}?")
-    if tool in ("ask_atlas6", "ask_claude", "ask_cursor", "ask_frontier"):
+    if tool in ("ask_atlas6", "ask_claude", "ask_model", "ask_frontier"):
         return (
             f"Send to {tool.removeprefix('ask_')}: {_short(a.get('message') or a.get('question'))}",
             f"Send that to {tool.removeprefix('ask_')}?",

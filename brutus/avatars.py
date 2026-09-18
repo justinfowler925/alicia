@@ -447,19 +447,19 @@ def record_studio_pass(name: str, prompt: str, *, n: int, engine: str, path: str
 
 
 def run_cursor_image_pass(cfg: Any, *, prompt: str, name: str, prior: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    """Pass 3: Cursor tries a different image. Keep it only if it is better."""
+    """Pass 3: the model tries a different image. Keep it only if it is better."""
     from .config import BrutusCfg
-    from .cursor_runner import run_cursor_chat
+    from .openai_chat import run_openai_chat
     from .image_passes import build_cursor_prompt
 
     cfg = cfg or BrutusCfg()
     cursor_prompt = build_cursor_prompt(prompt, prior or [])
-    result = run_cursor_chat(cfg, cursor_prompt, repo_hint="brutus")
+    result = run_openai_chat(cfg, cursor_prompt, repo_hint="brutus")
     result["cursor_prompt"] = cursor_prompt
     result["name"] = name
     if result.get("ok"):
         try:
-            record_studio_pass(name, prompt, n=len(prior or []) + 1, engine="cursor")
+            record_studio_pass(name, prompt, n=len(prior or []) + 1, engine="openai")
         except Exception as exc:  # noqa: BLE001 — image exists even if the counter lags
             result["ledger_error"] = str(exc)
     return result

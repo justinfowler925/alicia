@@ -13,25 +13,21 @@ from brutus.server import create_app
 from brutus.watchdog import Watchdog
 
 
-def test_healthz_reports_cursor_credential_from_actor_process(monkeypatch):
+def test_healthz_reports_openai_credential_from_actor_process(monkeypatch):
     cfg = BrutusCfg(watchdog_enabled=False)
     with patch("brutus.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
         client = TestClient(app)
 
-        monkeypatch.delenv("CURSOR_API_KEY", raising=False)
-        monkeypatch.delenv("CURSOR_APIKEY", raising=False)
-        monkeypatch.setattr("brutus.server.importlib.util.find_spec", lambda _name: None)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY_LEGACY", raising=False)
         brain = client.get("/api/healthz").json()["brain"]
-        assert brain["cursor_credential_loaded"] is False
-        assert brain["cursor_sdk_importable"] is False
+        assert brain["openai_credential_loaded"] is False
 
-        monkeypatch.setenv("CURSOR_API_KEY", "test-key")
-        monkeypatch.setattr("brutus.server.importlib.util.find_spec", lambda _name: object())
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         brain = client.get("/api/healthz").json()["brain"]
-        assert brain["cursor_credential_loaded"] is True
-        assert brain["cursor_sdk_importable"] is True
+        assert brain["openai_credential_loaded"] is True
 
 
 def test_supervisor_endpoint_forwards_force_and_returns_structured_snapshot():

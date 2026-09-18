@@ -204,13 +204,13 @@ def test_a_disabled_execution_says_it_did_not_run(mgr, sid):
     assert mgr.store.artifacts(sid)[-1]["state"] == "failed"
 
 
-# --- ask_cursor is not reachable by talking ------------------------------
+# --- ask_model is not reachable by talking ------------------------------
 
 
 def test_cursor_is_refused_from_voice(mgr, sid):
     """Its allowlist includes ~/Projects/brutus — the gate's own source."""
-    assert "ask_cursor" in VOICE_FORBIDDEN
-    assert classify_write("ask_cursor") == "gated"
+    assert "ask_model" in VOICE_FORBIDDEN
+    assert classify_write("ask_model") == "gated"
 
 
 def test_a_voice_turn_cannot_propose_a_forbidden_tool(mgr, sid):
@@ -221,7 +221,7 @@ def test_a_voice_turn_cannot_propose_a_forbidden_tool(mgr, sid):
     out = _run_tool(
         MagicMock(),
         "propose_action",
-        {"tool": "ask_cursor", "args": {"message": "x"}},
+        {"tool": "ask_model", "args": {"message": "x"}},
         channel="voice",
         on_propose=mgr._on_propose(sid, "voice", "have cursor look at the tunnel"),
         on_tool_result=None,

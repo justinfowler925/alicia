@@ -131,19 +131,23 @@ def test_injected_atlas_tool_call_never_reaches_atlas():
     client.chat.assert_not_called()
 
 
-def test_resolve_model_can_ask_cursor():
-    """Brutus can choose to route to Cursor, but Cursor reports if not enabled."""
+def test_resolve_model_can_ask_model():
+    """Brutus can route to the model backend, which reports when it is disabled."""
+    from brutus.config import OpenAICfg
+
     client = _client()
+    cfg = _cfg()
+    cfg.openai = OpenAICfg(enabled=False)
 
     def fake_chat(cfg, messages, **_k):
         content = messages[0]["content"] + "\n" + messages[-1]["content"]
-        if "Tool result for ask_cursor" in content:
-            assert "cursor runner is unavailable" in content.lower()
-            return "Cursor runner is disabled right now, so I cannot launch that coding pass."
-        return "TOOL: ask_cursor\nARGS: {\"message\": \"refactor the chat resolver\"}"
+        if "Tool result for ask_model" in content:
+            assert "openai backend is disabled" in content.lower()
+            return "The model backend is disabled right now, so I cannot run that pass."
+        return "TOOL: ask_model\nARGS: {\"message\": \"refactor the chat resolver\"}"
 
     with patch("brutus.chat_resolve.chat_completion", side_effect=fake_chat):
-        text, raw = resolve_chat_reply(client, _cfg(), "refactor the chat resolver")
+        text, raw = resolve_chat_reply(client, cfg, "refactor the chat resolver")
 
     assert "disabled" in text.lower()
     assert raw["path"] == "tool_chosen"
@@ -157,7 +161,7 @@ def test_resolve_ask_atlas6_down_offers_fallback():
     def fake_chat(cfg, messages, **_k):
         content = messages[0]["content"] + "\n" + messages[-1]["content"]
         if "Tool result for ask_atlas6" in content:
-            assert "unreachable" in content.lower() or "ask_cursor" in content
+            assert "unreachable" in content.lower() or "ask_model" in content
             return "Studio is unreachable. I can try Cursor or Claude for non-ledger work."
         return "TOOL: ask_atlas6\nARGS: {\"message\": \"register a ticket\"}"
 
@@ -242,7 +246,7 @@ def test_lookup_intent_matches_status_and_email():
 
 
 def test_resolve_read_only_cannot_call_atlas6():
-    """When read_only=True, the model cannot route to ask_atlas6, ask_cursor, or ask_claude."""
+    """When read_only=True, the model cannot route to ask_atlas6, ask_model, or ask_claude."""
     client = _client()
     client.chat.return_value = {"reply": "Atlas6 would approve"}
 

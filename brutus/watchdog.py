@@ -1,8 +1,8 @@
 """Laptop watchdog — the local router's health, and nothing else.
 
 This used to be Atlas's fast scheduler. Every ``watchdog_interval_s`` (60s) it
-called ``/api/status``, ``/api/reconcile``, ``/api/dispatch/tick`` and
-``run_cursor_tick`` against the Studio conductor, which made a laptop lid
+called ``/api/status``, ``/api/reconcile``, ``/api/dispatch/tick`` and the
+Cursor tick against the Studio conductor, which made a laptop lid
 load-bearing for a Studio service. That driving moved to
 ``atlas/conductor/scheduler.py`` in Phase 4 step 4: Atlas runs its own loop in
 the process that serves :8767, so it survives the lid.
@@ -22,10 +22,8 @@ What stays is a genuine laptop concern: the local MLX router runs here, so
 probing it and restarting it belongs here. Nothing in Atlas depends on this
 loop any more — Brutus can be stopped, and Atlas keeps moving.
 
-The cursor runner (``brutus/cursor_runner.py``) is deliberately NOT driven from
-here any more and was NOT moved to the Studio in this change — see
-``POST /api/cursor/run`` for the manual entry point and the module docstring
-for why a shared checkout there is the wrong place for it.
+The Cursor SDK runner that this used to drive has been deleted outright; model
+work goes to OpenAI through ``brutus/openai_chat.py``, which edits nothing.
 """
 
 from __future__ import annotations

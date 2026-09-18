@@ -15,7 +15,7 @@ from brutus.brain import (
     complete,
     pack_messages,
 )
-from brutus.config import BrutusCfg, ClaudeCfg, CursorRunnerCfg
+from brutus.config import BrutusCfg, ClaudeCfg, OpenAICfg
 from brutus.gate import GATED
 from brutus.tools import Tool, ToolRegistry, build_default_registry
 
@@ -23,7 +23,7 @@ from brutus.tools import Tool, ToolRegistry, build_default_registry
 def _cfg() -> BrutusCfg:
     return BrutusCfg(
         claude=ClaudeCfg(enabled=True, model="claude-sonnet-5", api_key="k"),
-        cursor_runner=CursorRunnerCfg(enabled=True),
+        openai=OpenAICfg(enabled=True),
     )
 
 
@@ -89,7 +89,7 @@ def test_proposable_matches_the_gate():
         "organize_agent_thread",
         "organize_project",
         "delete_note",
-        "ask_cursor",
+        "ask_model",
         "ask_frontier",
         "create_linear_ticket",
     }
@@ -355,14 +355,14 @@ def test_voice_does_not_spend_a_second_model_call_correcting_an_action_claim():
     create.assert_called_once()
 
 
-def test_cursor_tool_protocol_accepts_one_markdown_fence():
-    from brutus.brain import _parse_cursor_tool_call
+def test_tool_protocol_accepts_one_markdown_fence():
+    from brutus.brain import _parse_tool_call_text
 
-    assert _parse_cursor_tool_call('```json\nTOOL: list_notes\nARGS: {"q": "x"}\n```') == (
+    assert _parse_tool_call_text('```json\nTOOL: list_notes\nARGS: {"q": "x"}\n```') == (
         "list_notes",
         {"q": "x"},
     )
-    assert _parse_cursor_tool_call('I checked.\nTOOL: list_notes\nARGS: {"q": "x"}') is None
+    assert _parse_tool_call_text('I checked.\nTOOL: list_notes\nARGS: {"q": "x"}') is None
 
 
 def test_propose_action_refuses_non_gated_tools():
@@ -393,7 +393,7 @@ def test_propose_action_refuses_non_gated_tools():
 def test_voice_cannot_propose_keyboard_only_tools():
     responses = iter(
         [
-            _tool_resp("propose_action", {"tool": "ask_cursor", "args": {"message": "x"}}),
+            _tool_resp("propose_action", {"tool": "ask_model", "args": {"message": "x"}}),
             _text_resp("Can't do that from voice."),
         ]
     )
@@ -475,7 +475,7 @@ def test_a_ticket_from_a_tool_result_is_not_invented():
 def test_claude_failure_never_falls_back_to_cursor():
     with (
         patch("brutus.brain._create", side_effect=RuntimeError("boom")),
-        patch("brutus.cursor_runner.run_cursor_chat") as cursor,
+        patch("brutus.openai_chat.run_openai_chat") as cursor,
     ):
         reply, meta = brain_reply(_cfg(), _registry(), history=_history(("user", "you there?")))
     assert "couldn't finish" in reply
@@ -486,7 +486,7 @@ def test_claude_failure_never_falls_back_to_cursor():
 def test_voice_social_fallback_never_calls_cursor():
     with (
         patch("brutus.brain._create", side_effect=RuntimeError("api down")),
-        patch("brutus.cursor_runner.run_cursor_chat") as cursor,
+        patch("brutus.openai_chat.run_openai_chat") as cursor,
     ):
         reply, meta = brain_reply(
             _cfg(), _registry(), history=_history(("user", "you there?")), channel="voice"
@@ -508,7 +508,7 @@ def test_voice_brain_failure_keeps_work_status_grounded_without_external_fallbac
     }
     with (
         patch("brutus.brain._create", side_effect=RuntimeError("api down")),
-        patch("brutus.cursor_runner.run_cursor_chat") as cursor,
+        patch("brutus.openai_chat.run_openai_chat") as cursor,
     ):
         reply, meta = brain_reply(
             _cfg(),
@@ -525,7 +525,7 @@ def test_voice_brain_failure_keeps_work_status_grounded_without_external_fallbac
 def test_voice_brain_failure_answers_greeting_without_external_fallback():
     with (
         patch("brutus.brain._create", side_effect=RuntimeError("api down")),
-        patch("brutus.cursor_runner.run_cursor_chat") as cursor,
+        patch("brutus.openai_chat.run_openai_chat") as cursor,
     ):
         reply, meta = brain_reply(
             _cfg(),
@@ -579,70 +579,70 @@ def test_pack_messages_single_user_is_bare_body():
     assert body == "what needs me"
 
 
-def test_complete_uses_cursor_even_when_claude_is_configured():
+def test_complete_uses_openai_even_when_claude_is_configured():
     with (
         patch("brutus.claude.ask_claude", return_value={"ok": True, "reply": "from sonnet"}) as claude,
         patch(
-            "brutus.cursor_runner.run_cursor_chat",
-            return_value={"ok": True, "reply": "from cursor"},
+            "brutus.openai_chat.run_openai_chat",
+            return_value={"ok": True, "reply": "from openai"},
         ) as cursor,
     ):
-        assert complete(_cfg(), [{"role": "user", "content": "hi"}]) == "from cursor"
+        assert complete(_cfg(), [{"role": "user", "content": "hi"}]) == "from openai"
     claude.assert_not_called()
     cursor.assert_called_once()
 
 
-def test_complete_does_not_consult_claude_before_cursor():
+def test_complete_does_not_consult_claude_before_openai():
     with (
         patch("brutus.claude.ask_claude", return_value={"ok": False, "error": "down"}) as claude,
         patch(
-            "brutus.cursor_runner.run_cursor_chat",
-            return_value={"ok": True, "reply": "from cursor"},
+            "brutus.openai_chat.run_openai_chat",
+            return_value={"ok": True, "reply": "from openai"},
         ) as cursor,
     ):
-        assert complete(_cfg(), [{"role": "user", "content": "hi"}]) == "from cursor"
+        assert complete(_cfg(), [{"role": "user", "content": "hi"}]) == "from openai"
     cursor.assert_called_once()
     claude.assert_not_called()
-    assert cursor.call_args.kwargs.get("mutate") is False
 
 
-def test_complete_prefer_cursor_flips_order():
+def test_complete_prefer_openai_flips_order():
     with (
         patch(
-            "brutus.cursor_runner.run_cursor_chat",
-            return_value={"ok": True, "reply": "from cursor"},
+            "brutus.openai_chat.run_openai_chat",
+            return_value={"ok": True, "reply": "from openai"},
         ) as cursor,
         patch("brutus.claude.ask_claude") as claude,
     ):
-        assert complete(_cfg(), [{"role": "user", "content": "hi"}], prefer="cursor") == "from cursor"
+        assert complete(_cfg(), [{"role": "user", "content": "hi"}], prefer="cursor") == "from openai"
     cursor.assert_called_once()
     claude.assert_not_called()
 
 
-def test_complete_raises_when_cursor_is_disabled():
-    cfg = BrutusCfg(claude=ClaudeCfg(enabled=False), cursor_runner=CursorRunnerCfg(enabled=False))
+def test_complete_raises_when_openai_is_disabled():
+    cfg = BrutusCfg(claude=ClaudeCfg(enabled=False), openai=OpenAICfg(enabled=False))
     with pytest.raises(BrainError) as exc:
         complete(cfg, [{"role": "user", "content": "hi"}])
-    assert "cursor" in str(exc.value)
-    assert exc.value.tried == ["cursor"]
+    assert "openai" in str(exc.value)
+    assert exc.value.tried == ["openai"]
 
 
 def test_complete_does_not_call_local_llm():
     with (
         patch("brutus.claude.ask_claude", return_value={"ok": True, "reply": "ok"}),
-        patch("brutus.cursor_runner.run_cursor_chat", return_value={"ok": True, "reply": "ok"}),
+        patch("brutus.openai_chat.run_openai_chat", return_value={"ok": True, "reply": "ok"}),
         patch("brutus.local_llm.chat_completion") as local,
     ):
         complete(_cfg(), [{"role": "user", "content": "hi"}])
     local.assert_not_called()
 
 
-def test_chat_only_prompt_forbids_edits():
-    from brutus.cursor_runner import build_chat_prompt
+def test_chat_prompt_carries_the_question_and_repo_context():
+    """The backend cannot touch a filesystem at all, so there is nothing to forbid."""
+    from brutus.openai_chat import build_chat_prompt
 
-    p = build_chat_prompt("what is the gate design", mutate=False)
-    assert "do not create, edit, delete, commit" in p.lower()
+    p = build_chat_prompt("what is the gate design", "brutus")
     assert "what is the gate design" in p
+    assert "brutus" in p
 
 
 def test_the_round_cap_fails_honest():

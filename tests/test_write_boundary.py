@@ -16,7 +16,7 @@ from brutus.tools import build_default_registry
 MUTATING = [
     "approve_gate",
     "ask_atlas6",
-    "ask_cursor",
+    "ask_model",
     "ask_claude",
     "register_thread",
     "dispatch_tick",
@@ -39,7 +39,7 @@ def test_writable_registry_has_them():
     reg = build_default_registry(MagicMock(), BrutusCfg(), read_only=False)
     available = {n for n in MUTATING if reg.get(n) is not None}
     assert available == {
-        "ask_cursor",
+        "ask_model",
         "capture_canon_inbox",
         "promote_canon_inbox",
         "review_canon_work",
@@ -96,27 +96,3 @@ def test_a_with_block_executor_defeats_its_own_timeout():
             pass
     # __exit__ called shutdown(wait=True) and blocked for the full sleep.
     assert time.monotonic() - started > 1.0
-
-
-def test_cursor_chat_returns_within_its_timeout(tmp_path):
-    """Declared 1s once measured 6s. The gate now has to actually bite."""
-    from brutus import cursor_runner
-    from brutus.config import CursorRunnerCfg
-
-    cfg = BrutusCfg(cursor_runner=CursorRunnerCfg(enabled=True, timeout_s=1.0))
-
-    def slow(*_a, **_k):
-        time.sleep(6)
-        return {"ok": True}
-
-    with (
-        patch.object(cursor_runner, "resolve_cwd", return_value=tmp_path),
-        patch.object(cursor_runner, "branch_is_safe", return_value=(True, "")),
-    ):
-        started = time.monotonic()
-        out = cursor_runner.run_cursor_chat(cfg, "do a thing", prompt_fn=slow)
-        elapsed = time.monotonic() - started
-
-    assert out["ok"] is False
-    assert "exceeded timeout_s" in out["error"]
-    assert elapsed < 3.0, f"declared 1s timeout took {elapsed:.2f}s to return"
