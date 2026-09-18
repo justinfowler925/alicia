@@ -2022,7 +2022,6 @@ function init() {
   setMicState();
   syncCorrectIntentControl();
   setConversationFilled();
-  initTheme();
   refreshResilienceChip();
   setInterval(refreshResilienceChip, 60000);
   openSession().catch(() => {
@@ -2041,7 +2040,22 @@ window.addEventListener("pageshow", event => {
   if (event.persisted && state.sessionId) connect(state.sessionId);
 });
 
-document.addEventListener("DOMContentLoaded", init);
+// A direct Forge conversation does not need a Brutus voice session, the work
+// board or model canaries. Initialize that workspace when it is first shown.
+let brutusSurfaceStarted = false;
+function startBrutusSurface() {
+  if (location.hash === "#forge" || brutusSurfaceStarted) return;
+  brutusSurfaceStarted = true;
+  init();
+}
+document.addEventListener("DOMContentLoaded", () => {
+  initTheme();
+  startBrutusSurface();
+});
+window.addEventListener("hashchange", () => {
+  if (location.hash === "#forge") teardownVoice();
+  else startBrutusSurface();
+});
 
 /* --- the ledger feed ----------------------------------------------------
  *
