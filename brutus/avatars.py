@@ -27,8 +27,8 @@ from typing import Any
 
 import httpx
 
-STUDIO = "https://justins-mac-studio.tailbaa084.ts.net:8930"
-STUDIO_HOST = "jfstudio@100.93.125.5"
+STUDIO = "https://justins-mac-studio-1.tailbaa084.ts.net:8930"
+STUDIO_HOST = "jfstudio@justins-mac-studio-1.tailbaa084.ts.net"
 VERCEL_PROJECT = "clearspeed-demos"
 CONFIG_PATH = state_path("avatar_configs.json")
 # mflux writes to ~/mflux-out/faces (make-face.sh). The live Studio daemon

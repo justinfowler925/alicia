@@ -5,7 +5,7 @@ set -euo pipefail
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
-ATLAS_HOST="${ATLAS_SSH_HOST:-jfstudio@100.93.125.5}"
+ATLAS_HOST="${ATLAS_SSH_HOST:-jfstudio@justins-mac-studio-1.tailbaa084.ts.net}"
 LOCAL_PORT="${ATLAS_LOCAL_PORT:-8766}"
 REMOTE_PORT="${ATLAS_REMOTE_PORT:-8766}"
 HEALTH_URL="${ATLAS_HEALTH_URL:-http://127.0.0.1:${LOCAL_PORT}/api/healthz}"

@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("atlas-chat")
 
-ATLAS_SSH = os.environ.get("ATLAS_SSH_HOST", "jfstudio@100.93.125.5")
+ATLAS_SSH = os.environ.get("ATLAS_SSH_HOST", "jfstudio@justins-mac-studio-1.tailbaa084.ts.net")
 REMOTE_CHAT = os.environ.get(
     "ATLAS_REMOTE_CHAT",
     "~/atlas-direct/scripts/atlas_cursor_chat.py",
