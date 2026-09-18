@@ -56,12 +56,6 @@
       "selector": "#forge-attach",
       "referenceRole": "command",
       "purpose": "Choose local files to attach"
-    },
-    {
-      "id": "files",
-      "selector": "#forge-attachments",
-      "referenceRole": "composer",
-      "purpose": "Review and remove pending attachments"
     }
   ],
   "flows": [
