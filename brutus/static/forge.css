@@ -26,3 +26,8 @@ body.forge-open .supervisor-rail, body.forge-open #mute,
 body.forge-open #mic, body.forge-open #voice-enroll,
 body.forge-open #new-session, body.forge-open #resilience-chip,
 body.forge-open #live { display: none !important; }
+@media (max-width: 40rem) {
+  #forge-composer { flex-wrap: wrap; }
+  #forge-message { flex: 1 1 100%; }
+  #forge-send { flex: 1 1 100%; }
+}
