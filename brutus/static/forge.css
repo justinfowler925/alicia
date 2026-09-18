@@ -31,3 +31,10 @@ body.forge-open #live { display: none !important; }
   #forge-message { flex: 1 1 100%; }
   #forge-send { flex: 1 1 100%; }
 }
+
+.forge-file-tools, .forge-file { display: flex; align-items: center; flex-wrap: wrap; gap: var(--shine-space-2); }
+.forge-file-tools { padding: var(--shine-space-3) var(--shine-space-4); color: var(--shine-color-fg-muted); }
+.forge-attachments { padding: 0 var(--shine-space-4); }
+.forge-file { padding: var(--shine-space-2) 0; border-bottom: 1px solid var(--shine-color-border); }
+.forge-file span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.forge-dragging { outline: 2px solid var(--shine-color-ring); }

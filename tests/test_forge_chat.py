@@ -186,3 +186,60 @@ def test_local_boundary(monkeypatch, base_url, client_host, headers, expected):
         response = client.post("/api/forge/request", json={"action": "list"}, headers=headers)
     assert response.status_code == expected
     assert bool(calls) == (expected == 200)
+
+
+def test_attachment_bytes_scope_history_and_retry(bridge):
+    import base64
+    from pathlib import Path
+    call, agent, state, thread_id = bridge
+    aid = str(uuid.uuid4())
+    body = {"attachment_id": aid, "name": "../../report.txt", "content": base64.b64encode(b"file-only secret").decode()}
+    uploaded = call("upload", **body)
+    path = Path(uploaded["path"])
+    assert path.is_relative_to(agent.STATE / "workspaces" / "brutus-chat" / thread_id)
+    assert path.read_bytes() == b"file-only secret"
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert call("upload", **body) == uploaded
+    with pytest.raises(ValueError, match="another file"):
+        call("upload", **{**body, "content": base64.b64encode(b"changed").decode()})
+    other = str(uuid.uuid4())
+    forge_bridge.handle({"action": "create", "thread_id": other}, agent, state)
+    with pytest.raises(ValueError, match="unavailable"):
+        forge_bridge.handle({"action": "send", "thread_id": other, "message_id": str(uuid.uuid4()), "message": "read", "attachments": [aid]}, agent, state)
+    msg = {"message_id": str(uuid.uuid4()), "message": "Read my file", "attachments": [aid]}
+    sent = call("send", **msg)
+    assert sent["turns"][0]["attachments"] == [uploaded]
+    assert str(path) in agent.calls[0][1]
+    assert "file-only secret" not in agent.calls[0][1]
+    assert call("send", **msg) == sent
+    with pytest.raises(ValueError, match="already belongs"):
+        call("send", **{**msg, "attachments": []})
+    agent.update(sent["turns"][0]["run_id"], status="succeeded")
+    call("send", message_id=str(uuid.uuid4()), message="Refer to that file again")
+    assert str(path) in agent.calls[-1][1]
+
+
+def test_upload_recovers_file_written_before_commit(bridge):
+    import base64
+    call, _agent, state, _thread = bridge
+    body = {"attachment_id": str(uuid.uuid4()), "name": "note.txt", "content": base64.b64encode(b"note").decode()}
+    first = call("upload", **body)
+    with sqlite3.connect(state / "chat.sqlite3") as c:
+        c.execute("DELETE FROM attachments")
+    assert call("upload", **body) == first
+
+
+def test_upload_limits_and_http_boundary(monkeypatch):
+    import base64
+    app = FastAPI()
+    app.include_router(forge_chat.router)
+    calls = []
+    monkeypatch.setattr(forge_chat, "remote", lambda request: calls.append(request) or {"id": request["attachment_id"]})
+    route = f"/api/forge/upload/{uuid.uuid4()}/{uuid.uuid4()}?name=note.txt"
+    with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)) as client:
+        assert client.post(route, content=b"hello").status_code == 403
+        assert client.post(route, content=b"hello", headers={"X-Brutus-Chat": "forge", "Origin": "https://foreign.example"}).status_code == 403
+        assert client.post(route, content=b"hello", headers={"X-Brutus-Chat": "forge"}).status_code == 200
+        assert base64.b64decode(calls[0]["content"]) == b"hello"
+        assert client.post(route, content=b"x" * (10 * 1024 * 1024 + 1), headers={"X-Brutus-Chat": "forge"}).status_code == 413
+        assert len(calls) == 1

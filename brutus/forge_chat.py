@@ -1,6 +1,7 @@
 """Local typed-chat transport to the installed Forge runtime on Studio."""
 from __future__ import annotations
 
+import base64
 import json
 import subprocess
 from pathlib import Path
@@ -10,6 +11,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 
 def require_local_chat(request: Request):
@@ -37,6 +39,7 @@ class ChatRequest(BaseModel):
     thread_id: UUID | None = None
     message_id: UUID | None = None
     message: str = Field(default="", max_length=16000)
+    attachments: list[UUID] = Field(default_factory=list, max_length=10)
 
 
 def remote(request: dict):
@@ -69,3 +72,20 @@ def chat(body: ChatRequest):
     if body.action == "send" and body.message_id is None:
         raise HTTPException(422, "Message ID required")
     return remote(body.model_dump(mode="json"))
+
+
+@router.post("/upload/{thread_id}/{attachment_id}")
+async def upload(thread_id: UUID, attachment_id: UUID, request: Request, name: str):
+    """Bound the raw stream before encoding; never buffer arbitrary request sizes."""
+    limit = 10 * 1024 * 1024
+    content = bytearray()
+    async for chunk in request.stream():
+        if len(content) + len(chunk) > limit:
+            raise HTTPException(413, "Files must be 10 MB or smaller")
+        content.extend(chunk)
+    if not name or len(name) > 255:
+        raise HTTPException(422, "Filename must contain 1–255 characters")
+    return await run_in_threadpool(remote, {
+        "action": "upload", "thread_id": str(thread_id), "attachment_id": str(attachment_id),
+        "name": name, "content": base64.b64encode(content).decode("ascii"),
+    })

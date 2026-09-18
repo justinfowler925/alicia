@@ -50,6 +50,12 @@
       <button type="button" id="forge-reconnect" hidden>Reconnect</button>
       <button type="button" id="forge-stop" hidden>Stop</button>
     </div>
+    <div class="forge-attachments" id="forge-attachments" aria-live="polite"></div>
+    <div class="forge-file-tools">
+      <button id="forge-attach" type="button">Attach files</button>
+      <input id="forge-files" type="file" multiple hidden aria-label="Choose files for Forge">
+      <span id="forge-file-hint">or drop files here · 10 files, 10 MB each</span>
+    </div>
     <form class="composer" id="forge-composer">
       <label class="sr-only" for="forge-message">Message Forge</label>
       <textarea id="forge-message" rows="2" maxlength="16000" placeholder="Message Forge…" aria-describedby="forge-hint"></textarea>

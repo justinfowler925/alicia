@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "job": "Forge file attachments",
+  "category": "voice",
+  "primaryTask": "Select or drop files and ask Forge to read them",
+  "before": {
+    "artifact": "brutus/static/session.html",
+    "screenshot": "/tmp/forge-attachments-before.png"
+  },
+  "verdict": "defects",
+  "productPrecedent": {
+    "name": "Forge conversation",
+    "reference": "http://127.0.0.1:8768/#forge",
+    "divergences": [
+      "Add file selection, upload status and removable attachment rows beside the existing composer."
+    ]
+  },
+  "defects": [
+    {
+      "id": "attachments",
+      "bucket": "completeness",
+      "severity": "major",
+      "problem": "Composer accepts text only; no file picker or drop target exists.",
+      "evidence": "Live screenshot and forge.js submit handler",
+      "expectedEffect": "Select or drop files, remove unwanted files, send and reopen attached history.",
+      "assertions": [
+        "flow:attachments"
+      ]
+    }
+  ],
+  "referenceLimitation": "Catalog spectrum-ai-chat shot is a Spectrum marketing page; existing Brutus conversation is the authoritative visual precedent."
+}

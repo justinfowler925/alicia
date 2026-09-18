@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "cite": "spectrum-ai-chat",
+  "timeoutMs": 60000,
+  "objects": [
+    {
+      "id": "toggle",
+      "selector": "#forge-toggle",
+      "referenceRole": "navigation",
+      "purpose": "Switch between Brutus and Forge"
+    },
+    {
+      "id": "panel",
+      "selector": "#forge-panel",
+      "referenceRole": "session context",
+      "purpose": "Know which agent is answering"
+    },
+    {
+      "id": "history",
+      "selector": "#forge-threads",
+      "referenceRole": "session context",
+      "purpose": "Return to saved conversations"
+    },
+    {
+      "id": "transcript",
+      "selector": "#forge-transcript",
+      "referenceRole": "transcript",
+      "purpose": "Read the saved dialogue"
+    },
+    {
+      "id": "message",
+      "selector": "#forge-message",
+      "referenceRole": "composer",
+      "purpose": "Write a follow-up"
+    },
+    {
+      "id": "send",
+      "selector": "#forge-send",
+      "referenceRole": "command",
+      "purpose": "Send the message"
+    },
+    {
+      "id": "status",
+      "selector": "#forge-status",
+      "referenceRole": "recovery",
+      "purpose": "See actual execution status"
+    },
+    {
+      "id": "new",
+      "selector": "#forge-new",
+      "referenceRole": "command",
+      "purpose": "Start another conversation"
+    },
+    {
+      "id": "attach",
+      "selector": "#forge-attach",
+      "referenceRole": "command",
+      "purpose": "Choose local files to attach"
+    },
+    {
+      "id": "files",
+      "selector": "#forge-attachments",
+      "referenceRole": "composer",
+      "purpose": "Review and remove pending attachments"
+    }
+  ],
+  "flows": [
+    {
+      "id": "attachments",
+      "userJob": "Reopen attachment history and read Forge response (picker/drop/transfer exercised by scripts/verify-forge-attachments.cjs)",
+      "steps": [
+        {
+          "action": "select",
+          "selector": "#forge-threads",
+          "value": "04d7c654-9c47-41d3-9173-0361f1d67d2b"
+        },
+        {
+          "action": "text",
+          "selector": "#forge-transcript",
+          "value": "picker-note.txt"
+        },
+        {
+          "action": "text",
+          "selector": "#forge-transcript",
+          "value": "violet submarine"
+        },
+        {
+          "action": "click",
+          "selector": "#forge-new"
+        },
+        {
+          "action": "text",
+          "selector": "#forge-transcript",
+          "value": "What would you like to work on?"
+        }
+      ]
+    }
+  ]
+}
