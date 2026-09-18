@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "cite": "spectrum-ai-chat",
+  "timeoutMs": 60000,
+  "objects": [
+    {
+      "id": "toggle",
+      "selector": "#forge-toggle",
+      "referenceRole": "navigation",
+      "purpose": "Switch between Brutus and Forge"
+    },
+    {
+      "id": "panel",
+      "selector": "#forge-panel",
+      "referenceRole": "session context",
+      "purpose": "Know which agent is answering"
+    },
+    {
+      "id": "history",
+      "selector": "#forge-threads",
+      "referenceRole": "session context",
+      "purpose": "Return to saved conversations"
+    },
+    {
+      "id": "transcript",
+      "selector": "#forge-transcript",
+      "referenceRole": "transcript",
+      "purpose": "Read the saved dialogue"
+    },
+    {
+      "id": "message",
+      "selector": "#forge-message",
+      "referenceRole": "composer",
+      "purpose": "Write a follow-up"
+    },
+    {
+      "id": "send",
+      "selector": "#forge-send",
+      "referenceRole": "command",
+      "purpose": "Send the message"
+    },
+    {
+      "id": "status",
+      "selector": "#forge-status",
+      "referenceRole": "recovery",
+      "purpose": "See actual execution status"
+    },
+    {
+      "id": "new",
+      "selector": "#forge-new",
+      "referenceRole": "command",
+      "purpose": "Start another conversation"
+    }
+  ],
+  "flows": [
+    {
+      "id": "forge-navigation",
+      "userJob": "Read saved history and send a follow-up to Forge",
+      "steps": [
+        {
+          "action": "select",
+          "selector": "#forge-threads",
+          "value": "54cdd495-d8d5-498a-808f-9ba11e15568e"
+        },
+        {
+          "action": "text",
+          "selector": "#forge-transcript",
+          "value": "copper meadow"
+        },
+        {
+          "action": "fill",
+          "selector": "#forge-message",
+          "value": "Connection test follow-up only. Do not use tools or change files. What two-word phrase did I ask you to remember? Reply with that phrase only."
+        },
+        {
+          "action": "click",
+          "selector": "#forge-send"
+        },
+        {
+          "action": "text",
+          "selector": "#forge-status",
+          "value": "Reply received."
+        },
+        {
+          "action": "text",
+          "selector": "#forge-transcript",
+          "value": "copper meadow"
+        }
+      ]
+    },
+    {
+      "id": "reload-history",
+      "userJob": "Reopen the page and recover the conversation",
+      "reset": true,
+      "steps": [
+        {
+          "action": "text",
+          "selector": "#forge-transcript",
+          "value": "Connection test follow-up only"
+        },
+        {
+          "action": "click",
+          "selector": "#forge-new"
+        },
+        {
+          "action": "text",
+          "selector": "#forge-transcript",
+          "value": "What would you like to work on?"
+        },
+        {
+          "action": "select",
+          "selector": "#forge-threads",
+          "value": "54cdd495-d8d5-498a-808f-9ba11e15568e"
+        },
+        {
+          "action": "text",
+          "selector": "#forge-transcript",
+          "value": "copper meadow"
+        }
+      ]
+    }
+  ]
+}

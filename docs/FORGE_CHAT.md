@@ -1,0 +1,36 @@
+# Forge chat in Brutus
+
+Open `http://127.0.0.1:8768/#forge`, or choose **Forge chat** from Brutus.
+Send a message, continue with a follow-up, use **New chat**, or select a saved
+conversation. **Stop** requests cancellation of that conversation's active run.
+Status distinguishes queued, working, replied, failed, blocked and cancelled.
+
+Forge uses the model configured in Studio's installed agent runtime. Brutus
+does not change the model, credentials, sandbox or delivery controls. It sends
+the current user message and saved prior turns to Forge. Each conversation has
+its own Studio workspace. The full conversational answer is the runtime's
+completion-report summary; a successful process is not an independent claim
+that code was delivered or a task was accepted.
+
+History lives in `~/.local/share/brutus-forge-chat/chat.sqlite3` on Studio.
+Runs remain in `~/.local/share/studio-agents`, with their existing queue,
+single-worker limit, receipts and cancellation mechanism. Closing Brutus does
+not stop a Studio run. A request ID prevents replay after a lost response;
+**Reconnect** checks the same request. There is no timer or agent started just
+by opening the page. Browser polling observes an active request only.
+
+The deployed `forge_bridge.py` is sent over existing private SSH for each
+request. This avoids an independently installed bridge drifting from Brutus.
+User text travels in JSON on stdin, never shell command text. No additional
+network listener, credential, provider or public access is introduced.
+
+The transport accepts only loopback peers and loopback Host values, checks
+Origin when supplied, and requires the non-simple `X-Brutus-Chat` header with
+no CORS grant. It follows Brutus's local typed-input trust boundary. Existing
+owner-token-protected actions retain their own authentication requirements.
+
+Verification: `tests/test_forge_chat.py` covers retry deduplication, recovery
+after an interrupted save, follow-up context, isolated cancellation and
+cross-origin/remote rejection. The browser workflow and layout contracts live
+under `docs/forge-chat/`; the connectivity example is deliberately a no-tools,
+no-files conversation with two turns.

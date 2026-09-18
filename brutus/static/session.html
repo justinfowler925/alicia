@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/static/shine-tokens.css">
 <link rel="stylesheet" href="/static/session.css">
 <link rel="stylesheet" href="/static/overview.css">
+<link rel="stylesheet" href="/static/forge.css">
 </head>
 <body data-cite="spectrum-ai-chat">
 <!-- Voice is the work surface. The transcript is durable evidence, the
@@ -29,7 +30,33 @@
     </button>
     <button type="button" id="voice-enroll" aria-label="Enroll your voice">Voice enrollment</button>
     <button type="button" id="new-session" aria-label="Start a new session">New</button>
+    <button type="button" id="forge-toggle" aria-controls="forge-panel" aria-pressed="false">Forge chat</button>
   </header>
+
+  <section class="panel forge-panel" id="forge-panel" aria-label="Forge chat" hidden data-product-pattern="conversation">
+    <header class="forge-head">
+      <div><h2>Forge</h2><p id="forge-model">Direct chat · Studio</p></div>
+      <button type="button" id="forge-new">New chat</button>
+    </header>
+    <div class="forge-history">
+      <label for="forge-threads">Conversation</label>
+      <select id="forge-threads"><option value="">New conversation</option></select>
+    </div>
+    <div class="scroll" id="forge-transcript" role="log" tabindex="0" aria-label="Forge conversation" aria-live="polite">
+      <div class="conversation-empty"><h3>What would you like to work on?</h3><p>Ask Forge a question or give it a task. Your conversation and work stay on Studio.</p></div>
+    </div>
+    <div class="forge-status-row">
+      <p id="forge-status" role="status">Ready when you are.</p>
+      <button type="button" id="forge-reconnect" hidden>Reconnect</button>
+      <button type="button" id="forge-stop" hidden>Stop</button>
+    </div>
+    <form class="composer" id="forge-composer">
+      <label class="sr-only" for="forge-message">Message Forge</label>
+      <textarea id="forge-message" rows="2" maxlength="16000" placeholder="Message Forge…" aria-describedby="forge-hint"></textarea>
+      <button type="submit" class="primary" id="forge-send">Send</button>
+    </form>
+    <p class="forge-hint" id="forge-hint">Enter to send · Shift + Enter for a new line. Forge can perform tasks you request.</p>
+  </section>
 
   <section class="panel voice-stage" data-testid="voice-stage" aria-label="Live conversation">
     <header class="voice-stage-head">
@@ -325,5 +352,6 @@
 </main>
 <script src="/static/session.js"></script>
 <script src="/static/operations.js"></script>
+<script src="/static/forge.js"></script>
 </body>
 </html>

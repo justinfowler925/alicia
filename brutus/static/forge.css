@@ -1,0 +1,28 @@
+/* Same panel, turns, composer and tokens as the Brutus conversation. */
+.forge-panel { grid-column: 1 / -1; min-width: 0; }
+.forge-head, .forge-history, .forge-status-row {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: var(--shine-space-3); padding: var(--shine-space-4);
+}
+.forge-head { justify-content: space-between; border-bottom: 1px solid var(--shine-color-border); }
+.forge-head p, .forge-hint { color: var(--shine-color-fg-muted); font-size: var(--shine-text-sm); }
+.forge-panel button { min-height: var(--tap); }
+.forge-history select, #forge-message {
+  min-width: 0; flex: 1; padding: var(--shine-space-2) var(--shine-space-3);
+  border: 1px solid var(--shine-color-border); border-radius: var(--shine-radius-md);
+  background: var(--shine-color-bg); color: var(--shine-color-fg); font: inherit;
+  min-height: var(--tap);
+}
+#forge-message { resize: vertical; }
+#forge-message:focus-visible, #forge-threads:focus-visible {
+  outline: 2px solid var(--shine-color-ring); outline-offset: 2px;
+}
+#forge-transcript { min-height: 12rem; max-height: 55vh; }
+.forge-status-row { border-top: 1px solid var(--shine-color-border); }
+#forge-status { flex: 1; overflow-wrap: anywhere; }
+.forge-hint { padding: var(--shine-space-3) var(--shine-space-4); }
+body.forge-open .voice-stage, body.forge-open .work-tray,
+body.forge-open .supervisor-rail, body.forge-open #mute,
+body.forge-open #mic, body.forge-open #voice-enroll,
+body.forge-open #new-session, body.forge-open #resilience-chip,
+body.forge-open #live { display: none !important; }

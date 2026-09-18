@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "job": "Direct Forge chat in Brutus",
+  "category": "voice",
+  "primaryTask": "Send a message to Forge and continue the saved conversation",
+  "before": {
+    "artifact": "brutus/static/session.html",
+    "screenshot": "/tmp/forge-chat-before.png"
+  },
+  "verdict": "defects",
+  "productPrecedent": {
+    "name": "Brutus conversation",
+    "reference": "http://127.0.0.1:8768/",
+    "divergences": [
+      "Forge needs a visible text composer and separate history because the existing conversation talks to Brutus."
+    ]
+  },
+  "defects": [
+    {
+      "id": "forge-chat",
+      "bucket": "usability",
+      "severity": "major",
+      "problem": "No direct Forge conversation entry or transport exists.",
+      "evidence": "Rendered live Brutus and inspected session.html: voice and Brutus keyboard only; no Forge control.",
+      "expectedEffect": "Open Forge, send a message, read its reply and continue after reload.",
+      "assertions": [
+        "flow:forge-navigation"
+      ]
+    }
+  ],
+  "referenceLimitation": "Catalog spectrum-ai-chat shot is a Spectrum marketing page; existing Brutus conversation is the authoritative visual precedent."
+}

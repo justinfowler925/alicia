@@ -75,6 +75,7 @@ from .voice import transcribe as voice_transcribe
 from .voice_identity import EnrollmentError, VoiceIdentity
 from .watchdog import Watchdog
 from .workflow_http import router as workflow_router
+from .forge_chat import router as forge_chat_router
 from .studio_runs import router as studio_runs_router
 from .zoom_api import ZoomAPIError, ZoomClient, assets_from_summary, default_window
 from .zoom_ingest import DEFAULT_SOURCE_MODE, ZoomIngestStore, ingest_assets
@@ -489,6 +490,7 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
     app.state.board_watch = BoardWatcher(on_event=bus.publish)
     app.include_router(canon_router)
     app.include_router(workflow_router)
+    app.include_router(forge_chat_router)
     app.include_router(studio_runs_router)
 
     @app.exception_handler(AtlasDisabled)
@@ -522,7 +524,12 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         they opened last, and on one screen the three disagreed by four
         different project counts.
         """
-        return HTMLResponse((_STATIC / "session.html").read_text(), headers=_NO_STORE)
+        manifest = _deployment_manifest()
+        build_headers = {
+            "X-Shine-Source-Commit": str(manifest.get("sha", "unknown")),
+            "X-Shine-Build-Id": str(manifest.get("sha", "unknown")),
+        }
+        return HTMLResponse((_STATIC / "session.html").read_text(), headers={**_NO_STORE, **build_headers})
 
     @app.get("/console", response_class=HTMLResponse)
     async def console() -> RedirectResponse:
