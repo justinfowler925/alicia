@@ -1532,6 +1532,8 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         # Explicit allowlist rather than StaticFiles — small assets, and a name
         # that never reaches the filesystem unchecked.
         types = {
+            "forge.css": "text/css",
+            "forge.js": "application/javascript",
             "session.css": "text/css",
             "overview.css": "text/css",
             "session.js": "application/javascript",

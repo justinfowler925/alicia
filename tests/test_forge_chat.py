@@ -11,6 +11,24 @@ from fastapi.testclient import TestClient
 from brutus import forge_bridge, forge_chat
 
 
+def test_real_brutus_serves_forge_assets_and_transport(monkeypatch):
+    from brutus.config import BrutusCfg
+    from brutus.server import create_app
+
+    app = create_app(BrutusCfg(watchdog_enabled=False), start_watchdog=False)
+    monkeypatch.setattr(forge_chat, "remote", lambda request: {"threads": [], "model": "configured-model"})
+    with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)) as client:
+        page = client.get("/")
+        assert page.status_code == 200
+        for name, media_type in [("forge.js", "application/javascript"), ("forge.css", "text/css")]:
+            assert "/static/" + name in page.text
+            asset = client.get("/static/" + name)
+            assert asset.status_code == 200
+            assert asset.headers["content-type"].startswith(media_type)
+            assert "no-store" in asset.headers["cache-control"]
+        assert client.post("/api/forge/request", json={"action": "list"}, headers={"X-Brutus-Chat": "forge"}).json()["model"] == "configured-model"
+
+
 class Agent:
     TERMINAL = frozenset({"succeeded", "failed", "cancelled", "blocked"})
 
