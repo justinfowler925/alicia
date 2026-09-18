@@ -947,6 +947,6 @@ if (document.readyState === "loading") {
 }
 
 // One deliberate global, for the browser checks and for the console.
-window.addEventListener("hashchange", start);
+addEventListener("hashchange", start);
 window.brutusOps = { ops, PANELS, PANEL_BY_KEY, loadPanel, paint, selectTab, relative, statusTone, statusWords };
 })();
