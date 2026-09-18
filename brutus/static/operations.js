@@ -922,8 +922,11 @@ function mount(panel) {
   host.replaceChildren(built.bar, built.note, built.groups);
 }
 
+let workspaceStarted = false;
 function start() {
+  if (location.hash === "#forge" || workspaceStarted) return;
   if (!document.querySelector("[data-ops-panel]")) return;
+  workspaceStarted = true;
   for (const panel of PANELS) {
     mount(panel);
     paint(panel);
@@ -944,5 +947,6 @@ if (document.readyState === "loading") {
 }
 
 // One deliberate global, for the browser checks and for the console.
+window.addEventListener("hashchange", start);
 window.brutusOps = { ops, PANELS, PANEL_BY_KEY, loadPanel, paint, selectTab, relative, statusTone, statusWords };
 })();
