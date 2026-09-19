@@ -5,12 +5,27 @@ const fs = require('node:fs');
 (async () => {
   const fixture = process.env.ALEXIS_TEST_MIC_WAV;
   const browser = await chromium.launch({headless:true,args:fixture ? [
-    '--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream',
+    '--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=user-gesture-required',
     `--use-file-for-fake-audio-capture=${fixture}%noloop`,
   ] : []});
   const page = await browser.newPage({viewport:{width:1280,height:900},permissions:fixture ? ['microphone'] : []});
   if (fixture) await page.addInitScript(() => {
     window.microphoneProofStreams = [];
+    window.alexisRemoteAudioPeak = 0;
+    const makeSource = AudioContext.prototype.createMediaStreamSource;
+    AudioContext.prototype.createMediaStreamSource = function(stream) {
+      const source = makeSource.call(this, stream);
+      if (stream === document.querySelector('#alexis-video')?.srcObject) {
+        const analyser = this.createAnalyser(); source.connect(analyser);
+        const samples = new Float32Array(analyser.fftSize);
+        const timer = setInterval(() => {
+          analyser.getFloatTimeDomainData(samples);
+          window.alexisRemoteAudioPeak = Math.max(window.alexisRemoteAudioPeak, ...samples.map(Math.abs));
+          if (stream.getTracks().every(t => t.readyState === 'ended')) clearInterval(timer);
+        }, 30);
+      }
+      return source;
+    };
     const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = async options => {
       const stream = await original(options);
@@ -24,6 +39,10 @@ const fs = require('node:fs');
   const receipt = {pages:[],liveAvatar:'not_tested',answeredTurn:'not_tested'};
   try {
     await page.goto(base);
+    await page.waitForFunction(() => Boolean(state.sessionId));
+    assert.equal(await page.locator('.product-tabs [aria-current=page]').innerText(),'Alexis');
+    assert(await page.locator('#say').isVisible());
+    await page.getByRole('link',{name:'Brutus',exact:true}).click();
     await page.getByRole('navigation',{name:'Workspaces'}).waitFor();
     assert.equal(await page.locator('#alexis-frame').count(),0);
     assert.equal(await page.locator('.product-tabs [aria-current=page]').innerText(),'Brutus');
@@ -31,6 +50,8 @@ const fs = require('node:fs');
     await page.getByRole('link',{name:'Alexis',exact:true}).click();
     await page.waitForFunction(() => Boolean(state.sessionId));
     await page.locator('#alexis-portrait').waitFor();
+    assert(await page.locator('#conversation').isVisible(), 'Transcript visible before any interaction');
+    assert(await page.locator('#say').isVisible(), 'Composer visible before any interaction');
     await page.getByRole('button',{name:'Type instead'}).click();
     assert.equal(await page.locator('#say').evaluate(e=>e===document.activeElement),true);
     await page.locator('#alexis-improve summary').click();
@@ -68,6 +89,13 @@ const fs = require('node:fs');
       const answer=await page.locator('#conversation .turn.brutus').last().textContent();
       assert.match(answer,fixture ? /Alexis/i : /Orchard/i);
       await page.waitForFunction(()=>state.voicePhase==='speaking',null,{timeout:45000});
+      if (fixture) {
+        await page.waitForFunction(() => window.alexisRemoteAudioPeak > 0.005, null, {timeout:45000});
+        receipt.remoteAudioPeak = await page.evaluate(() => window.alexisRemoteAudioPeak);
+        const firstTime = await page.locator('#alexis-video').evaluate(v => v.currentTime);
+        await page.waitForFunction(t => document.querySelector('#alexis-video').currentTime > t + 0.5, firstTime);
+        receipt.videoFramesAdvancing = true;
+      }
       await page.screenshot({path:'/tmp/alexis-live-provider.png',fullPage:true});
       receipt.answeredTurn={answer,source:'real shared brain and Anam audio passthrough',microphone:fixture ? 'synthetic audio through real transcription; no physical microphone' : 'not tested; typed input'};
       await page.getByRole('button',{name:'End conversation',exact:true}).click();
@@ -97,5 +125,13 @@ const fs = require('node:fs');
     receipt.errors=errors;
     fs.writeFileSync('/tmp/alexis-browser-receipt.json',JSON.stringify(receipt,null,2));
     console.log(JSON.stringify(receipt));
+  } catch (error) {
+    console.error(await page.evaluate(() => ({phase:state.voicePhase, transport:state.voiceTransport,
+      detail:document.querySelector('#voice-state-detail')?.textContent,
+      avatar:document.querySelector('#alexis-status')?.textContent,
+      peak:window.alexisRemoteAudioPeak,
+      video:{ready:document.querySelector('#alexis-video')?.readyState,paused:document.querySelector('#alexis-video')?.paused},
+    })));
+    throw error;
   } finally { await browser.close(); }
 })().catch(error=>{console.error(error);process.exitCode=1;});

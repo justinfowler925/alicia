@@ -16,3 +16,27 @@
 .alexis-promotion { color: var(--shine-color-muted); }
 .alexis-work-context { padding: var(--shine-space-4); border-top: 1px solid var(--shine-color-border); }
 .alexis-work-context > summary { cursor: pointer; }
+
+/* The transcript and composer are the primary workspace, always open. */
+.shell.voice-shell, .shell.voice-shell.workspace-open { max-width: 80rem; }
+.voice-stage { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(18rem, 1fr); align-content: start; }
+.alexis-presenter { grid-column: 2; grid-row: 1; }
+.voice-stage-head { grid-column: 2; grid-row: 2; }
+.alexis-options { grid-column: 2; grid-row: 3; }
+.alexis-transcript { grid-column: 1; grid-row: 1 / 4; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--shine-color-border); height: clamp(24rem, calc(100dvh - 15rem), 38rem); }
+.alexis-transcript > h2 { padding: var(--shine-space-4); margin: 0; font-size: var(--shine-text-lg); }
+.alexis-transcript .conversation-wrap { flex: 1; min-height: 0; }
+.alexis-transcript #conversation { height: 100%; }
+.alexis-transcript .composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.alexis-transcript #say { min-width: 0; width: 100%; }
+.alexis-transcript .conversation-empty { align-items: flex-start; justify-content: flex-start; text-align: left; padding: var(--shine-space-4); }
+.alexis-transcript .conversation-empty h2 { font-size: var(--shine-text-xl); }
+.voice-stage > :not(.alexis-presenter, .voice-stage-head, .alexis-options, .alexis-transcript) { grid-column: 1 / -1; }
+@media (max-width: 700px) {
+  .voice-stage { display: flex; }
+  .voice-stage-head { order: -2; flex-direction: row; align-items: center; }
+  .voice-stage-head .help-balloon-trigger { display: none; }
+  .alexis-transcript { order: -1; height: 45dvh; min-height: 18rem; border-right: 0; border-bottom: 1px solid var(--shine-color-border); }
+  .alexis-frame { width: min(100%, 16rem); margin-inline: auto; }
+  .alexis-options { gap: var(--shine-space-2); }
+}

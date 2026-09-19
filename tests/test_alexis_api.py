@@ -20,11 +20,12 @@ def client(tmp_path):
 
 
 def test_homepage_is_preserved_and_pages_have_separate_navigation(client):
-    home = client.get("/").text
+    home = client.get("/brutus").text
     assert 'id="alexis-frame"' not in home
     assert '/static/alexis.js' not in home
     assert 'id="supervisor-agents"' in home
-    assert 'href="/alexis"' in home and 'href="/atlas"' in home
+    assert 'href="/"' in home and 'href="/atlas"' in home
+    assert 'id="alexis-frame"' in client.get("/").text
     assert 'id="alexis-frame"' in client.get("/alexis").text
     assert 'title="Atlas workspace"' in client.get("/atlas").text
     assert client.get("/static/alexis.jpg").headers["content-type"] == "image/jpeg"
@@ -68,3 +69,15 @@ def test_feedback_central_write_precedes_local_ack(client):
         assert client.post(f"/api/session/{sid}/feedback", json=body).status_code == 200
         assert post.call_args.kwargs["json"]["turn_id"] == "central"
     assert client.get(f"/api/session/{sid}/feedback").json()["count"] == 1
+
+
+@pytest.mark.parametrize("status, message", [(402, "billing"), (429, "limit reached"), (401, "credential")])
+def test_avatar_provisioning_failure_is_actionable_without_leaking_provider_body(client, status, message):
+    sid = client.post("/api/session/open", json={}).json()["session_id"]
+    response = httpx.Response(status, json={"secret": "provider-private-detail"},
+                              request=httpx.Request("POST", "https://api.anam.ai"))
+    with patch("brutus.alexis.httpx.AsyncClient.post", new=AsyncMock(return_value=response)):
+        result = client.post(f"/api/session/{sid}/alexis-token")
+    assert result.status_code == 503
+    assert message in result.json()["detail"]
+    assert "provider-private-detail" not in result.text

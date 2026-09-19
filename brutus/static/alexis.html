@@ -15,30 +15,48 @@
 <!-- Voice is the work surface. The transcript is durable evidence, the
      supervisor is the attention policy, and the queue is supporting detail. -->
 <main class="shell voice-shell" data-product-pattern="brutus-conversation-shell">
-<nav data-product-pattern="workspace-tabs" class="product-tabs" aria-label="Workspaces"><a href="/">Brutus</a><a href="/alexis" aria-current="page">Alexis</a><a href="/atlas">Atlas</a></nav>
+<nav data-product-pattern="workspace-tabs" class="product-tabs" aria-label="Workspaces"><a href="/" aria-current="page">Alexis</a><a href="/brutus">Brutus</a><a href="/atlas">Atlas</a></nav>
 
   <header class="topbar">
     <div class="title">
       <h1>Alexis</h1>
-      <p class="tagline">Think, build, and improve together</p>
+      <p class="tagline">Talk through the work.</p>
     </div>
     <span id="live" class="live" data-connected="false" role="status" aria-live="polite">offline</span>
-    <span id="resilience-chip" class="resilience-chip" data-ok="false" role="status" title="Billing and canary status">brain:…</span>
     <button type="button" id="theme-toggle" aria-pressed="false" aria-label="Toggle light/dark theme">
       <span class="label">Dark</span>
     </button>
     <button type="button" id="mute" aria-pressed="false" aria-label="Toggle spoken replies">
       <span class="label">Speaking on</span>
     </button>
-    <button type="button" id="voice-enroll" aria-label="Enroll your voice">Voice enrollment</button>
     <button type="button" id="new-session" aria-label="Start a new session">New</button>
   </header>
 
   <section class="panel voice-stage" data-testid="voice-stage" aria-label="Live conversation">
+    <section class="alexis-transcript" id="conversation-details" aria-label="Live transcript">
+      <h2>Live transcript</h2>
+    <div class="conversation-wrap">
+      <div class="scroll" id="conversation" tabindex="0" role="log" aria-label="Conversation history">
+        <div class="conversation-empty" id="conversation-empty">
+          <h2>Your conversation appears here</h2>
+          <p>Your words and Alexis’s replies stay visible as you talk.</p>
+          <button type="button" data-start-voice>Start talking</button>
+        </div>
+      </div>
+      <button type="button" id="to-latest" class="to-latest" hidden>New messages ↓</button>
+    </div>
+    <form class="composer" id="composer">
+      <label class="sr-only" for="say">Message</label>
+      <textarea id="say" rows="1" placeholder="Message Alexis…" autocomplete="off"
+                aria-describedby="composer-hint"></textarea>
+      <p id="composer-hint" class="sr-only">Press Enter to send, Shift and Enter for a new line.</p>
+      <button type="submit" id="send" class="primary">Send</button>
+    </form>
+    </section>
     <figure class="alexis-presenter" data-cite="shadcn-broadcast" data-product-pattern="brutus-voice-stage">
       <div class="alexis-frame" id="alexis-frame">
         <img id="alexis-portrait" src="/static/alexis.jpg" alt="Alexis, your AI collaborator" width="1024" height="1024">
-        <video id="alexis-video" playsinline autoplay hidden aria-label="Alexis live avatar"></video>
+        <video id="alexis-video" playsinline autoplay muted hidden aria-label="Alexis live avatar"></video>
       </div>
       <figcaption id="alexis-caption"><strong>Alexis</strong><span id="alexis-status" role="status">Your AI collaborator · ready to talk</span></figcaption>
     </figure>
@@ -62,30 +80,11 @@
       </button>
     </header>
     <div class="alexis-options">
+      <button type="button" id="alexis-video-retry" hidden>Reconnect video</button>
       <label><input id="alexis-live" type="checkbox" checked> Live avatar</label>
       <button type="button" id="alexis-end">End conversation</button>
       <button type="button" id="alexis-type">Type instead</button>
     </div>
-    <details class="conversation-details" id="conversation-details">
-      <summary>Conversation &amp; keyboard</summary>
-    <div class="conversation-wrap">
-      <div class="scroll" id="conversation" tabindex="0" role="log" aria-label="Conversation history">
-        <div class="conversation-empty" id="conversation-empty">
-          <h2>Your voice is the work surface</h2>
-          <p>Talk naturally. Brutus will judge the work and answer with one useful next move.</p>
-          <button type="button" data-start-voice>Start talking</button>
-        </div>
-      </div>
-      <button type="button" id="to-latest" class="to-latest" hidden>New messages ↓</button>
-    </div>
-    <form class="composer" id="composer">
-      <label class="sr-only" for="say">Message</label>
-      <textarea id="say" rows="1" placeholder="Message or capture — type when voice is not convenient…" autocomplete="off"
-                aria-describedby="composer-hint"></textarea>
-      <p id="composer-hint" class="sr-only">Press Enter to send, Shift and Enter for a new line.</p>
-      <button type="submit" id="send" class="primary">Send</button>
-    </form>
-    </details>
     <details class="alexis-improve" id="alexis-improve">
       <summary>Help Alexis improve</summary>
       <p>Choose a reply and tell Alexis what worked or what to do differently. Feedback joins her shared improvement record.</p>
@@ -127,6 +126,8 @@
     </section>
 
     <details class="alexis-work-context"><summary>Discuss current work</summary>
+    <button type="button" id="voice-enroll" aria-label="Enroll your voice">Voice enrollment</button>
+
     <section class="spoken-claim" data-testid="spoken-claim" aria-label="What needs you">
       <div class="claim-heading">
         <span class="claim-kicker" id="claim-kicker">Needs you</span>

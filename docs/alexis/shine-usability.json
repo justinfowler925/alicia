@@ -81,6 +81,47 @@
           "selector": "#say"
         }
       ]
+    },
+    {
+      "id": "visible-transcript",
+      "userJob": "Read the conversation and type without expanding any section",
+      "steps": [
+        {
+          "action": "visible",
+          "selector": "#conversation"
+        },
+        {
+          "action": "visible",
+          "selector": "#say"
+        },
+        {
+          "action": "click",
+          "selector": "#alexis-type"
+        },
+        {
+          "action": "focused",
+          "selector": "#say"
+        }
+      ]
+    },
+    {
+      "id": "video-controls",
+      "userJob": "End the call while keeping the transcript available",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "#alexis-end"
+        },
+        {
+          "action": "text",
+          "selector": "#alexis-status",
+          "value": "Conversation ended \u00b7 microphone off"
+        },
+        {
+          "action": "visible",
+          "selector": "#conversation"
+        }
+      ]
     }
   ]
 }

@@ -516,15 +516,12 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
 
     @app.get("/", response_class=HTMLResponse)
     async def home() -> HTMLResponse:
-        """The one Brutus surface.
+        """Alexis is the conversation-first home workspace."""
+        return HTMLResponse((_STATIC / "alexis.html").read_text(), headers=_NO_STORE)
 
-        `/` used to serve a second document with its own nav, its own numbers
-        and its own chat dock, while the conversation lived at /session and a
-        third voice UI lived at /mobile. Three surfaces answering "what needs
-        me now" get neither adoption nor trust — people quote whichever one
-        they opened last, and on one screen the three disagreed by four
-        different project counts.
-        """
+    @app.get("/brutus", response_class=HTMLResponse)
+    async def brutus_page() -> HTMLResponse:
+        """Keep the original Brutus workspace available as its own tab."""
         return HTMLResponse((_STATIC / "session.html").read_text(), headers=_NO_STORE)
 
     @app.get("/console", response_class=HTMLResponse)
@@ -1711,7 +1708,7 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         overrides: dict[str, Any] = {
             "agent": {
                 "prompt": {"prompt": prompt},
-                "firstMessage": "I'm Brutus. What needs you?",
+                "firstMessage": "",
             },
             "tts": {"voiceId": voice_id},
         }

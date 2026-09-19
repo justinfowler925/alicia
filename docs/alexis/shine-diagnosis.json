@@ -1,7 +1,7 @@
 {
   "version": 1,
   "category": "media",
-  "primaryTask": "Use a dedicated Alexis conversation page while preserving Brutus home and adding Atlas navigation",
+  "primaryTask": "Open Alexis first and converse through an always-visible transcript and composer, with reliable voice and video",
   "productPrecedent": {
     "name": "Brutus voice stage",
     "reference": "brutus/static/session.html",
@@ -11,33 +11,43 @@
     ]
   },
   "before": {
-    "artifact": "brutus/static/session.html",
-    "screenshot": "/tmp/brutus-alexis-before.png"
+    "artifact": "brutus/static/alexis.html",
+    "screenshot": "/tmp/brutus-alexis-final.png"
   },
   "defects": [
     {
-      "id": "missing-presenter",
-      "bucket": "completeness",
-      "severity": "major",
-      "problem": "No dedicated Alexis conversation page or presenter exists",
-      "evidence": "Rendered homepage and session.html contain no presenter image or video",
+      "id": "hidden-transcript",
+      "bucket": "usability",
+      "severity": "critical",
+      "problem": "Transcript and composer hidden under closed details, below an oversized portrait",
+      "evidence": "User report and alexis.html closed conversation-details element",
       "assertions": [
-        "presenter-visible",
-        "frame-ratio"
+        "flow:visible-transcript"
       ],
-      "expectedEffect": "A visible responsive avatar frame with conversation controls on the separate Alexis page"
+      "expectedEffect": "Transcript always visible next to video and call controls"
     },
     {
-      "id": "missing-feedback",
+      "id": "call-startup",
       "bucket": "completeness",
-      "severity": "major",
-      "problem": "Conversation corrections have no explicit quality feedback capture tied to an answered turn",
-      "evidence": "Homepage has Correct intent but no conversation, organization, or presentation rating workflow",
+      "severity": "critical",
+      "problem": "Mic waits for avatar; output mute also mutes mic; greeting has independent identity; video autoplay lacks recovery",
+      "evidence": "session.js startVoice/startConvAI/mute and alexis.js startup",
       "assertions": [
-        "flow:feedback-empty"
+        "flow:video-controls"
       ],
-      "expectedEffect": "A user can attach specific quality feedback to a completed shared-brain turn"
+      "expectedEffect": "Independent mic/video startup, explicit errors, one audible voice"
+    },
+    {
+      "id": "wrong-home",
+      "bucket": "adoption",
+      "severity": "major",
+      "problem": "Alexis requires leaving the default home and the portrait takes precedence over chat",
+      "evidence": "User explicitly requested Alexis as the first page with chat as the primary workspace",
+      "assertions": [
+        "flow:visible-transcript"
+      ],
+      "expectedEffect": "Alexis at /, then Brutus and Atlas tabs; transcript and composer take the primary space"
     }
   ],
-  "job": "Use a dedicated Alexis conversation page while preserving Brutus home and adding Atlas navigation"
+  "job": "Open Alexis first and converse through an always-visible transcript and composer, with reliable voice and video"
 }

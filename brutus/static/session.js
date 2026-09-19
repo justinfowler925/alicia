@@ -259,8 +259,8 @@ async function hydrate(sessionId) {
   const snap = await fetch(`/api/session/${sessionId}`).then((r) => r.json());
   $("#conversation").innerHTML = "";
   state.seenTurns.clear();
-  $("#intent-readback").textContent = "Start voice or give Brutus a direction.";
-  $("#readback-label").textContent = "Brutus · ready";
+  $("#intent-readback").textContent = window.alexis ? "Talk with Alexis or type a message." : "Start voice or give Brutus a direction.";
+  $("#readback-label").textContent = window.alexis ? "Alexis · ready" : "Brutus · ready";
   state.fields.clear();
   (snap.turns || []).forEach((t) => renderTurn(t, { animate: false }));
   restoreThinking(snap.turns || []);
@@ -278,9 +278,9 @@ function renderConversationEmpty() {
   empty.className = "conversation-empty";
   empty.id = "conversation-empty";
   const title = document.createElement("h2");
-  title.textContent = "Your voice is the work surface";
+  title.textContent = window.alexis ? "Your conversation appears here" : "Your voice is the work surface";
   const body = document.createElement("p");
-  body.textContent = "Talk naturally. Brutus will judge the work and answer with one useful next move.";
+  body.textContent = window.alexis ? "Your words and Alexis’s replies stay visible as you talk." : "Talk naturally. Brutus will judge the work and answer with one useful next move.";
   const action = document.createElement("button");
   action.type = "button";
   action.dataset.startVoice = "";
@@ -830,10 +830,20 @@ async function startVoice() {
   state.voiceStartAbort = controller;
   setVoicePhase("buffering", "Connecting voice…");
   try {
-    await window.alexis?.start(state.sessionId, controller.signal);
+    if (window.alexis) {
+      // Unlock playback from the click, and ask for mic permission before network work.
+      window.alexis.unlock();
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone access requires localhost or HTTPS.');
+      const permission = await navigator.mediaDevices.getUserMedia({audio: audioCaptureDefaults});
+      permission.getTracks().forEach(track => track.stop());
+      if (controller.signal.aborted) return;
+      // Video connection must never hold the microphone hostage.
+      void window.alexis.start(state.sessionId, controller.signal);
+    }
     if (controller.signal.aborted) return;
     const convaiOk = await startConvAI(controller.signal);
     if (convaiOk) return;
+    if (window.alexis && !controller.signal.aborted) throw new Error("Voice connection unavailable. Retry Talk with Alexis.");
     if (controller.signal.aborted) return;
 
     const response = await fetch(`/api/session/${state.sessionId}/voice-token`, {
@@ -902,6 +912,14 @@ async function startVoice() {
     await teardownConvAI();
     await teardownLiveKit();
     state.voiceTransport = null;
+    if (window.alexis) {
+      controller.abort();
+      await window.alexis.stop();
+      const detail = err.name === "NotAllowedError" ? "Microphone blocked. Allow microphone access for this page, then press Talk with Alexis." :
+        err.name === "NotFoundError" ? "No microphone found. Connect or select a microphone, then retry." :
+        err.name === "NotReadableError" ? "Microphone could not open. Check your browser and system microphone settings." : err.message;
+      return setVoicePhase("error", detail);
+    }
     // Once owner-only voice is enabled, browser recognition is an unauthenticated
     // bypass. It must fail closed instead of quietly changing transports.
     const enrolled = await fetch("/api/voice-enrollment").then((r) => r.ok ? r.json() : {}).catch(() => ({}));
@@ -1178,6 +1196,7 @@ async function startConvAI(signal) {
       signedUrl: grant.signedUrl,
       connectionType: "websocket",
       overrides: grant.overrides || {},
+      onConversationCreated: session => { if (productOwned) session.setVolume({volume: 0}); },
       ...(grant.voiceId ? { voiceId: grant.voiceId } : {}),
       ...(grant.customLlmExtraBody ? { customLlmExtraBody: grant.customLlmExtraBody } : {}),
       clientTools: {
@@ -1186,8 +1205,9 @@ async function startConvAI(signal) {
           if (!text) return "Nothing to ask.";
           // Product-owned turns already answered this utterance — return cache
           // so a late tool call cannot invent a second answer.
-          if (productOwned && state.lastBrainSpoken && state.lastUserUtterance === text) {
-            return state.lastBrainSpoken;
+          if (productOwned) {
+            return state.lastUserUtterance === text && state.lastBrainSpoken
+              ? state.lastBrainSpoken : "The product is handling this turn. Stay silent.";
           }
           const spoken = await runProductBrain(text);
           return spoken;
@@ -1265,7 +1285,7 @@ async function startConvAI(signal) {
       // Mute EL agent TTS always in product-owned mode.
       conversation.setVolume({ volume: productOwned ? 0 : 1 });
     }
-    if (state.muted && typeof conversation.setMicMuted === "function") {
+    if (!window.alexis && state.muted && typeof conversation.setMicMuted === "function") {
       conversation.setMicMuted(true);
     }
     setVoicePhase(
@@ -1277,6 +1297,7 @@ async function startConvAI(signal) {
     clearTimeout(watchdog);
     if (err && err.name === "AbortError") return false;
     console.warn("ConvAI unavailable", err);
+    if (window.alexis) throw err;
     return false;
   }
 }
@@ -1892,7 +1913,7 @@ function init() {
   window.alexis?.bind({
     session: () => state.sessionId,
     end: teardownVoice,
-    type: () => { $("#conversation-details").open = true; $("#say").focus(); },
+    type: () => { $("#say").focus(); },
   });
 
   $("#mute").addEventListener("click", (e) => {
@@ -1902,7 +1923,7 @@ function init() {
       element.muted = state.muted;
       if (!state.muted) void element.play().catch(() => {});
     }
-    if (state.convai && typeof state.convai.setMicMuted === "function") {
+    if (!window.alexis && state.convai && typeof state.convai.setMicMuted === "function") {
       state.convai.setMicMuted(state.muted);
     }
     e.currentTarget.setAttribute("aria-pressed", String(state.muted));
@@ -1918,6 +1939,7 @@ function init() {
 
   $("#composer").addEventListener("submit", (e) => {
     e.preventDefault();
+    window.alexis?.unlock();
     const box = $("#say");
     const text = box.value;
     box.value = "";

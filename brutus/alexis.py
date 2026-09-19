@@ -66,6 +66,16 @@ async def avatar_token(session_id: str, request: Request):
             token = response.json().get("sessionToken")
             if not isinstance(token, str) or not token:
                 raise ValueError("Missing session token")
+    except httpx.HTTPStatusError as exc:
+        messages = {
+            401: "Anam rejected the configured API credential.",
+            402: "Anam rejected the session for billing or available-credit reasons.",
+            403: "Anam denied this account access to the requested avatar session.",
+            429: "Anam session or rate limit reached. End another avatar call and retry.",
+        }
+        raise HTTPException(503, messages.get(
+            exc.response.status_code, "Anam could not provision the video session. Retry shortly."
+        )) from exc
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(502, "Alexis video could not connect. Retry or use voice only.") from exc
     from fastapi.responses import JSONResponse
