@@ -52,6 +52,24 @@
       "referenceRole": "transcript",
       "purpose": "Ask a typed question",
       "appearsIn": "feedback-empty"
+    },
+    {
+      "id": "transcript",
+      "selector": "#conversation",
+      "referenceRole": "transcript",
+      "purpose": "Read every conversational turn without expanding a panel"
+    },
+    {
+      "id": "end-call",
+      "selector": "#alexis-end",
+      "referenceRole": "playback controls",
+      "purpose": "End voice and video"
+    },
+    {
+      "id": "video-status",
+      "selector": "#alexis-status",
+      "referenceRole": "caption",
+      "purpose": "Understand video connection and end state"
     }
   ],
   "flows": [
