@@ -187,3 +187,23 @@ def test_new_direction_supersedes_slow_reply_without_late_overwrite(setup):
         finally:
             release.set()
         assert old.result().json()["status"] == "cancelled"
+
+
+def test_explicit_stop_is_surface_scoped_and_prevents_late_reply(setup):
+    client, brain, _calls = setup
+    entered, release = Event(), Event()
+    def slow(*_):
+        entered.set()
+        assert release.wait(5)
+        return "This answer must not land"
+    brain.model = slow
+    with ThreadPoolExecutor() as pool:
+        pending = pool.submit(post, client)
+        assert entered.wait(5)
+        try:
+            assert client.post("/v1/sessions/one/cancel", headers=headers("other-secret")).json()["cancelled"] == 0
+            assert client.post("/v1/sessions/one/cancel", headers=headers("other-user")).json()["cancelled"] == 0
+            assert client.post("/v1/sessions/one/cancel", headers=headers()).json()["cancelled"] == 1
+        finally:
+            release.set()
+        assert pending.result().json()["status"] == "cancelled"

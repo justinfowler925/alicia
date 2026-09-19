@@ -152,6 +152,7 @@ class ConversationManager:
         read_only: bool = True,
         wait: bool = False,
         owner_verified: bool | None = None,
+        display_message: str | None = None,
     ) -> TurnResult:
         """Take one user turn and answer it. Voice and text land here identically.
 
@@ -192,7 +193,7 @@ class ConversationManager:
         # Durable outbox before the model runs — restart-safe user words.
         outbox = resilience.enqueue_say(session_id, message, channel)
 
-        turn = self.store.append_turn(session_id, "user", message, channel=channel)
+        turn = self.store.append_turn(session_id, "user", display_message if display_message is not None else message, channel=channel)
         self.emit("turn", {"session_id": session_id, "turn": turn.as_dict()})
 
         # A pending proposal owns the next turn. Answering it is not a new
@@ -539,12 +540,20 @@ class ConversationManager:
         )
         return _flatten(reply), meta
 
+    def cancel_reply(self, session_id: str) -> None:
+        """Suppress delivery of an interrupted in-flight answer."""
+        self._brain_generation[session_id] = self._brain_generation.get(session_id, 0) + 1
+
     def _brain_now(
         self, session_id: str, message: str, turn_id: int, *, channel: str
     ) -> TurnResult:
         """Inline brain turn — the Ear speaks the return value, so it waits."""
+        self.cancel_reply(session_id)
+        generation = self._brain_generation[session_id]
         self.emit("thinking", {"session_id": session_id, "question": message, "turn_id": turn_id})
         reply, meta = self._run_brain(session_id, message, turn_id, channel)
+        if generation != self._brain_generation.get(session_id):
+            return TurnResult(session_id, "fast", "", "", turn_id)
         return self._land_brain(session_id, reply, meta, turn_id)
 
     def _start_brain(

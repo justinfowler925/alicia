@@ -41,12 +41,6 @@
       "appearsIn": "feedback-empty"
     },
     {
-      "id": "type",
-      "selector": "#alexis-type",
-      "referenceRole": "playback controls",
-      "purpose": "Choose text input"
-    },
-    {
       "id": "message",
       "selector": "#say",
       "referenceRole": "transcript",
@@ -92,7 +86,7 @@
         },
         {
           "action": "click",
-          "selector": "#alexis-type"
+          "selector": "#say"
         },
         {
           "action": "focused",
@@ -114,7 +108,7 @@
         },
         {
           "action": "click",
-          "selector": "#alexis-type"
+          "selector": "#say"
         },
         {
           "action": "focused",

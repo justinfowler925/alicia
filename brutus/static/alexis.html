@@ -34,31 +34,33 @@
 
   <section class="panel voice-stage" data-testid="voice-stage" aria-label="Live conversation">
     <section class="alexis-transcript" id="conversation-details" aria-label="Live transcript">
-      <h2>Live transcript</h2>
+      <h2>Conversation</h2>
     <div class="conversation-wrap">
       <div class="scroll" id="conversation" tabindex="0" role="log" aria-label="Conversation history">
         <div class="conversation-empty" id="conversation-empty">
-          <h2>Your conversation appears here</h2>
-          <p>Your words and Alexis’s replies stay visible as you talk.</p>
-          <button type="button" data-start-voice>Start talking</button>
+          <p>Send a message or start a call.</p>
         </div>
       </div>
       <button type="button" id="to-latest" class="to-latest" hidden>New messages ↓</button>
     </div>
     <form class="composer" id="composer">
-      <label class="sr-only" for="say">Message</label>
-      <textarea id="say" rows="1" placeholder="Message Alexis…" autocomplete="off"
-                aria-describedby="composer-hint"></textarea>
-      <p id="composer-hint" class="sr-only">Press Enter to send, Shift and Enter for a new line.</p>
-      <button type="submit" id="send" class="primary">Send</button>
+      <input type="file" id="alexis-files" accept="text/*,.md,.csv,.json,.log,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.xml,.sql" multiple hidden>
+      <button type="button" id="alexis-attach" aria-label="Attach file" title="Attach a text file"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9"/><path d="m8 12-2 2a2 2 0 0 0 3 3l8-8"/></svg></button>
+      <label class="sr-only" for="say">Message Alexis</label>
+      <input type="text" id="say" placeholder="Message Alexis…" autocomplete="off" aria-describedby="composer-hint">
+      <span id="composer-hint" class="sr-only">Attach text files. Press Enter to send. Stop interrupts the current reply.</span>
+      <button type="submit" id="send" class="primary" aria-label="Send message">Send</button>
     </form>
+    <div id="alexis-attachments" aria-label="Attached files"></div>
+    <p id="alexis-composer-status" role="status"></p>
     </section>
     <figure class="alexis-presenter" data-cite="shadcn-broadcast" data-product-pattern="brutus-voice-stage">
       <div class="alexis-frame" id="alexis-frame">
         <img id="alexis-portrait" src="/static/alexis.jpg" alt="Alexis, your AI collaborator" width="1024" height="1024">
         <video id="alexis-video" playsinline autoplay muted hidden aria-label="Alexis live avatar"></video>
       </div>
-      <figcaption id="alexis-caption"><strong>Alexis</strong><span id="alexis-status" role="status">Your AI collaborator · ready to talk</span></figcaption>
+      <figcaption id="alexis-caption"><span id="alexis-status" role="status">Ready to talk</span></figcaption>
+      <div class="alexis-session-summary"><span id="supervisor-count" class="count">Checking sessions…</span><button type="button" id="alexis-sessions">View sessions</button></div>
     </figure>
     <header class="voice-stage-head">
       <div class="voice-presence" aria-live="polite">
@@ -83,7 +85,7 @@
       <button type="button" id="alexis-video-retry" hidden>Reconnect video</button>
       <label><input id="alexis-live" type="checkbox" checked> Live avatar</label>
       <button type="button" id="alexis-end">End conversation</button>
-      <button type="button" id="alexis-type">Type instead</button>
+      <button type="button" id="alexis-type" hidden>Type instead</button>
     </div>
     <details class="alexis-improve" id="alexis-improve">
       <summary>Help Alexis improve</summary>
@@ -139,7 +141,7 @@
 
     <section class="panel attention-block" data-testid="supervisor-guidance" aria-label="Attention">
       <header class="attention-head">
-        <h2>Attention <span class="count" id="supervisor-count"></span></h2>
+        <h2>Sessions</h2>
         <div class="attention-controls">
           <button type="button" id="supervisor-refresh">Check now</button>
           <button type="button" id="sessions-mode" aria-pressed="false">Show all sessions</button>

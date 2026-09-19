@@ -52,7 +52,7 @@ const fs = require('node:fs');
     await page.locator('#alexis-portrait').waitFor();
     assert(await page.locator('#conversation').isVisible(), 'Transcript visible before any interaction');
     assert(await page.locator('#say').isVisible(), 'Composer visible before any interaction');
-    await page.getByRole('button',{name:'Type instead'}).click();
+    await page.locator('#say').click();
     assert.equal(await page.locator('#say').evaluate(e=>e===document.activeElement),true);
     await page.locator('#alexis-improve summary').click();
     await page.waitForFunction(()=>!document.querySelector('#alexis-feedback-status').textContent.startsWith('No feedback'));

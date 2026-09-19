@@ -111,3 +111,24 @@ in `scripts/verify-alexis-recovery.cjs` covers denied microphone permission,
 video failure independent of the microphone, output-only muting, and duplicate
 tool prevention with a stubbed transport. Physical microphone and speaker
 behavior in the user's browser remains a separate live check.
+
+## Primary workspace and composer
+
+Alexis occupies the main left column with the existing supervisor session
+counts directly below her. Conversation remains visible on the right. The
+readback and thinking mirrors are suppressed on this page; replies appear
+once in the transcript.
+
+The composer uses a single-line input, attachment control on the left, and
+one Send/Stop control on the right. Attachments currently accept readable
+text, Markdown, CSV, JSON and source-code files (five files, 25,000 characters
+per file, 50,000 combined). Binary documents, PDFs, and images are explicitly
+rejected rather than silently ignored. Selected file contents reach the shared
+brain; the displayed user turn shows filenames instead of duplicating file
+contents. Stop interrupts playback and cancels delivery of the current
+central turn. An already-running model request may finish in the provider.
+
+`verify-alexis-composer.cjs` checks attachment submission, stop behavior,
+left-column placement, counter visibility and responsive single-line controls
+using stubbed request responses. Central cancellation isolation and prevention
+of late answers are covered by the shared-brain tests.

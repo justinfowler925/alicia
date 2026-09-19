@@ -1,7 +1,7 @@
 {
   "version": 1,
   "category": "media",
-  "primaryTask": "Open Alexis first and converse through an always-visible transcript and composer, with reliable voice and video",
+  "primaryTask": "Alexis on the primary left, a single-line attachment/send-stop composer, and one copy of status and session counters",
   "productPrecedent": {
     "name": "Brutus voice stage",
     "reference": "brutus/static/session.html",
@@ -16,37 +16,15 @@
   },
   "defects": [
     {
-      "id": "hidden-transcript",
+      "id": "layout-cleanup",
       "bucket": "usability",
-      "severity": "critical",
-      "problem": "Transcript and composer hidden under closed details, below an oversized portrait",
-      "evidence": "User report and alexis.html closed conversation-details element",
-      "assertions": [
-        "flow:visible-transcript"
-      ],
-      "expectedEffect": "Transcript always visible next to video and call controls"
-    },
-    {
-      "id": "call-startup",
-      "bucket": "completeness",
-      "severity": "critical",
-      "problem": "Mic waits for avatar; output mute also mutes mic; greeting has independent identity; video autoplay lacks recovery",
-      "evidence": "session.js startVoice/startConvAI/mute and alexis.js startup",
-      "assertions": [
-        "flow:video-controls"
-      ],
-      "expectedEffect": "Independent mic/video startup, explicit errors, one audible voice"
-    },
-    {
-      "id": "wrong-home",
-      "bucket": "adoption",
       "severity": "major",
-      "problem": "Alexis requires leaving the default home and the portrait takes precedence over chat",
-      "evidence": "User explicitly requested Alexis as the first page with chat as the primary workspace",
+      "problem": "Alexis is on the right, composer lacks attachments and stop, and duplicate readback/status blocks clutter the page",
+      "evidence": "User correction and current rendered home",
       "assertions": [
         "flow:visible-transcript"
       ],
-      "expectedEffect": "Alexis at /, then Brutus and Atlas tabs; transcript and composer take the primary space"
+      "expectedEffect": "Alexis on the primary left, a single-line attachment/send-stop composer, and one copy of status and session counters"
     }
   ],
   "job": "Open Alexis first and converse through an always-visible transcript and composer, with reliable voice and video"

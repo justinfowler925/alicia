@@ -303,6 +303,13 @@ def create_app(path=None, tokens=None, model=None):
                        (identity["principal"], body.key, body.value, time.time()))
         return {"ok": True}
 
+    @app.post("/v1/sessions/{session_id}/cancel")
+    def cancel_session_turn(session_id: str, identity=authenticated):
+        with brain.lock, brain.db() as db:
+            result = db.execute("UPDATE turns SET status='cancelled',updated=? WHERE principal=? AND surface=? AND session_id=? AND status IN ('running','tool')",
+                                (time.time(), identity["principal"], identity["surface"], session_id))
+        return {"ok": True, "cancelled": result.rowcount}
+
     @app.post("/v1/feedback")
     def feedback(body: FeedbackInput, identity=authenticated):
         row = brain.row(identity["principal"], body.turn_id)

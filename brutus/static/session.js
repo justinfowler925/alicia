@@ -277,8 +277,15 @@ function renderConversationEmpty() {
   const empty = document.createElement("div");
   empty.className = "conversation-empty";
   empty.id = "conversation-empty";
+  if (window.alexis) {
+    const hint = document.createElement("p");
+    hint.textContent = "Send a message or start a call.";
+    empty.append(hint);
+    $("#conversation").append(empty);
+    return;
+  }
   const title = document.createElement("h2");
-  title.textContent = window.alexis ? "Your conversation appears here" : "Your voice is the work surface";
+  title.textContent = "Your voice is the work surface";
   const body = document.createElement("p");
   body.textContent = window.alexis ? "Your words and Alexis’s replies stay visible as you talk." : "Talk naturally. Brutus will judge the work and answer with one useful next move.";
   const action = document.createElement("button");
@@ -683,26 +690,28 @@ async function settleProposal(artifactId, decision, row) {
 
 /* --- saying things ------------------------------------------------------ */
 
-async function say(message, channel) {
+async function say(message, channel, attachments = []) {
   const text = (message || "").trim();
-  if (!text || !state.sessionId) return;
+  if ((!text && !attachments.length) || !state.sessionId) return;
   clearInterim();
   state.sayAbort?.abort();
   const controller = new AbortController();
   state.sayAbort = controller;
   if (channel === "voice") setVoicePhase("thinking");
-  $("#send").disabled = true;
+  if (window.alexis) window.alexis.busy(true);
+  else $("#send").disabled = true;
   try {
     const r = await fetch(`/api/session/${state.sessionId}/say`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ message: text, channel }),
+      body: JSON.stringify({ message: text, channel, ...(window.alexis ? {attachments, wait: true} : {}) }),
       signal: controller.signal,
     });
     // A non-2xx used to sail straight through as success: the box had already been
     // cleared by the submit handler, so the message simply vanished with no reply
     // and no error. Only a network throw was ever caught.
     if (!r.ok) throw new Error(`server said ${r.status}`);
+    window.alexis?.clearAttachments();
   } catch (err) {
     if (err.name === "AbortError") return;
     setStatus(`Couldn't send that — ${err.message}. Your text is back in the box.`);
@@ -715,14 +724,15 @@ async function say(message, channel) {
     }
   } finally {
     if (state.sayAbort === controller) state.sayAbort = null;
-    $("#send").disabled = false;
+    if (window.alexis) window.alexis.busy(false);
+    else $("#send").disabled = false;
   }
 }
 
 /* rows="1" with a max-height and no resize logic meant a long message scrolled
    inside a one-line box while the allowed height went unused. */
 function autoGrow(box) {
-  if (!box) return;
+  if (!box || box.tagName === "INPUT") return;
   box.style.height = "auto";
   box.style.height = `${box.scrollHeight}px`;
 }
@@ -1107,6 +1117,7 @@ function isWeakBrainReply(spoken, error) {
 }
 
 async function runProductBrain(text) {
+  const epoch = state.replyEpoch || 0;
   const attempts = 3;
   const gapMs = 2500;
   let last = "";
@@ -1114,6 +1125,7 @@ async function runProductBrain(text) {
   setVoicePhase("thinking", "Thinking — taking the time to get this right.");
   try {
     for (let i = 1; i <= attempts; i += 1) {
+      if (epoch !== (state.replyEpoch || 0)) return "";
       if (i > 1) {
         setVoicePhase(
           "thinking",
@@ -1125,6 +1137,7 @@ async function runProductBrain(text) {
       }
       try {
         const controller = new AbortController();
+        state.voiceReplyAbort = controller;
         const kill = setTimeout(() => controller.abort(), 170000);
         const res = await fetch(`/api/session/${state.sessionId}/say`, {
           method: "POST",
@@ -1139,6 +1152,7 @@ async function runProductBrain(text) {
         });
         clearTimeout(kill);
         const data = await res.json();
+        if (epoch !== (state.replyEpoch || 0)) return "";
         const spoken = String(data.spoken || data.reply || "").trim();
         const err = String(data.error || "").trim();
         last = spoken || err;
@@ -1149,6 +1163,7 @@ async function runProductBrain(text) {
         state.lastBrainSpoken = spoken.slice(0, 1500);
         return spoken.slice(0, 1500);
       } catch (err) {
+        if (epoch !== (state.replyEpoch || 0)) return "";
         last = err && err.name === "AbortError"
           ? "That turn took too long."
           : `Brutus brain failed: ${(err && err.message) || "unknown"}`;
@@ -1384,6 +1399,7 @@ function bargeIn() {
 function setVoicePhase(phase, detail = "") {
   document.querySelector(".voice-shell")?.setAttribute("data-voice-phase", phase);
   state.voicePhase = phase;
+  window.alexis?.phase(phase);
   const btn = $("#mic");
   if (!btn) return;
   btn.dataset.voiceState = phase;
@@ -1885,6 +1901,7 @@ const setMicState = () =>
 
 function setStatus(text) {
   $("#status-line").textContent = text;
+  if (window.alexis && /couldn.t|failed|unavailable/i.test(text)) window.alexis.notice(text);
 }
 
 /* --- wiring ------------------------------------------------------------- */
@@ -1939,12 +1956,25 @@ function init() {
 
   $("#composer").addEventListener("submit", (e) => {
     e.preventDefault();
+    if (window.alexis?.isBusy()) {
+      state.replyEpoch = (state.replyEpoch || 0) + 1;
+      state.brainPending = false;
+      state.voiceReplyAbort?.abort();
+      state.sayAbort?.abort();
+      stopSpeaking();
+      window.alexis.busy(false);
+      void fetch(`/api/session/${state.sessionId}/stop`, {method:"POST"}).then(r => {
+        if (!r.ok) throw new Error();
+        window.alexis.notice("Stopped.");
+      }).catch(() => window.alexis.notice("Playback stopped; server cancellation could not be confirmed."));
+      return;
+    }
     window.alexis?.unlock();
     const box = $("#say");
     const text = box.value;
     box.value = "";
     autoGrow(box);
-    say(text, "text");
+    say(text, "text", window.alexis?.attachments() || []);
   });
 
   $("#say").addEventListener("input", (e) => autoGrow(e.currentTarget));

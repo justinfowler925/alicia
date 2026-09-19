@@ -81,3 +81,17 @@ def test_avatar_provisioning_failure_is_actionable_without_leaking_provider_body
     assert result.status_code == 503
     assert message in result.json()["detail"]
     assert "provider-private-detail" not in result.text
+
+
+def test_attachment_reaches_brain_but_transcript_gets_only_filename(client):
+    from unittest.mock import Mock
+    sid = client.post("/api/session/open", json={}).json()["session_id"]
+    manager = client.app.state.conversation
+    result = Mock()
+    result.as_dict.return_value = {"ok": True}
+    with patch.object(manager, "handle", return_value=result) as handle:
+        response = client.post(f"/api/session/{sid}/say", json={"message": "Review this", "attachments": [{"name": "notes.txt", "text": "The project code is Orchard."}]})
+    assert response.status_code == 200
+    assert "Orchard" in handle.call_args.args[1]
+    assert handle.call_args.kwargs["display_message"] == "Review this\n\nAttached: notes.txt"
+    assert client.post(f"/api/session/{sid}/say", json={"message":"Review", "attachments":[{"name":"large.txt", "text":"x"*25001}]}).status_code == 422

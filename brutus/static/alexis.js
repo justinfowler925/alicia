@@ -126,7 +126,51 @@ window.alexis = (() => {
       return true;
     } finally { await context.close(); }
   }
+  let pending = false, currentPhase = 'idle', files = [];
+  const notice = text => { node('alexis-composer-status').textContent = text; };
+  const isBusy = () => pending || ['thinking', 'buffering', 'speaking'].includes(currentPhase);
+  function updateComposer() {
+    const button = node('send'), stopping = isBusy();
+    button.disabled = false;
+    button.textContent = stopping ? 'Stop' : 'Send';
+    button.setAttribute('aria-label', stopping ? 'Stop reply' : 'Send message');
+    node('alexis-attach').disabled = pending;
+  }
+  function busy(value) { pending = value; updateComposer(); }
+  function phase(value) { currentPhase = value; updateComposer(); }
+  function renderAttachments() {
+    const host = node('alexis-attachments'); host.replaceChildren();
+    files.forEach((file, index) => {
+      const button = document.createElement('button'); button.type = 'button';
+      button.textContent = `${file.name} ×`; button.setAttribute('aria-label', `Remove ${file.name}`);
+      button.onclick = () => { files.splice(index, 1); renderAttachments(); };
+      host.append(button);
+    });
+  }
+  function clearAttachments() { files = []; renderAttachments(); }
   function bind({session, end, type}) {
+    node('alexis-sessions').onclick = () => { const panel = document.querySelector('.alexis-work-context'); panel.open = !panel.open; };
+    node('alexis-attach').onclick = () => node('alexis-files').click();
+    node('alexis-files').onchange = async event => {
+      notice('');
+      try {
+        const selected = Array.from(event.target.files);
+        if (files.length + selected.length > 5) throw new Error('Attach up to five files.');
+        const additions = [];
+        for (const file of selected) {
+          if (!/\.(txt|md|csv|json|log|py|js|ts|tsx|html|css|ya?ml|xml|sql)$/i.test(file.name) && !file.type.startsWith('text/')) {
+            throw new Error('Choose a text, Markdown, CSV, JSON, or source-code file. PDF and images are not supported yet.');
+          }
+          if (file.size > 100000) throw new Error(`${file.name} is too large. Use a file under 100 KB.`);
+          const text = await file.text();
+          if (!text.trim() || text.includes('\0') || text.length > 25000) throw new Error(`${file.name} must contain readable text under 25,000 characters.`);
+          additions.push({name:file.name, text});
+        }
+        if ([...files,...additions].reduce((total,file) => total + file.text.length, 0) > 50000) throw new Error('Attachments exceed 50,000 characters in total.');
+        files.push(...additions); renderAttachments();
+      } catch (error) { notice(error.message); }
+      event.target.value = '';
+    };
     node('alexis-end').onclick = () => { end(); status('Conversation ended · microphone off'); };
     node('alexis-video-retry').onclick = () => { unlock(); void start(session(), new AbortController().signal); };
     node('alexis-type').onclick = type;
@@ -156,5 +200,5 @@ window.alexis = (() => {
     };
     window.addEventListener('pagehide', end);
   }
-  return {start, stop, interrupt, play, bind, unlock};
+  return {start, stop, interrupt, play, bind, unlock, busy, phase, isBusy, notice, clearAttachments, attachments: () => files.map(file => ({...file}))};
 })();
