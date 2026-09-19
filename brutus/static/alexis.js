@@ -1,4 +1,15 @@
 /* Presentation adapter only. Transcript, tools and reasoning belong to the shared brain. */
+// Expose the server's actual release identity for browser verification.
+fetch('/version').then(response => response.ok ? response.json() : null).then(version => {
+  if (!version?.sha || !version?.deployed_at) return;
+  for (const [name, content] of Object.entries({
+    'shine-source-commit': version.sha,
+    'shine-build-id': `${version.sha}:${version.deployed_at}`,
+  })) {
+    const meta = document.createElement('meta'); meta.name = name; meta.content = content;
+    document.head.append(meta);
+  }
+}).catch(() => {});
 window.alexis = (() => {
   let client = null, generation = 0, audioStream = null, playback = 0;
   const node = id => document.getElementById(id);
