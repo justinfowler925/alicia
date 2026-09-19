@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "ready": "#alexis-frame",
+  "viewports": [
+    {
+      "width": 390,
+      "height": 900
+    },
+    {
+      "width": 768,
+      "height": 900
+    },
+    {
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "width": 1920,
+      "height": 900
+    }
+  ],
+  "content": [
+    {
+      "selector": "#alexis-status",
+      "text": "A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. "
+    }
+  ],
+  "media": [
+    {
+      "video": "#alexis-video",
+      "frame": "#alexis-frame",
+      "poster": "#alexis-portrait"
+    }
+  ],
+  "missingMedia": [
+    "#alexis-portrait"
+  ],
+  "checks": [
+    {
+      "id": "frame-ratio",
+      "type": "aspect-ratio",
+      "selector": "#alexis-frame",
+      "ratio": 1.5
+    },
+    {
+      "id": "page-overflow",
+      "type": "no-overflow",
+      "selector": "html"
+    },
+    {
+      "id": "presenter-visible",
+      "type": "visible",
+      "selector": "#alexis-frame"
+    },
+    {
+      "id": "talk-visible",
+      "type": "visible",
+      "selector": "#mic"
+    }
+  ]
+}

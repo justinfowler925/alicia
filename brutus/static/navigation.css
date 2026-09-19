@@ -1,0 +1,6 @@
+.product-tabs { display: flex; flex-wrap: wrap; gap: var(--shine-space-2); border-bottom: 1px solid var(--shine-color-border); margin-bottom: var(--shine-space-4); padding-bottom: var(--shine-space-2); }
+.product-tabs a { display: inline-flex; align-items: center; min-height: 44px; padding: var(--shine-space-2) var(--shine-space-4); border-radius: var(--shine-radius-sm); color: var(--shine-color-fg); text-decoration: none; font-size: var(--shine-text-base); }
+.product-tabs a[aria-current="page"] { background: var(--shine-color-surface); box-shadow: inset 0 -2px var(--shine-color-primary); }
+.product-tabs a:focus-visible { outline: 2px solid var(--shine-color-primary); outline-offset: 2px; }
+.atlas-shell { max-width: 1440px; margin: auto; padding: var(--shine-space-4); }
+.atlas-frame { width: 100%; height: 78vh; min-height: 420px; border: 1px solid var(--shine-color-border); border-radius: var(--shine-radius-md); background: var(--shine-color-bg); }

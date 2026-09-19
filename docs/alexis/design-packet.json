@@ -1,0 +1,1005 @@
+{
+  "version": 7,
+  "editing": {
+    "allowed": true,
+    "instruction": "Fix diagnosed defects in priority order; leave what the diagnosis did not name."
+  },
+  "implementationSelection": {
+    "version": 1,
+    "job": "Build a dedicated Alexis conversation page with Brutus and Atlas navigation while preserving Brutus home",
+    "pageExamples": [
+      {
+        "id": "report",
+        "name": "The report",
+        "category": "Dashboards",
+        "description": "A useful summary with a path to every source.",
+        "pattern": "report-page",
+        "eyebrow": "07 / REPORTING",
+        "color": "blue",
+        "source": "site/library-src/showcase.tsx",
+        "blocks": [
+          "report-page"
+        ],
+        "preview": "https://shine-blond.vercel.app/library?view=report",
+        "kind": "composed-example",
+        "component": "StudioReport",
+        "score": 3
+      },
+      {
+        "id": "editor",
+        "name": "The writing room",
+        "category": "Workspaces",
+        "description": "Give the idea a shape and keep a copy.",
+        "pattern": "form-panel",
+        "eyebrow": "18 / DOCUMENT EDITOR",
+        "color": "sand",
+        "source": "site/library-src/application-suite.tsx",
+        "blocks": [
+          "form-panel"
+        ],
+        "preview": "https://shine-blond.vercel.app/library?view=editor",
+        "kind": "composed-example",
+        "component": "EditorPage",
+        "score": 3
+      },
+      {
+        "id": "landing",
+        "name": "The welcome",
+        "category": "Marketing",
+        "description": "A thoughtful introduction to a better working day.",
+        "pattern": "application-nav",
+        "eyebrow": "20 / LANDING PAGE",
+        "color": "lilac",
+        "source": "site/library-src/public-suite.tsx",
+        "blocks": [],
+        "preview": "https://shine-blond.vercel.app/library?view=landing",
+        "kind": "composed-example",
+        "component": "Landing",
+        "score": 3
+      },
+      {
+        "id": "contact",
+        "name": "The conversation",
+        "category": "Marketing",
+        "description": "A question, an idea or a new beginning.",
+        "pattern": "form-panel",
+        "eyebrow": "22 / CONTACT",
+        "color": "sage",
+        "source": "site/library-src/public-suite.tsx",
+        "blocks": [
+          "form-panel"
+        ],
+        "preview": "https://shine-blond.vercel.app/library?view=contact",
+        "kind": "composed-example",
+        "component": "Contact",
+        "score": 3
+      },
+      {
+        "id": "signup",
+        "name": "The new account",
+        "category": "Account",
+        "description": "A warm welcome and a clear first step.",
+        "pattern": "form-panel",
+        "eyebrow": "24 / SIGN UP",
+        "color": "lilac",
+        "source": "site/library-src/public-suite.tsx",
+        "blocks": [
+          "form-panel"
+        ],
+        "preview": "https://shine-blond.vercel.app/library?view=signup",
+        "kind": "composed-example",
+        "component": "Auth",
+        "score": 3
+      }
+    ],
+    "exampleInstruction": "Page examples are compositions, not additional registry blocks. Inspect the example source, shared theme and imported blocks; preserve the consumer component system and connect real adapters.",
+    "project": "/Users/justinfowler/Projects/brutus",
+    "selected": null,
+    "candidates": [
+      {
+        "tier": "shine",
+        "pattern": "application-shell",
+        "score": 5,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/application-shell.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "application-nav",
+        "score": 4,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/application-nav.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "saved-views",
+        "score": 4,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/saved-views.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "data-grid",
+        "score": 3,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/data-grid.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "record-list-page",
+        "score": 3,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/record-list-page.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "record-detail-page",
+        "score": 3,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/record-detail-page.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "settings-page",
+        "score": 3,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/settings-page.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "report-page",
+        "score": 3,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/report-page.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "approval-page",
+        "score": 3,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/approval-page.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "multi-select",
+        "score": 3,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/multi-select.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "comment-thread",
+        "score": 3,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/comment-thread.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "dashboard-page",
+        "score": 3,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/dashboard-page.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "async-state",
+        "score": 2,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/async-state.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "record-editor",
+        "score": 2,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/record-editor.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "detail-sheet",
+        "score": 2,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/detail-sheet.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "workspace-tabs",
+        "score": 2,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/workspace-tabs.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "filter-bar",
+        "score": 2,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/filter-bar.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "file-upload",
+        "score": 2,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/file-upload.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "notification-center",
+        "score": 2,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/notification-center.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "calendar-agenda",
+        "score": 2,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/calendar-agenda.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "command-palette",
+        "score": 2,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/command-palette.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "activity-feed",
+        "score": 2,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/activity-feed.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "chart-panel",
+        "score": 2,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/chart-panel.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "server-data-grid",
+        "score": 2,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/server-data-grid.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "collection",
+        "score": 1,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/collection.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "date-range",
+        "score": 1,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/date-range.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "form-panel",
+        "score": 1,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/form-panel.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "form-wizard",
+        "score": 1,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/form-wizard.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "attachment-manager",
+        "score": 1,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/attachment-manager.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "permissions-panel",
+        "score": 1,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/permissions-panel.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "tier": "shine",
+        "pattern": "csv-import",
+        "score": 1,
+        "available": false,
+        "action": "install",
+        "registry": "https://shine-blond.vercel.app/r/csv-import.json",
+        "reason": "Finished workflow; adapt through the existing component system."
+      },
+      {
+        "id": "shadcn-navigation-menu",
+        "provider": "shadcn",
+        "capabilities": [
+          "navigation",
+          "menu"
+        ],
+        "kits": [
+          "shadcn"
+        ],
+        "access": "open-source",
+        "license": "MIT",
+        "source": "https://ui.shadcn.com/docs/components/radix/navigation-menu",
+        "registryItem": "navigation-menu",
+        "tier": "upstream",
+        "score": 2,
+        "available": false,
+        "action": "inspect-and-install",
+        "reason": "Use upstream controls to fill a specific missing workflow region."
+      },
+      {
+        "id": "shadcn-sidebar",
+        "provider": "shadcn",
+        "capabilities": [
+          "sidebar"
+        ],
+        "kits": [
+          "shadcn"
+        ],
+        "access": "open-source",
+        "license": "MIT",
+        "source": "https://ui.shadcn.com/docs/components/radix/sidebar",
+        "registryItem": "sidebar",
+        "tier": "upstream",
+        "score": 2,
+        "available": false,
+        "action": "inspect-and-install",
+        "reason": "Use upstream controls to fill a specific missing workflow region."
+      },
+      {
+        "id": "tailwind-plus-application",
+        "provider": "Tailwind Plus",
+        "capabilities": [
+          "application",
+          "sidebar",
+          "navigation",
+          "form",
+          "table",
+          "dashboard"
+        ],
+        "kits": [
+          "shadcn"
+        ],
+        "access": "licensed",
+        "source": "https://tailwindcss.com/plus/ui-blocks/application-ui",
+        "tier": "upstream",
+        "score": 2,
+        "available": false,
+        "action": "requires-authorized-source",
+        "reason": "Licensed source is not included in Shine; supply an authorized local source. Do not redistribute it."
+      }
+    ],
+    "customWork": {
+      "allowed": true,
+      "reason": "No available implementation matched. Record the missing capability before building."
+    },
+    "installedPackages": [],
+    "instruction": "Inspect the selected source and its real API before importing. Product components take precedence; a reference is not an installable implementation."
+  },
+  "surfaceAudit": {
+    "contract": "shine-surfaces.json",
+    "census": "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/integrations/surface-audit.mjs --project \"/Users/justinfowler/Projects/brutus\"",
+    "instruction": "Whole-site audits must classify every discovered route and control owner, declare workflow states, execute them against the current build, and pass the generated receipt to completion with --surface-contract and --surface-receipt. Ready-state smoke checks do not prove other workflows."
+  },
+  "upgrades": {
+    "track": "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/integrations/upgrade.mjs --project \"/Users/justinfowler/Projects/brutus\" --track <block> --path <installed-source>",
+    "check": "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/integrations/upgrade.mjs --project \"/Users/justinfowler/Projects/brutus\"",
+    "instruction": "Track the installed baseline, review three-way changes, and apply only conflict-free compatible upgrades."
+  },
+  "library": {
+    "references": {
+      "total": 216,
+      "pages": 73,
+      "components": 143,
+      "retired": 3
+    },
+    "implementations": {
+      "blocks": 26,
+      "pages": 6,
+      "total": 32
+    },
+    "patterns": [
+      {
+        "id": "async-state",
+        "kind": "block",
+        "title": "Async state",
+        "registry": "https://shine-blond.vercel.app/r/async-state.json"
+      },
+      {
+        "id": "collection",
+        "kind": "block",
+        "title": "Collection disclosure",
+        "registry": "https://shine-blond.vercel.app/r/collection.json"
+      },
+      {
+        "id": "data-grid",
+        "kind": "block",
+        "title": "Record data grid",
+        "registry": "https://shine-blond.vercel.app/r/data-grid.json"
+      },
+      {
+        "id": "record-editor",
+        "kind": "block",
+        "title": "Record editor",
+        "registry": "https://shine-blond.vercel.app/r/record-editor.json"
+      },
+      {
+        "id": "detail-sheet",
+        "kind": "block",
+        "title": "Record detail sheet",
+        "registry": "https://shine-blond.vercel.app/r/detail-sheet.json"
+      },
+      {
+        "id": "workspace-tabs",
+        "kind": "block",
+        "title": "Tabbed workspace",
+        "registry": "https://shine-blond.vercel.app/r/workspace-tabs.json"
+      },
+      {
+        "id": "application-nav",
+        "kind": "block",
+        "title": "Application navigation",
+        "registry": "https://shine-blond.vercel.app/r/application-nav.json"
+      },
+      {
+        "id": "filter-bar",
+        "kind": "block",
+        "title": "Search and filter bar",
+        "registry": "https://shine-blond.vercel.app/r/filter-bar.json"
+      },
+      {
+        "id": "date-range",
+        "kind": "block",
+        "title": "Date range",
+        "registry": "https://shine-blond.vercel.app/r/date-range.json"
+      },
+      {
+        "id": "form-panel",
+        "kind": "block",
+        "title": "Validated form panel",
+        "registry": "https://shine-blond.vercel.app/r/form-panel.json"
+      },
+      {
+        "id": "file-upload",
+        "kind": "block",
+        "title": "File upload",
+        "registry": "https://shine-blond.vercel.app/r/file-upload.json"
+      },
+      {
+        "id": "notification-center",
+        "kind": "block",
+        "title": "Notification center",
+        "registry": "https://shine-blond.vercel.app/r/notification-center.json"
+      },
+      {
+        "id": "calendar-agenda",
+        "kind": "block",
+        "title": "Calendar agenda",
+        "registry": "https://shine-blond.vercel.app/r/calendar-agenda.json"
+      },
+      {
+        "id": "kanban-board",
+        "kind": "block",
+        "title": "Kanban board",
+        "registry": "https://shine-blond.vercel.app/r/kanban-board.json"
+      },
+      {
+        "id": "record-list-page",
+        "kind": "page",
+        "title": "Record list page",
+        "registry": "https://shine-blond.vercel.app/r/record-list-page.json"
+      },
+      {
+        "id": "record-detail-page",
+        "kind": "page",
+        "title": "Record detail page",
+        "registry": "https://shine-blond.vercel.app/r/record-detail-page.json"
+      },
+      {
+        "id": "settings-page",
+        "kind": "page",
+        "title": "Settings page",
+        "registry": "https://shine-blond.vercel.app/r/settings-page.json"
+      },
+      {
+        "id": "report-page",
+        "kind": "page",
+        "title": "Report page",
+        "registry": "https://shine-blond.vercel.app/r/report-page.json"
+      },
+      {
+        "id": "approval-page",
+        "kind": "page",
+        "title": "Approval page",
+        "registry": "https://shine-blond.vercel.app/r/approval-page.json"
+      },
+      {
+        "id": "application-shell",
+        "kind": "block",
+        "title": "Application shell",
+        "registry": "https://shine-blond.vercel.app/r/application-shell.json"
+      },
+      {
+        "id": "command-palette",
+        "kind": "block",
+        "title": "Command palette",
+        "registry": "https://shine-blond.vercel.app/r/command-palette.json"
+      },
+      {
+        "id": "multi-select",
+        "kind": "block",
+        "title": "Searchable multiselect",
+        "registry": "https://shine-blond.vercel.app/r/multi-select.json"
+      },
+      {
+        "id": "form-wizard",
+        "kind": "block",
+        "title": "Form wizard",
+        "registry": "https://shine-blond.vercel.app/r/form-wizard.json"
+      },
+      {
+        "id": "activity-feed",
+        "kind": "block",
+        "title": "Activity feed",
+        "registry": "https://shine-blond.vercel.app/r/activity-feed.json"
+      },
+      {
+        "id": "comment-thread",
+        "kind": "block",
+        "title": "Comment thread",
+        "registry": "https://shine-blond.vercel.app/r/comment-thread.json"
+      },
+      {
+        "id": "attachment-manager",
+        "kind": "block",
+        "title": "Attachment manager",
+        "registry": "https://shine-blond.vercel.app/r/attachment-manager.json"
+      },
+      {
+        "id": "permissions-panel",
+        "kind": "block",
+        "title": "Permissions panel",
+        "registry": "https://shine-blond.vercel.app/r/permissions-panel.json"
+      },
+      {
+        "id": "chart-panel",
+        "kind": "block",
+        "title": "Chart panel",
+        "registry": "https://shine-blond.vercel.app/r/chart-panel.json"
+      },
+      {
+        "id": "dashboard-page",
+        "kind": "page",
+        "title": "Dashboard page",
+        "registry": "https://shine-blond.vercel.app/r/dashboard-page.json"
+      },
+      {
+        "id": "server-data-grid",
+        "kind": "block",
+        "title": "Server record grid",
+        "registry": "https://shine-blond.vercel.app/r/server-data-grid.json"
+      },
+      {
+        "id": "saved-views",
+        "kind": "block",
+        "title": "Saved views",
+        "registry": "https://shine-blond.vercel.app/r/saved-views.json"
+      },
+      {
+        "id": "csv-import",
+        "kind": "block",
+        "title": "CSV import",
+        "registry": "https://shine-blond.vercel.app/r/csv-import.json"
+      }
+    ]
+  },
+  "coverage": {
+    "contract": "shine-coverage.json",
+    "command": "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/integrations/coverage.mjs --project \"/Users/justinfowler/Projects/brutus\" --contract shine-coverage.json",
+    "instruction": "Classify the complete finished-pattern population; bind existing product implementations before installing. References are not finished blocks."
+  },
+  "reusableBlocks": {
+    "version": 1,
+    "project": "/Users/justinfowler/Projects/brutus",
+    "scannedFiles": 0,
+    "blocks": [],
+    "required": false,
+    "contract": "shine-reuse.json",
+    "command": "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/integrations/blocks.mjs --project \"/Users/justinfowler/Projects/brutus\" --contract shine-reuse.json"
+  },
+  "job": "Build a dedicated Alexis conversation page with Brutus and Atlas navigation while preserving Brutus home",
+  "lane": "internal",
+  "mode": "existing",
+  "category": "media",
+  "classification": {
+    "category": "media",
+    "confidence": "explicit",
+    "scores": {
+      "media": 99
+    }
+  },
+  "project": {
+    "root": "/Users/justinfowler/Projects/brutus",
+    "framework": "native",
+    "packageManager": "none",
+    "installed": [],
+    "layers": {
+      "styling": {
+        "name": "consumer-css",
+        "declaredVersion": null,
+        "css": null,
+        "config": null,
+        "prefix": "",
+        "responsibility": "layout, spacing, typography, responsive and visual states; reuse consumer tokens"
+      },
+      "components": {
+        "name": "consumer",
+        "aliases": {},
+        "responsibility": "reuse installed controls and their keyboard, focus and accessibility behavior; preserve shared product components"
+      },
+      "data": {
+        "name": "consumer",
+        "declaredVersion": null,
+        "responsibility": "table sorting, filtering, selection and pagination only when the workflow needs them"
+      }
+    }
+  },
+  "selected": {
+    "id": "shadcn-broadcast",
+    "title": "Broadcast player with aspect-ratio frame and adjacent source context",
+    "kit": "shadcn-registry",
+    "family": "shadcn-zinc",
+    "screen": "broadcast",
+    "scope": "page",
+    "reference": {
+      "required": [
+        "navigation"
+      ],
+      "captureExpect": "video"
+    },
+    "score": 138,
+    "distance": 11,
+    "matches": [
+      "lane",
+      "installedKit"
+    ],
+    "paths": {
+      "shot": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/corpus/packs/shadcn-broadcast/shot.png",
+      "tokens": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/corpus/packs/shadcn-broadcast/tokens.css",
+      "sourceExcerpts": [
+        {
+          "path": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/corpus/packs/shadcn-broadcast/source/reference.html",
+          "excerpt": "<!doctype html>\n<html lang=\"en\" data-cite=\"shadcn-broadcast\" data-shine-voice=\"kit-faithful\" data-dna-family=\"shadcn-zinc\">\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width\">\n<title>Broadcast player reference</title>\n<style>\nhtml{color-scheme:light}\n*{box-sizing:border-box}\nbody{margin:0;background:#fafafa;color:#18181b;font:16px/1.5 ui-sans-serif,system-ui,sans-serif}\nmain{max-width:1280px;margin:auto;padding:24px}nav{padding:16px 0;border-bottom:1px solid #ddd}a{color:inherit}h1{font-size:32px;line-height:1.2}h2{font-size:24px}p{margin:8px 0}.screen{display:grid;grid-template-columns:2fr 1fr;background:#27272a;color:#fff;border-radius:8px 8px 0 0}.frame{position:relative;aspect-ratio:3/2}.frame video,.frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}.caption{padding:16px}.context{contain:size;overflow:auto;padding:24px}.controls{padding:16px;background:white;border:1px solid #ddd;display:flex;gap:16px;align-items:center}button{font:inherit;min-height:44px;padding:8px 16px;border-radius:8px;cursor:pointer}button:first-child{background:#18181b;color:white;border:0}.notes{background:white;padding:24px}#notes{max-width:80ch}.transcript{padding:16px 0}#source{width:100%;height:100px;object-fit:cover}@media(max-width:760px){section[aria-label=Broadcast]{display:grid}.screen{display:contents}.screen>div{grid-row:1;background:#27272a;color:white}.context{grid-row:3;contain:none;background:#27272a;color:white}.controls{grid-row:2;flex-wrap:wrap}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}\n</style>\n<main>\n<nav aria-label=\"Publication\">\n<a href=\"#written\">Read the edition</a>\n</nav>\n<header>\n<h1>The daily broadcast</h1>\n<p>Watch the report, then explore its sources.</p>\n</header>\n<section aria-label=\"Broadcast\">\n<div class=\"screen\">\n<div>\n<div class=\"frame\" id=\"frame\">\n<video id=\"video\" aria-label=\"Broadcast video\" playsinline hidden>\n</video>\n<img id=\"poster\" alt=\"Broadcast studio preview\" src=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1152' height='768'%3E%3Crect width='1152' height='768' fill='%233f3f46'/%3E%3Ccircle cx='576' cy='340' r='100' fill='%2371717a'/%3E%3Cpath d='M360 700Q360 480 576 480Q790 480 790 700' fill='%2371717a'/%3E%3C/svg%3E\">\n</div>\n<div id=\"caption\" class=\"caption\">The newsroom · Presenter</div>\n</div>\n<aside class=\"context\" aria-label=\"On screen\" tabindex=\"0\">\n<p>In this edition</p>\n<h2 id=\"headline\">A closer look at the story behind the headline</h2>\n<p>Source · Reporting date</p>\n<a href=\"#written\">Read the reporting</a>\n</aside>\n</div>\n<div id=\"controls\" class=\"controls\">\n<button id=\"play\" type=\"button\" data-primary>Play preview</button>\n<button id=\"stop\" type=\"button\">Stop</button>\n<span id=\"status\" role=\"status\">Ready</span>\n</div>\n<div class=\"notes\">\n<h2>Viewing notes</h2>\n<p id=\"notes\">The written context complements the spoken report. A long article belongs outside the media row, where it cannot stretch the video frame.</p>\n<"
+        }
+      ]
+    },
+    "referenceHealth": {
+      "status": "passed",
+      "reasons": [],
+      "source": "corpus/blueprints/shadcn-broadcast/reference.html",
+      "capturedAt": "2026-09-09T14:10:59.559Z",
+      "shotSha256": "31683009f73349ad348d4033cdd062a2d65de6a558e897c37e98578ae006fbc5"
+    }
+  },
+  "candidates": [
+    {
+      "id": "shadcn-broadcast",
+      "title": "Broadcast player with aspect-ratio frame and adjacent source context",
+      "kit": "shadcn-registry",
+      "family": "shadcn-zinc",
+      "screen": "broadcast",
+      "scope": "page",
+      "reference": {
+        "required": [
+          "navigation"
+        ],
+        "captureExpect": "video"
+      },
+      "score": 138,
+      "distance": 11,
+      "matches": [
+        "lane",
+        "installedKit"
+      ],
+      "paths": {
+        "shot": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/corpus/packs/shadcn-broadcast/shot.png",
+        "tokens": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/corpus/packs/shadcn-broadcast/tokens.css",
+        "sourceExcerpts": [
+          {
+            "path": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/corpus/packs/shadcn-broadcast/source/reference.html",
+            "excerpt": "<!doctype html>\n<html lang=\"en\" data-cite=\"shadcn-broadcast\" data-shine-voice=\"kit-faithful\" data-dna-family=\"shadcn-zinc\">\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width\">\n<title>Broadcast player reference</title>\n<style>\nhtml{color-scheme:light}\n*{box-sizing:border-box}\nbody{margin:0;background:#fafafa;color:#18181b;font:16px/1.5 ui-sans-serif,system-ui,sans-serif}\nmain{max-width:1280px;margin:auto;padding:24px}nav{padding:16px 0;border-bottom:1px solid #ddd}a{color:inherit}h1{font-size:32px;line-height:1.2}h2{font-size:24px}p{margin:8px 0}.screen{display:grid;grid-template-columns:2fr 1fr;background:#27272a;color:#fff;border-radius:8px 8px 0 0}.frame{position:relative;aspect-ratio:3/2}.frame video,.frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}.caption{padding:16px}.context{contain:size;overflow:auto;padding:24px}.controls{padding:16px;background:white;border:1px solid #ddd;display:flex;gap:16px;align-items:center}button{font:inherit;min-height:44px;padding:8px 16px;border-radius:8px;cursor:pointer}button:first-child{background:#18181b;color:white;border:0}.notes{background:white;padding:24px}#notes{max-width:80ch}.transcript{padding:16px 0}#source{width:100%;height:100px;object-fit:cover}@media(max-width:760px){section[aria-label=Broadcast]{display:grid}.screen{display:contents}.screen>div{grid-row:1;background:#27272a;color:white}.context{grid-row:3;contain:none;background:#27272a;color:white}.controls{grid-row:2;flex-wrap:wrap}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}\n</style>\n<main>\n<nav aria-label=\"Publication\">\n<a href=\"#written\">Read the edition</a>\n</nav>\n<header>\n<h1>The daily broadcast</h1>\n<p>Watch the report, then explore its sources.</p>\n</header>\n<section aria-label=\"Broadcast\">\n<div class=\"screen\">\n<div>\n<div class=\"frame\" id=\"frame\">\n<video id=\"video\" aria-label=\"Broadcast video\" playsinline hidden>\n</video>\n<img id=\"poster\" alt=\"Broadcast studio preview\" src=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1152' height='768'%3E%3Crect width='1152' height='768' fill='%233f3f46'/%3E%3Ccircle cx='576' cy='340' r='100' fill='%2371717a'/%3E%3Cpath d='M360 700Q360 480 576 480Q790 480 790 700' fill='%2371717a'/%3E%3C/svg%3E\">\n</div>\n<div id=\"caption\" class=\"caption\">The newsroom · Presenter</div>\n</div>\n<aside class=\"context\" aria-label=\"On screen\" tabindex=\"0\">\n<p>In this edition</p>\n<h2 id=\"headline\">A closer look at the story behind the headline</h2>\n<p>Source · Reporting date</p>\n<a href=\"#written\">Read the reporting</a>\n</aside>\n</div>\n<div id=\"controls\" class=\"controls\">\n<button id=\"play\" type=\"button\" data-primary>Play preview</button>\n<button id=\"stop\" type=\"button\">Stop</button>\n<span id=\"status\" role=\"status\">Ready</span>\n</div>\n<div class=\"notes\">\n<h2>Viewing notes</h2>\n<p id=\"notes\">The written context complements the spoken report. A long article belongs outside the media row, where it cannot stretch the video frame.</p>\n<"
+          }
+        ]
+      },
+      "referenceHealth": {
+        "status": "passed",
+        "reasons": [],
+        "source": "corpus/blueprints/shadcn-broadcast/reference.html",
+        "capturedAt": "2026-09-09T14:10:59.559Z",
+        "shotSha256": "31683009f73349ad348d4033cdd062a2d65de6a558e897c37e98578ae006fbc5"
+      }
+    }
+  ],
+  "componentReferences": [],
+  "examples": [
+    {
+      "id": "untitledui-featured-card-progress-bar",
+      "title": "Featured Card Progress Bar",
+      "export": "FeaturedCardProgressBar",
+      "screen": "app-shell",
+      "jobs": [
+        "app-shell",
+        "navigation",
+        "sidebar",
+        "featured",
+        "card",
+        "progress",
+        "bar"
+      ],
+      "sourceFile": "untitled-ui-react/components/application/app-navigation/base-components/featured-cards.demo.tsx",
+      "storyFile": "untitled-ui-react/components/application/app-navigation/base-components/featured-cards.story.tsx",
+      "renderable": true,
+      "design": {
+        "desktop": "1157-99074"
+      },
+      "sourceExcerpt": "\"use client\";\n\nimport type { ReactNode } from \"react\";\nimport { Button } from \"@/components/base/buttons/button\";\nimport { CloseButton } from \"@/components/base/buttons/close-button\";\nimport { ProgressBarCircle } from \"@/components/base/progress-indicators/progress-circles\";\nimport { ProgressBar } from \"@/components/base/progress-indicators/progress-indicators\";\nimport { cx } from \"@/utils/cx\";\n\ninterface FeaturedCardCommonProps {\n    title: string;\n    description: ReactNode;\n    confirmLabel: string;\n    className?: string;\n    onDismiss: () => void;\n    onConfirm: () => void;\n}\n\nexport const FeaturedCardProgressBar = ({\n    title,\n    description,\n    confirmLabel,\n    progress,\n    className,\n    onDismiss,\n    onConfirm,\n}: FeaturedCardCommonProps & {\n    progress: number;\n}) => {\n    return (\n        <div className={cx(\"relative flex flex-col rounded-xl bg-secondary p-4\", className)}>\n            <p className=\"text-sm font-semibold text-primary\">{title}</p>\n            <p className=\"mt-1 text-sm text-tertiary\">{description}</p>\n\n            <div className=\"absolute top-1 right-1\">\n                <CloseButton onClick={onDismiss} size=\"sm\" />\n            </div>\n\n            <d\n\n/* FeaturedCardProgressBar */\nexport const FeaturedCardProgressBar = ({\n    title,\n    description,\n    confirmLabel,\n    progress,\n    className,\n    onDismiss,\n    onConfirm,\n}: FeaturedCardCommonProps & {\n    progress: number;\n}) => {\n    return (\n        <div className={cx(\"relative flex flex-col rounded-xl bg-secondary p-4\", className)}>\n            <p className=\"text-sm font-semibold text-primary\">{title}</p>\n            <p className=\"mt-1 text-sm text-tertiary\">{description}</p>\n\n            <div className=\"absolute top-1 right-1\">\n                <CloseButton onClick={onDismiss} size=\"sm\" />\n            </div>\n\n            <div className=\"mt-4 flex\">\n                <ProgressBar value={progress} />\n            </div>\n\n            <div className=\"mt-4 flex gap-3\">\n                <Button onClick={onDismiss} color=\"link-gray\" size=\"sm\">\n                    Dismiss\n                </Button>\n                <Button onClick={onConfirm} color=\"link-color\" size=\"sm\">\n                    {confirmLabel}\n                </Button>\n            </div>\n        </div>\n    );\n};",
+      "license": "MIT",
+      "score": 11
+    },
+    {
+      "id": "untitledui-featured-card-progress-circle",
+      "title": "Featured Card Progress Circle",
+      "export": "FeaturedCardProgressCircle",
+      "screen": "app-shell",
+      "jobs": [
+        "app-shell",
+        "navigation",
+        "sidebar",
+        "featured",
+        "card",
+        "progress",
+        "circle"
+      ],
+      "sourceFile": "untitled-ui-react/components/application/app-navigation/base-components/featured-cards.demo.tsx",
+      "storyFile": "untitled-ui-react/components/application/app-navigation/base-components/featured-cards.story.tsx",
+      "renderable": true,
+      "design": {
+        "desktop": "1157-99042"
+      },
+      "sourceExcerpt": "\"use client\";\n\nimport type { ReactNode } from \"react\";\nimport { Button } from \"@/components/base/buttons/button\";\nimport { CloseButton } from \"@/components/base/buttons/close-button\";\nimport { ProgressBarCircle } from \"@/components/base/progress-indicators/progress-circles\";\nimport { ProgressBar } from \"@/components/base/progress-indicators/progress-indicators\";\nimport { cx } from \"@/utils/cx\";\n\ninterface FeaturedCardCommonProps {\n    title: string;\n    description: ReactNode;\n    confirmLabel: string;\n    className?: string;\n    onDismiss: () => void;\n    onConfirm: () => void;\n}\n\nexport const FeaturedCardProgressBar = ({\n    title,\n    description,\n    confirmLabel,\n    progress,\n    className,\n    onDismiss,\n    onConfirm,\n}: FeaturedCardCommonProps & {\n    progress: number;\n}) => {\n    return (\n        <div className={cx(\"relative flex flex-col rounded-xl bg-secondary p-4\", className)}>\n            <p className=\"text-sm font-semibold text-primary\">{title}</p>\n            <p className=\"mt-1 text-sm text-tertiary\">{description}</p>\n\n            <div className=\"absolute top-1 right-1\">\n                <CloseButton onClick={onDismiss} size=\"sm\" />\n            </div>\n\n            <d\n\n/* FeaturedCardProgressCircle */\nexport const FeaturedCardProgressCircle = ({\n    title,\n    description,\n    confirmLabel,\n    progress,\n    className,\n    onDismiss,\n    onConfirm,\n}: FeaturedCardCommonProps & {\n    progress: number;\n}) => {\n    return (\n        <div className={cx(\"relative flex flex-col rounded-xl bg-secondary p-4\", className)}>\n            <div className=\"w-16\">\n                <ProgressBarCircle value={progress} size=\"xxs\" />\n            </div>\n\n            <div className=\"absolute top-1 right-1\">\n                <CloseButton onClick={onDismiss} size=\"sm\" />\n            </div>\n            <div className=\"mt-3\">\n                <p className=\"text-sm font-semibold text-primary\">{title}</p>\n                <p className=\"mt-1 text-sm text-tertiary\">{description}</p>\n            </div>\n            <div className=\"mt-4 flex gap-3\">\n                <Button onClick={onDismiss} color=\"link-gray\" size=\"sm\">\n                    Dismiss\n                </Button>\n                <Button onClick={onConfirm} color=\"link-color\" size=\"sm\">\n                    {confirmLabel}\n                </Button>\n            </div>\n        </div>\n    );\n};",
+      "license": "MIT",
+      "score": 11
+    },
+    {
+      "id": "untitledui-header-navigation-centered",
+      "title": "Header navigation centered",
+      "export": "HeaderNavigationCenteredDemo",
+      "screen": "app-shell",
+      "jobs": [
+        "app-shell",
+        "navigation",
+        "sidebar",
+        "header",
+        "centered"
+      ],
+      "sourceFile": "untitled-ui-react/components/application/app-navigation/header-navigation.demo.tsx",
+      "storyFile": "untitled-ui-react/components/application/app-navigation/header-navigation.story.tsx",
+      "renderable": true,
+      "design": {
+        "desktop": "11910-613771"
+      },
+      "sourceExcerpt": "\"use client\";\n\nimport { Bell01, SearchLg, Settings01, Zap } from \"@untitledui/icons\";\nimport { NavButton } from \"@/components/application/app-navigation/base-components/nav-button\";\nimport { HeaderNavigationBase } from \"@/components/application/app-navigation/header-navigation\";\nimport { Button } from \"@/components/base/buttons/button\";\nimport { DropdownAccountCardSM } from \"@/components/base/dropdown/dropdown-account-card-sm\";\nimport { DropdownAvatar } from \"@/components/base/dropdown/dropdown-avatar\";\n\nconst subItems = [\n    { label: \"Overview\", href: \"/dashboard/overview\" },\n    { label: \"Notifications\", href: \"/dashboard/notifications\" },\n    { label: \"Analytics\", href: \"/dashboard/analytics\" },\n    { label: \"Saved reports\", href: \"/dashboard/saved-reports\" },\n    { label: \"Scheduled reports\", href: \"/dashboard/scheduled-reports\" },\n    { label: \"User reports\", href: \"/dashboard/user-reports\" },\n];\n\nconst items = [\n    { label: \"Home\", href: \"/\" },\n    { label: \"Dashboard\", href: \"/dashboard\", items: subItems },\n    { label: \"Projects\", href: \"/projects\" },\n    { label: \"Tasks\", href: \"/tasks\" },\n    { label: \"Reporting\", href: \"/reporting\" },\n    { label: \"Users\", href: \"/user\n\n/* HeaderNavigationCenteredDemo */\nexport const HeaderNavigationCenteredDemo = () => (\n    <HeaderNavigationBase\n        activeUrl=\"/dashboard\"\n        items={items}\n        subItems={subItems}\n        centered\n        actions={\n            <div className=\"flex items-center gap-3\">\n                <Button color=\"secondary\" size=\"sm\">\n                    Sign in\n                </Button>\n                <Button size=\"sm\">Get PRO</Button>\n            </div>\n        }\n    />\n);",
+      "license": "MIT",
+      "score": 11
+    }
+  ],
+  "starter": null,
+  "diagnosis": {
+    "required": true,
+    "reference": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/skill/references/diagnose.md",
+    "command": "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/core/diagnosis.mjs init --job \"Build a dedicated Alexis conversation page with Brutus and Atlas navigation while preserving Brutus home\" --category media --out shine-diagnosis.json",
+    "verdicts": [
+      "defects",
+      "no-change"
+    ],
+    "instruction": "Name only defects you can evidence; one real defect is a complete diagnosis. If the surface is sound, record verdict no-change with verdictEvidence and every bucket in checked, and stop. Do not invent defects or inflate severity to satisfy a count."
+  },
+  "productPrecedent": {
+    "required": true,
+    "provided": true,
+    "name": "Brutus voice stage",
+    "reference": "/Users/justinfowler/Projects/brutus/brutus/static/session.html",
+    "instruction": "Reuse or extract the sibling conventions; document justified differences in shine-diagnosis.json."
+  },
+  "usability": {
+    "required": true,
+    "reference": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/skill/references/usability.md",
+    "contract": "shine-usability.json",
+    "commands": [
+      "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/verify/usability.mjs <artifact> --contract shine-usability.json --cite shadcn-broadcast"
+    ]
+  },
+  "tableQuality": {
+    "presentation": {
+      "pattern": "summary-and-accordion",
+      "threshold": "more than 10 total dataset rows before table search and pagination",
+      "defaultExpanded": false,
+      "reference": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/skill/references/table-summary.md",
+      "instruction": "Keep meaningful KPIs or an infographic visible above the adjacent collapsed shared DataGrid; preserve state and provide real drill-down."
+    },
+    "required": "every record table, including tables nested inside dashboards",
+    "contract": "shine-tables.json",
+    "reference": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/skill/references/table-quality.md",
+    "example": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/verify/fixtures/table-quality/shine-tables.json",
+    "enforcedBy": [
+      "measure",
+      "compare"
+    ]
+  },
+  "regionGraph": [
+    "publication navigation",
+    "broadcast context",
+    "media frame",
+    "caption",
+    "playback controls",
+    "viewing notes",
+    "written reporting"
+  ],
+  "controlInventory": [
+    "play",
+    "stop",
+    "transcript",
+    "inspect source"
+  ],
+  "requiredStates": [
+    "poster",
+    "connecting",
+    "playing",
+    "stopped",
+    "error",
+    "missing-media"
+  ],
+  "integration": {
+    "key": "native",
+    "layers": {
+      "styling": {
+        "name": "consumer-css",
+        "declaredVersion": null,
+        "css": null,
+        "config": null,
+        "prefix": "",
+        "responsibility": "layout, spacing, typography, responsive and visual states; reuse consumer tokens"
+      },
+      "components": {
+        "name": "consumer",
+        "aliases": {},
+        "responsibility": "reuse installed controls and their keyboard, focus and accessibility behavior; preserve shared product components"
+      },
+      "data": {
+        "name": "consumer",
+        "declaredVersion": null,
+        "responsibility": "table sorting, filtering, selection and pagination only when the workflow needs them"
+      }
+    },
+    "validated": true,
+    "validationError": null,
+    "reference": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/skill/references/component-layers.md",
+    "contract": "semantic native table plus executable Shine DataGrid contract",
+    "packages": [],
+    "imports": []
+  },
+  "proof": {
+    "artifactAttribute": "data-cite=\"shadcn-broadcast\"",
+    "commands": [
+      "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/verify/measure.mjs <artifact> --cite shadcn-broadcast --shot /tmp/shine-after.png",
+      "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/verify/usability.mjs <artifact> --contract shine-usability.json --cite shadcn-broadcast",
+      "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/verify/compare-product.mjs <artifact> \"/Users/justinfowler/Projects/brutus/brutus/static/session.html\" --name \"Brutus voice stage\"",
+      "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/verify/compare.mjs <artifact> --cite shadcn-broadcast --lane internal --mode existing --diagnosis shine-diagnosis.json"
+    ]
+  },
+  "layout": {
+    "required": true,
+    "contract": "shine-layout.json",
+    "command": "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/verify/layout.mjs <artifact> --contract shine-layout.json",
+    "viewports": [
+      390,
+      768,
+      1280,
+      1440,
+      1920
+    ],
+    "states": [
+      "baseline",
+      "long-content",
+      "missing-media",
+      "media-loaded",
+      "large-text"
+    ]
+  },
+  "completion": {
+    "command": "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/verify/prove.mjs <artifact> --cite shadcn-broadcast --layout shine-layout.json --usability shine-usability.json --project \"/Users/justinfowler/Projects/brutus\" --diagnosis shine-diagnosis.json",
+    "requires": [
+      "accessibility",
+      "styling",
+      "layout",
+      "interactions",
+      "referenceValidity",
+      "visualComparison",
+      "buildBinding",
+      "defectAssertions"
+    ],
+    "instruction": "Individual checks are partial evidence. Only the aggregate verifier can issue completion proof."
+  },
+  "gaps": [
+    "informationShape: no eligible candidate matches conversation",
+    "diversity: catalog has 1 materially distinct source-usable candidate for this brief"
+  ]
+}

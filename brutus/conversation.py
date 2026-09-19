@@ -517,6 +517,16 @@ class ConversationManager:
                 inner = result.get("result")
                 self._emit_idea(session_id, inner if isinstance(inner, dict) else None)
 
+        if self.cfg.alexis_brain_url:
+            from .alexis_client import shared_reply
+            reply, meta = shared_reply(
+                self.cfg, registry, session_id=session_id, turn_id=turn_id,
+                message=message, channel=channel, standing_notes=self._standing_notes(),
+                on_propose=self._on_propose(session_id, channel, message),
+                on_tool_result=mirror, recall=self._recall,
+            )
+            return _flatten(reply), meta
+
         reply, meta = brain_reply(
             self.cfg,
             registry,

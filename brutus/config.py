@@ -79,6 +79,8 @@ class VoiceCfg:
     record_duration_s: float = 5.0
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = ""
+    anam_api_key: str = ""
+    anam_avatar_id: str = ""
     # William-style Conversational AI agent. When set, /session prefers ConvAI
     # over LiveKit. Soft-load BRUTUS_ELEVENLABS_AGENT_ID or ELEVENLABS_AGENT_ID.
     elevenlabs_agent_id: str = ""
@@ -127,6 +129,8 @@ class BrutusCfg:
     # Hard cap on decision cards shown at once. The surface is only useful if it
     # stays answerable in about a minute; overflow is summarised, never dropped.
     max_actions: int = 7
+    alexis_brain_url: str = ""
+    alexis_brain_token: str = ""
     local_llm: LocalLLMCfg | None = None
     openai: OpenAICfg | None = None
     voice: VoiceCfg | None = None
@@ -199,6 +203,8 @@ def _parse_voice(data: dict) -> VoiceCfg:
         record_duration_s=float(block.get("record_duration_s") or 5.0),
         elevenlabs_api_key=elevenlabs_key,
         elevenlabs_voice_id=str(block.get("elevenlabs_voice_id") or ""),
+        anam_api_key=str(block.get("anam_api_key") or os.environ.get("BRUTUS_ANAM_API_KEY", "")),
+        anam_avatar_id=str(block.get("anam_avatar_id") or os.environ.get("BRUTUS_ANAM_AVATAR_ID", "")),
         elevenlabs_agent_id=agent_id,
         ear_hotkey=str(block.get("ear_hotkey") or "alt_r"),
         livekit_url=str(block.get("livekit_url") or os.environ.get("LIVEKIT_URL", "")),
@@ -262,6 +268,8 @@ def load_config(path: Path | None = None) -> BrutusCfg:
         linear_workspace=str(data.get("linear_workspace") or "clearspeed"),
         max_working_set=int(data.get("max_working_set") or 5),
         max_actions=int(data.get("max_actions") or 7),
+        alexis_brain_url=str(data.get("alexis_brain_url") or os.environ.get("ALEXIS_BRAIN_URL", "")),
+        alexis_brain_token=str(data.get("alexis_brain_token") or os.environ.get("ALEXIS_SURFACE_TOKEN", "")),
         local_llm=_parse_local_llm(data),
         openai=_parse_openai(data),
         voice=_parse_voice(data),

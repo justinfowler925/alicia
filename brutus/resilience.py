@@ -7,14 +7,16 @@ the visible proof; the outbox keeps user words durable before a model runs.
 from __future__ import annotations
 
 import json
-import os
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-STATE_DIR = Path(os.path.expanduser("~/.brutus/state"))
+from .paths import default_state_dir
+
+STATE_DIR = default_state_dir()
 KILL_VOICE = STATE_DIR / "voice.off"
 KILL_API = STATE_DIR / "brain.api.off"
 KILL_CONVAI = STATE_DIR / "voice.convai.off"

@@ -398,9 +398,9 @@ function renderTurn(turn, { animate = true, live = animate } = {}) {
     // A complete first sentence is a compact readback, never a chopped word stream.
     const sentence = text.match(/^[\s\S]*?[.!?](?=\s|$)/)?.[0] || text.split("\n")[0];
     renderText($("#intent-readback"), sentence);
-    $("#readback-label").textContent = "Brutus · latest reply";
+    $("#readback-label").textContent = window.alexis ? "Alexis · latest reply" : "Brutus · latest reply";
   } else {
-    $("#readback-label").textContent = "Brutus · considering your direction";
+    $("#readback-label").textContent = window.alexis ? "Alexis · considering your direction" : "Brutus · considering your direction";
   }
   const empty = $("#conversation-empty");
   if (empty) empty.hidden = true;
@@ -411,7 +411,7 @@ function renderTurn(turn, { animate = true, live = animate } = {}) {
 
   const who = document.createElement("div");
   who.className = "who";
-  who.append(turn.role === "user" ? "You" : "Brutus");
+  who.append(turn.role === "user" ? "You" : (window.alexis ? "Alexis" : "Brutus"));
   if (turn.channel === "voice") {
     const badge = document.createElement("span");
     badge.className = "badge";
@@ -830,6 +830,8 @@ async function startVoice() {
   state.voiceStartAbort = controller;
   setVoicePhase("buffering", "Connecting voice…");
   try {
+    await window.alexis?.start(state.sessionId, controller.signal);
+    if (controller.signal.aborted) return;
     const convaiOk = await startConvAI(controller.signal);
     if (convaiOk) return;
     if (controller.signal.aborted) return;
@@ -997,7 +999,7 @@ async function speak(text, { productOwned = false } = {}) {
   if (state.muted || !text) return;
   if (productOwned) state.productBrainSpeak = true;
   if (voiceOwnsPlayback()) return;
-  state.speechAbort?.abort();
+  stopSpeaking();
   const controller = new AbortController();
   state.speechAbort = controller;
   setVoicePhase("buffering");
@@ -1009,8 +1011,18 @@ async function speak(text, { productOwned = false } = {}) {
       signal: controller.signal,
     });
     if (!r.ok) throw new Error(`speech service said ${r.status}`);
-    const url = URL.createObjectURL(await r.blob());
-    stopSpeaking();
+    const blob = await r.blob();
+    if (controller.signal.aborted) return;
+    state.speaking = true;
+    setVoicePhase("speaking");
+    if (await window.alexis?.play(blob, controller.signal)) {
+      rememberSpoken(text);
+      state.speaking = false;
+      state.productBrainSpeak = false;
+      setVoicePhase(state.listening ? "listening" : "idle");
+      return;
+    }
+    const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     state.audio = audio;
     state.audioUrl = url;
@@ -1036,6 +1048,7 @@ async function speak(text, { productOwned = false } = {}) {
 }
 
 function stopSpeaking() {
+  window.alexis?.interrupt();
   state.speechAbort?.abort();
   state.speechAbort = null;
   if (state.audio) {
@@ -1184,7 +1197,7 @@ async function startConvAI(signal) {
         if (!message) return;
         if (source === "user") {
           setConversationFilled();
-          appendLocalTurn("user", message);
+          if (!window.alexis) appendLocalTurn("user", message);
           state.lastUserUtterance = message;
           state.brainPending = true;
           setVoicePhase("thinking", "Thinking — working that through.");
@@ -1196,7 +1209,7 @@ async function startConvAI(signal) {
                 }
                 const spoken = await runProductBrain(message);
                 if (!spoken) return;
-                appendLocalTurn("brutus", spoken);
+                if (!window.alexis) appendLocalTurn("brutus", spoken);
                 await speak(spoken, { productOwned: true });
               } catch (err) {
                 console.warn("product-owned turn failed", err);
@@ -1257,7 +1270,7 @@ async function startConvAI(signal) {
     }
     setVoicePhase(
       "listening",
-      productOwned ? "ConvAI mic · product brain · Chris voice" : "ConvAI · ElevenLabs voice",
+      window.alexis ? "Microphone open · Alexis is listening" : (productOwned ? "ConvAI mic · product brain · Chris voice" : "ConvAI · ElevenLabs voice"),
     );
     return true;
   } catch (err) {
@@ -1317,6 +1330,7 @@ async function teardownLiveKit() {
 }
 
 function teardownVoice() {
+  void window.alexis?.stop();
   state.voiceStartAbort?.abort();
   state.sayAbort?.abort();
   state.speechAbort?.abort();
@@ -1363,7 +1377,7 @@ function setVoicePhase(phase, detail = "") {
     label.textContent = "Stop";
     btn.setAttribute("aria-label", "Stop reading");
     btn.setAttribute("aria-pressed", "true");
-    if (stateLabel) stateLabel.textContent = "Brutus is speaking";
+    if (stateLabel) stateLabel.textContent = window.alexis ? "Alexis is speaking" : "Brutus is speaking";
     if (stateDetail) stateDetail.textContent = "Reply in progress.";
     setStatus("Speaking…");
   } else if (phase === "thinking" || phase === "buffering") {
@@ -1392,7 +1406,7 @@ function setVoicePhase(phase, detail = "") {
     setStatus(detail || "Voice failed. Tap Talk to retry.");
   } else {
     glyph.textContent = "◎";
-    label.textContent = "Start voice";
+    label.textContent = window.alexis ? "Talk with Alexis" : "Start voice";
     btn.setAttribute("aria-label", "Start voice conversation");
     btn.setAttribute("aria-pressed", "false");
     if (stateLabel) stateLabel.textContent = "Ready when you are";
@@ -1870,9 +1884,15 @@ function init() {
     if (supervisorSnapshot) renderSupervisor(supervisorSnapshot);
   });
   $("#mic")?.addEventListener("click", () => {
+    if (state.voicePhase === "buffering" && state.voiceStartAbort && !state.voiceTransport) return teardownVoice();
     if (["thinking", "buffering", "speaking"].includes(state.voicePhase)) return bargeIn();
     if (state.voicePhase === "listening") return teardownVoice();
     startVoice(); // first audio follows a gesture; never on load
+  });
+  window.alexis?.bind({
+    session: () => state.sessionId,
+    end: teardownVoice,
+    type: () => { $("#conversation-details").open = true; $("#say").focus(); },
   });
 
   $("#mute").addEventListener("click", (e) => {

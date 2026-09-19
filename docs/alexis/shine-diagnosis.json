@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "category": "media",
+  "primaryTask": "Use a dedicated Alexis conversation page while preserving Brutus home and adding Atlas navigation",
+  "productPrecedent": {
+    "name": "Brutus voice stage",
+    "reference": "brutus/static/session.html",
+    "divergences": [
+      "Add Alexis portrait and live video above existing conversation controls",
+      "Add turn-linked feedback inside the existing voice stage"
+    ]
+  },
+  "before": {
+    "artifact": "brutus/static/session.html",
+    "screenshot": "/tmp/brutus-alexis-before.png"
+  },
+  "defects": [
+    {
+      "id": "missing-presenter",
+      "bucket": "completeness",
+      "severity": "major",
+      "problem": "No dedicated Alexis conversation page or presenter exists",
+      "evidence": "Rendered homepage and session.html contain no presenter image or video",
+      "assertions": [
+        "presenter-visible",
+        "frame-ratio"
+      ],
+      "expectedEffect": "A visible responsive avatar frame with conversation controls on the separate Alexis page"
+    },
+    {
+      "id": "missing-feedback",
+      "bucket": "completeness",
+      "severity": "major",
+      "problem": "Conversation corrections have no explicit quality feedback capture tied to an answered turn",
+      "evidence": "Homepage has Correct intent but no conversation, organization, or presentation rating workflow",
+      "assertions": [
+        "flow:feedback-empty"
+      ],
+      "expectedEffect": "A user can attach specific quality feedback to a completed shared-brain turn"
+    }
+  ],
+  "job": "Use a dedicated Alexis conversation page while preserving Brutus home and adding Atlas navigation"
+}

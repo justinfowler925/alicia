@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "cite": "shadcn-broadcast",
+  "objects": [
+    {
+      "id": "navigation",
+      "selector": ".product-tabs",
+      "referenceRole": "navigation",
+      "purpose": "Choose Brutus, Alexis, or Atlas"
+    },
+    {
+      "id": "presenter",
+      "selector": "#alexis-frame",
+      "referenceRole": "media frame",
+      "purpose": "See Alexis during conversation"
+    },
+    {
+      "id": "talk",
+      "selector": "#mic",
+      "referenceRole": "playback controls",
+      "purpose": "Start a live conversation"
+    },
+    {
+      "id": "feedback-disclosure",
+      "selector": "#alexis-improve summary",
+      "referenceRole": "viewing notes",
+      "purpose": "Review a conversational reply"
+    },
+    {
+      "id": "feedback-form",
+      "selector": "#alexis-feedback",
+      "referenceRole": "viewing notes",
+      "purpose": "Capture a specific correction",
+      "appearsIn": "feedback-empty"
+    },
+    {
+      "id": "feedback-status",
+      "selector": "#alexis-feedback-status",
+      "referenceRole": "caption",
+      "purpose": "Know whether feedback is saved",
+      "appearsIn": "feedback-empty"
+    },
+    {
+      "id": "type",
+      "selector": "#alexis-type",
+      "referenceRole": "playback controls",
+      "purpose": "Choose text input"
+    },
+    {
+      "id": "message",
+      "selector": "#say",
+      "referenceRole": "transcript",
+      "purpose": "Ask a typed question",
+      "appearsIn": "feedback-empty"
+    }
+  ],
+  "flows": [
+    {
+      "id": "feedback-empty",
+      "userJob": "Inspect feedback and find the text conversation input",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "#alexis-improve summary"
+        },
+        {
+          "action": "visible",
+          "selector": "#alexis-feedback"
+        },
+        {
+          "action": "text",
+          "selector": "#alexis-feedback-status",
+          "value": "An answered turn from the shared brain is needed first."
+        },
+        {
+          "action": "click",
+          "selector": "#alexis-type"
+        },
+        {
+          "action": "focused",
+          "selector": "#say"
+        }
+      ]
+    }
+  ]
+}

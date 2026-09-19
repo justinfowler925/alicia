@@ -24,6 +24,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response, Streamin
 from pydantic import BaseModel, Field
 
 from . import avatars as avatar_ctl
+from .alexis import router as alexis_router
 from .agent_sessions import (
     active_counts,
     filter_cockpit,
@@ -489,6 +490,9 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
     app.include_router(canon_router)
     app.include_router(workflow_router)
     app.include_router(studio_runs_router)
+    app.include_router(alexis_router)
+    app.state.alexis_voice = cfg.voice
+    app.state.alexis_config = cfg
 
     @app.exception_handler(AtlasDisabled)
     async def atlas_disabled_handler(_request: Request, exc: AtlasDisabled) -> Response:
@@ -543,6 +547,16 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         than a second document.
         """
         return RedirectResponse("/", status_code=308)
+
+    @app.get("/alexis", response_class=HTMLResponse)
+    async def alexis_page() -> HTMLResponse:
+        return HTMLResponse((_STATIC / "alexis.html").read_text(), headers=_NO_STORE)
+
+    @app.get("/atlas", response_class=HTMLResponse)
+    async def atlas_page() -> HTMLResponse:
+        import html
+        return HTMLResponse((_STATIC / "atlas.html").read_text().replace(
+            "__ATLAS_URL__", html.escape(cfg.atlas5_url, quote=True)), headers=_NO_STORE)
 
     @app.get("/api/healthz")
     async def healthz(request: Request) -> dict[str, Any]:
@@ -1510,11 +1524,15 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             "session.js": "application/javascript",
             "operations.js": "application/javascript",
             "shine-tokens.css": "text/css",
+            "alexis.js": "application/javascript",
+            "alexis.css": "text/css",
+            "alexis.jpg": "image/jpeg",
+            "navigation.css": "text/css",
         }
         if name not in types:
             raise HTTPException(status_code=404, detail="not found")
         return Response(
-            (_STATIC / name).read_text(),
+            (_STATIC / name).read_bytes(),
             media_type=types[name],
             headers={"Cache-Control": "no-store"},
         )
