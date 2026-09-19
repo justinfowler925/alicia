@@ -62,6 +62,18 @@
       "selector": "#forge-activity",
       "referenceRole": "recovery",
       "purpose": "Know the turn count, elapsed time and freshness of actual Forge activity"
+    },
+    {
+      "id": "turn-count",
+      "selector": "#forge-turn-count",
+      "referenceRole": "session context",
+      "purpose": "Identify the current turn and number of active turns"
+    },
+    {
+      "id": "phase",
+      "selector": "#forge-phase",
+      "referenceRole": "recovery",
+      "purpose": "Read the actual activity phase or connection uncertainty"
     }
   ],
   "flows": [
