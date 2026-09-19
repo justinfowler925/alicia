@@ -6,9 +6,11 @@
   let pending = JSON.parse(localStorage.getItem('brutus.forge.pending') || 'null');
   let busy = false, working = false, timer = null, generation = 0, rendered = '';
   let attachments = [];
-  const status = (text) => { $('forge-status').textContent = text; };
+  let runActivity = null, turnCount = 0, lastCheck = 0, connection = 'connecting';
+  const status = (text) => { if ($('forge-status').textContent !== text) $('forge-status').textContent = text; };
   async function api(action, extra = {}) {
     const response = await fetch('/api/forge/request', {
+      signal: AbortSignal.timeout(35000),
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Brutus-Chat': 'forge' },
       body: JSON.stringify({ action, ...extra }),
     });
@@ -16,6 +18,33 @@
     if (!response.ok) { const error = new Error(typeof data.detail === 'string' ? data.detail : 'Forge could not read this request.'); error.status = response.status; throw error; }
     return data;
   }
+  function duration(seconds) {
+    const value = Math.max(0, Math.floor(seconds || 0));
+    return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`;
+  }
+  function paintActivity() {
+    const a = runActivity;
+    const sinceCheck = lastCheck ? (Date.now() - lastCheck) / 1000 : 0;
+    const disconnected = connection === 'disconnected' || (a?.active && sinceCheck > 15);
+    const checking = connection === 'connecting';
+    const now = a ? a.checked_at + sinceCheck : 0;
+    const elapsed = a?.started_at ? duration((a.finished_at || now) - a.started_at) : '0:00';
+    const quietFor = a ? Math.max(0, now - (a.last_output_at || a.started_at || a.checked_at)) : 0;
+    const quiet = a?.active && ['running', 'starting', 'draining'].includes(a.status) && quietFor >= 90;
+    const live = a?.active && !disconnected && !checking && !quiet && ['running', 'starting'].includes(a.status) && a.phase !== 'Stopping';
+    const label = turnCount ? `Turn ${turnCount}` : '0 turns';
+    $('forge-turn-count').textContent = `${label} · ${a?.active || 0} active${disconnected ? ' (last known)' : ''}`;
+    const phase = disconnected ? (connection === 'disconnected' ? 'Connection lost' : 'Status stale') : checking ? 'Checking Studio…' : quiet ? 'No recent activity' : a?.phase || 'Ready';
+    if ($('forge-phase').textContent !== phase) $('forge-phase').textContent = phase;
+    $('forge-activity').dataset.state = disconnected ? 'disconnected' : checking ? 'checking' : quiet ? 'quiet' : live ? 'working' : a?.active ? 'waiting' : 'idle';
+    let detail = a ? `${elapsed} elapsed · ${a.events} updates · ${a.tools} tool calls` : 'No turn running.';
+    if (a?.active) detail += a.last_output_at ? ` · Last output ${duration(quietFor)} ago` : ' · No output yet';
+    if (disconnected) detail += ` · Last confirmed ${lastCheck ? duration(sinceCheck) + ' ago' : 'never'}. Reconnect to check progress.`;
+    else if (quiet) detail += ' · Studio responds, but Forge has been quiet. It may still be thinking; you can wait or Stop.';
+    else if (connection === 'connected') detail += ' · Studio connected';
+    $('forge-activity-detail').textContent = detail;
+  }
+  setInterval(() => { if (!$('forge-panel').hidden) paintActivity(); }, 1000);
   function controls() {
     $('forge-send').disabled = busy || working || !!pending;
     $('forge-attach').disabled = busy || working || !!pending;
@@ -27,6 +56,7 @@
     $('forge-threads').disabled = busy || !!pending;
   }
   function failure(error) {
+    connection = 'disconnected'; paintActivity();
     status(error.message); $('forge-reconnect').hidden = false; controls();
   }
   function turn(who, text, user = false) {
@@ -36,6 +66,8 @@
     item.append(label, body); $('forge-transcript').append(item);
   }
   function render(data) {
+    runActivity = data.activity || null; turnCount = data.turns.length;
+    lastCheck = Date.now(); connection = 'connected'; paintActivity();
     $('forge-model').textContent = `${data.model} · Studio`;
     const key = JSON.stringify(data.turns);
     if (key !== rendered) {
@@ -69,8 +101,9 @@
   async function refresh() {
     const ticket = generation, selected = thread;
     if (!selected || busy) return;
-    try { const data = await api('get', { thread_id: selected }); if (ticket === generation) { render(data); schedule(); } }
+    try { const data = await api('get', { thread_id: selected }); if (ticket === generation) { render(data); } }
     catch (error) { if (ticket === generation) failure(error); }
+    finally { if (ticket === generation) schedule(); }
   }
   async function history() {
     const data = await api('list');
@@ -99,7 +132,7 @@
   }
   async function connect() {
     if (busy) return;
-    busy = true; controls(); status('Connecting to Forge…');
+    busy = true; connection = 'connecting'; paintActivity(); controls(); status('Connecting to Forge…');
     try {
       if (pending) await sendPending();
       await history();
@@ -206,6 +239,7 @@
     render({ model: $('forge-model').textContent.split(' · ')[0], turns: [] }); $('forge-message').focus();
   });
   $('forge-threads').addEventListener('change', async () => {
+    runActivity = null; turnCount = 0; lastCheck = 0;
     thread = $('forge-threads').value; generation++; clearTimeout(timer); rendered = '';
     localStorage.setItem('brutus.forge.thread', thread); await connect();
   });

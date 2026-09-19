@@ -63,3 +63,24 @@ browser against `FORGE_URL` (defaults to local production); supply
 benign test conversation and checks picker/drop, failed-upload retry, a 32 MiB upload, removal, reload, narrow layout and a real Forge read of file-only text.
 
 Uploads stream browser → Brutus → SSH → Studio with backpressure and no whole-file buffering. An explicit end marker prevents interrupted uploads from being committed. Storage capacity remains the practical limit.
+
+
+## Turn activity
+
+The activity strip shows the conversation turn number and active turn count (queued
+turns count as active), elapsed time, event update count and tool-call count. These
+come from the Studio run timestamps and actual Codex event log, with no reasoning,
+command text or tool output exposed in the activity API. The shine runs during
+recent running/starting activity and respects reduced motion. Queued, stopping,
+terminal and disconnected states do not animate. After 90 seconds without output,
+the strip says “No recent activity”; this signals uncertainty, not a claim that the
+agent has crashed. After 15 seconds without a fresh active-run status it says
+“Status stale”; a failed poll says “Connection lost” and labels counts last known.
+Active runs automatically retry polling every three seconds after a failed poll.
+Elapsed time survives reload and stops at the recorded finish timestamp.
+
+`tests/test_forge_chat.py` checks real event metadata and excludes private payloads.
+`scripts/verify-forge-activity.cjs` uses a private browser with mocked API snapshots
+on the real page to deterministically verify running, quiet, offline, recovery,
+queued, stopped and complete states, ticking/frozen elapsed time, reduced motion
+and narrow layout. Live run verification and Shine proof supplement those states.

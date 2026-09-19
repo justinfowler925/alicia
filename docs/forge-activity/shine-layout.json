@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "viewports": [
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 1440,
+      "height": 1000
+    }
+  ],
+  "states": [
+    "baseline",
+    "long-content",
+    "missing-media",
+    "large-text"
+  ],
+  "content": [
+    {
+      "selector": "#forge-status",
+      "text": "Forge is processing your request on Studio. Your saved conversation and task remain available when you return. Long response text remains readable without hiding any conversation controls. Long response text remains readable without hiding any conversation controls. Long response text remains readable without hiding any conversation controls. Long response text remains readable without hiding any conversation controls. Long response text remains readable without hiding any conversation controls. "
+    }
+  ],
+  "noMediaReason": "Text conversation has no media content.",
+  "checks": [
+    {
+      "id": "chat-visible",
+      "type": "visible",
+      "selector": "#forge-panel"
+    },
+    {
+      "id": "composer-visible",
+      "type": "visible",
+      "selector": "#forge-composer"
+    },
+    {
+      "id": "chat-width",
+      "type": "no-overflow",
+      "selector": "#forge-panel"
+    }
+  ],
+  "missingMedia": []
+}

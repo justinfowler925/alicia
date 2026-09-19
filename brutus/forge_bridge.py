@@ -24,6 +24,51 @@ def runtime():
     return studio_agents
 
 
+def activity(agent, run, turn_number, active):
+    """Summarize observable events only; never expose reasoning or tool payloads."""
+    events = agent.STATE / "runs" / run["id"] / "events.jsonl"
+    count, tools = 0, 0
+    phase = "Thinking"
+    last_output = None
+    try:
+        stat = events.stat()
+        if stat.st_size:
+            last_output = stat.st_mtime
+        with events.open(errors="replace") as stream:
+            for line in stream:
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(event, dict) or not isinstance(event.get("type"), str):
+                    continue
+                count += 1
+                item = event.get("item") or {}
+                if not isinstance(item, dict):
+                    continue
+                kind = item.get("type", "")
+                if event["type"] == "item.started" and kind in {"command_execution", "mcp_tool_call", "web_search", "file_change"}:
+                    tools += 1
+                    phase = {"command_execution": "Running a command", "mcp_tool_call": "Using a tool", "web_search": "Searching", "file_change": "Editing files"}[kind]
+                elif event["type"] in {"item.completed", "turn.started"}:
+                    phase = "Thinking"
+                elif event["type"] == "turn.completed":
+                    phase = "Finishing"
+    except FileNotFoundError:
+        pass
+    state = run["status"]
+    if state != "running":
+        phase = {"queued": "Queued", "starting": "Starting", "draining": "Waiting for jobs", "succeeded": "Complete", "failed": "Failed", "cancelled": "Stopped", "interrupted": "Interrupted", "blocked": "Blocked", "handoff": "Handed off", "orphaned": "Needs attention"}.get(state, state.capitalize())
+    elif count == 0:
+        phase = "Waiting for output"
+    if run.get("cancel") and state not in agent.TERMINAL:
+        phase = "Stopping"
+    return {"turn": turn_number, "active": active, "phase": phase,
+            "started_at": run.get("started") or run.get("created"),
+            "finished_at": run.get("finished"), "last_output_at": last_output,
+            "events": count, "tools": tools, "checked_at": time.time(), "status": state}
+
+
 def snapshot(c, agent, thread_id):
     thread = c.execute("SELECT * FROM threads WHERE id=?", (thread_id,)).fetchone()
     if thread is None:
@@ -45,7 +90,9 @@ def snapshot(c, agent, thread_id):
                     model=run["model"], cancellation_requested=bool(run.get("cancel")))
         turn["attachments"] = [dict(a) for a in c.execute("SELECT id,name,size,path FROM attachments WHERE turn_id=? ORDER BY rowid", (turn["id"],))]
         turns.append(turn)
-    return {**dict(thread), "turns": turns, "model": agent.config()["forge"]["model"]}
+    current_activity = activity(agent, agent.get(turns[-1]["run_id"]), len(turns),
+                                sum(t["status"] not in agent.TERMINAL for t in turns)) if turns else None
+    return {**dict(thread), "turns": turns, "model": agent.config()["forge"]["model"], "activity": current_activity}
 
 
 def handle(request, agent=None, state=None, upload_chunks=None):

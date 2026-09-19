@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "job": "Forge active turn and thinking status",
+  "category": "voice",
+  "primaryTask": "Tell whether the current Forge turn is running, quiet, complete or disconnected",
+  "before": {
+    "artifact": "brutus/static/session.html",
+    "screenshot": "/tmp/forge-activity-before.png"
+  },
+  "verdict": "defects",
+  "productPrecedent": {
+    "name": "Forge conversation",
+    "reference": "http://127.0.0.1:8768/#forge",
+    "divergences": [
+      "Add a persistent activity strip beside the existing status and Stop control."
+    ]
+  },
+  "defects": [
+    {
+      "id": "activity",
+      "bucket": "usability",
+      "severity": "major",
+      "problem": "Working status has no turn counter, elapsed time, activity freshness or connection freshness.",
+      "evidence": "Live screenshot and render/refresh handlers show only a static status string.",
+      "expectedEffect": "See the active turn, elapsed time and real output age; stop animation on quiet or disconnected states.",
+      "assertions": [
+        "flow:activity"
+      ]
+    }
+  ],
+  "referenceLimitation": "Catalog spectrum-ai-chat shot is a Spectrum marketing page; existing Brutus conversation is the authoritative visual precedent."
+}

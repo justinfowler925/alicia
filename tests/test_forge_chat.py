@@ -124,7 +124,7 @@ def test_retry_launches_once_and_keeps_history(bridge):
     msg = {"message_id": str(uuid.uuid4()), "message": "Remember amber."}
     first = call("send", **msg)
     second = call("send", **msg)
-    assert first == second
+    assert first["turns"] == second["turns"]
     assert len(agent.calls) == 1
     assert call("list")["threads"][0]["title"] == "Remember amber."
     with pytest.raises(ValueError, match="still responding"):
@@ -213,7 +213,7 @@ def test_attachment_bytes_scope_history_and_retry(bridge):
     assert sent["turns"][0]["attachments"] == [uploaded]
     assert str(path) in agent.calls[0][1]
     assert "file-only secret" not in agent.calls[0][1]
-    assert call("send", **msg) == sent
+    assert call("send", **msg)["turns"] == sent["turns"]
     with pytest.raises(ValueError, match="already belongs"):
         call("send", **{**msg, "attachments": []})
     agent.update(sent["turns"][0]["run_id"], status="succeeded")
@@ -282,3 +282,28 @@ def test_large_stream_and_interrupted_transfer(bridge):
     assert result["size"] == 32 * 1024 * 1024
     from pathlib import Path
     assert Path(result["path"]).stat().st_size == result["size"]
+
+
+def test_activity_uses_real_events_without_exposing_content(bridge):
+    import os
+    call, agent, _state, _thread = bridge
+    sent = call("send", message_id=str(uuid.uuid4()), message="A task")
+    run_id = sent["turns"][0]["run_id"]
+    agent.update(run_id, status="running", started=100.0)
+    directory = agent.STATE / "runs" / run_id
+    directory.mkdir(parents=True)
+    log = directory / "events.jsonl"
+    log.write_text('diagnostic line\n' + json.dumps({"type":"turn.started"}) + '\n' + json.dumps({"type":"item.started","item":{"type":"command_execution","command":"PRIVATE_COMMAND"}}) + '\n')
+    os.utime(log, (120, 120))
+    current = call("get")["activity"]
+    assert current["turn"] == 1 and current["active"] == 1
+    assert current["events"] == 2 and current["tools"] == 1
+    assert current["phase"] == "Running a command"
+    assert current["last_output_at"] == 120 and current["started_at"] == 100
+    assert "PRIVATE_COMMAND" not in json.dumps(current)
+    with log.open("a") as f:
+        f.write(json.dumps({"type":"item.completed","item":{"type":"command_execution"}}) + '\n')
+    assert call("get")["activity"]["phase"] == "Thinking"
+    agent.update(run_id, status="succeeded", finished=200.0)
+    final = call("get")["activity"]
+    assert final["active"] == 0 and final["phase"] == "Complete" and final["finished_at"] == 200

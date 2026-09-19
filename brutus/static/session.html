@@ -45,6 +45,13 @@
     <div class="scroll" id="forge-transcript" role="log" tabindex="0" aria-label="Forge conversation" aria-live="polite">
       <div class="conversation-empty"><h3>What would you like to work on?</h3><p>Ask Forge a question or give it a task. Your conversation and work stay on Studio.</p></div>
     </div>
+    <div class="forge-activity" id="forge-activity" data-state="idle" aria-label="Forge turn activity">
+      <div class="forge-activity-heading">
+        <strong id="forge-turn-count">0 turns · 0 active</strong>
+        <span id="forge-phase" role="status">Ready</span>
+      </div>
+      <p id="forge-activity-detail">No turn running.</p>
+    </div>
     <div class="forge-status-row">
       <p id="forge-status" role="status">Ready when you are.</p>
       <button type="button" id="forge-reconnect" hidden>Reconnect</button>
