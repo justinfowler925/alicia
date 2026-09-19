@@ -12,6 +12,7 @@ from brutus import forge_local as local
 @pytest.fixture
 def runtime(tmp_path, monkeypatch):
     monkeypatch.setattr(local, 'STATE', tmp_path / 'state')
+    monkeypatch.setattr(local.ToolSession, 'discover', lambda self: self.tools)
     workspace = tmp_path / 'workspace'
     workspace.mkdir()
     return local.enqueue('forge', 'Reply locally', cwd=str(workspace), work_item='test')
@@ -151,3 +152,16 @@ def test_web_answer_without_sources_gets_corrected(runtime, monkeypatch):
     local.worker(runtime['id'])
     assert len(calls) == 4 and local.get(runtime['id'])['status'] == 'succeeded'
     assert (local.STATE / 'runs' / runtime['id'] / 'web-sources.jsonl').exists()
+
+
+def test_browser_read_satisfies_search_source_verification(runtime, monkeypatch):
+    replies = iter([
+        {'role': 'assistant', 'tool_calls': [{'id': 's', 'function': {'name': 'web_search', 'arguments': '{"query":"example"}'}}]},
+        {'role': 'assistant', 'tool_calls': [{'id': 'b', 'function': {'name': 'browser_snapshot', 'arguments': '{}'}}]},
+        {'role': 'assistant', 'content': 'Observed page: https://example.com/'},
+    ])
+    monkeypatch.setattr(local, 'completion', lambda *args: next(replies))
+    monkeypatch.setattr(local, 'web_search', lambda query: json.dumps({'results': [{'url': 'https://example.com/'}]}))
+    monkeypatch.setattr(local.ToolSession, 'call', lambda *args: {'ok': True, 'text': '- Page URL: https://example.com/\n### Snapshot\nExample Domain'})
+    local.worker(runtime['id'])
+    assert local.get(runtime['id'])['status'] == 'succeeded'

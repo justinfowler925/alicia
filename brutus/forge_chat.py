@@ -47,18 +47,24 @@ def local_runtime_source():
     return Path(__file__).with_name("forge_local.py").read_text()
 
 
+def local_tools_source():
+    return Path(__file__).with_name("forge_tools.py").read_text()
+
+
 # Content-addressed worker installation on Studio; concurrent requests never
 # overwrite code used by an active run. Only our deployed source is installed.
 INSTALL_LOCAL = """
 import hashlib,pathlib,uuid
 code=p['local_source']
-root=pathlib.Path.home()/'.local/share/brutus-forge-chat/runtime'/hashlib.sha256(code.encode()).hexdigest()
+sources={'forge_local.py':code,'forge_tools.py':p['tools_source']}
+root=pathlib.Path.home()/'.local/share/brutus-forge-chat/runtime'/hashlib.sha256(json.dumps(sources,sort_keys=True).encode()).hexdigest()
 root.mkdir(parents=True,exist_ok=True)
-dest=root/'forge_local.py'
-if not dest.exists():
-    temporary=root/('worker-'+uuid.uuid4().hex)
-    temporary.write_text(code)
-    temporary.replace(dest)
+for name,source in sources.items():
+    dest=root/name
+    if not dest.exists():
+        temporary=root/('worker-'+uuid.uuid4().hex)
+        temporary.write_text(source)
+        temporary.replace(dest)
 sys.path.insert(0,str(root))
 """
 
@@ -74,7 +80,8 @@ def remote(request: dict):
         result = subprocess.run(
             ["/usr/bin/ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
              "jfstudio@100.102.92.119", "/opt/homebrew/bin/python3 -c " + shlex.quote(bootstrap)],
-            input=json.dumps({"source": source, "local_source": local_runtime_source(), "request": request}),
+            input=json.dumps({"source": source, "local_source": local_runtime_source(),
+                              "tools_source": local_tools_source(), "request": request}),
             text=True, capture_output=True, timeout=25, check=False,
         )
         if result.returncode:
@@ -110,7 +117,7 @@ async def upload(thread_id: UUID, attachment_id: UUID, request: Request, name: s
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
     )
     try:
-        metadata = {"source": source, "local_source": local_runtime_source(), "request": {
+        metadata = {"source": source, "local_source": local_runtime_source(), "tools_source": local_tools_source(), "request": {
             "action": "upload", "thread_id": str(thread_id), "attachment_id": str(attachment_id), "name": name,
         }}
         proc.stdin.write((json.dumps(metadata) + "\n").encode())
