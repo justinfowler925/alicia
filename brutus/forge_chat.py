@@ -43,17 +43,38 @@ class ChatRequest(BaseModel):
     attachments: list[UUID] = Field(default_factory=list, max_length=10)
 
 
+def local_runtime_source():
+    return Path(__file__).with_name("forge_local.py").read_text()
+
+
+# Content-addressed worker installation on Studio; concurrent requests never
+# overwrite code used by an active run. Only our deployed source is installed.
+INSTALL_LOCAL = """
+import hashlib,pathlib,uuid
+code=p['local_source']
+root=pathlib.Path.home()/'.local/share/brutus-forge-chat/runtime'/hashlib.sha256(code.encode()).hexdigest()
+root.mkdir(parents=True,exist_ok=True)
+dest=root/'forge_local.py'
+if not dest.exists():
+    temporary=root/('worker-'+uuid.uuid4().hex)
+    temporary.write_text(code)
+    temporary.replace(dest)
+sys.path.insert(0,str(root))
+"""
+
+
+
 def remote(request: dict):
     # Ship this deployed bridge source for this invocation, so Studio cannot
     # silently run an older bridge. Only the action JSON contains user input.
     source = Path(__file__).with_name("forge_bridge.py").read_text()
-    bootstrap = "import json,sys,io; p=json.load(sys.stdin); sys.stdin=io.StringIO(json.dumps(p['request'])); exec(compile(p['source'],'forge_bridge.py','exec'),{'__name__':'__main__'})"
+    bootstrap = "import json,sys,io; p=json.load(sys.stdin); " + INSTALL_LOCAL + "sys.stdin=io.StringIO(json.dumps(p['request'])); exec(compile(p['source'],'forge_bridge.py','exec'),{'__name__':'__main__'})"
     import shlex
     try:
         result = subprocess.run(
             ["/usr/bin/ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
              "jfstudio@100.102.92.119", "/opt/homebrew/bin/python3 -c " + shlex.quote(bootstrap)],
-            input=json.dumps({"source": source, "request": request}),
+            input=json.dumps({"source": source, "local_source": local_runtime_source(), "request": request}),
             text=True, capture_output=True, timeout=25, check=False,
         )
         if result.returncode:
@@ -81,7 +102,7 @@ async def upload(thread_id: UUID, attachment_id: UUID, request: Request, name: s
     if not name or len(name) > 255:
         raise HTTPException(422, "Filename must contain 1–255 characters")
     source = Path(__file__).with_name("forge_bridge.py").read_text()
-    bootstrap = "import json,sys; p=json.loads(sys.stdin.buffer.readline()); ns={'__name__':'bridge'}; exec(compile(p['source'],'forge_bridge.py','exec'),ns); ns['stream_main'](p['request'],sys.stdin.buffer)"
+    bootstrap = "import json,sys; p=json.loads(sys.stdin.buffer.readline()); " + INSTALL_LOCAL + "ns={'__name__':'bridge'}; exec(compile(p['source'],'forge_bridge.py','exec'),ns); ns['stream_main'](p['request'],sys.stdin.buffer)"
     proc = await asyncio.create_subprocess_exec(
         "/usr/bin/ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
         "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=3",
@@ -89,7 +110,7 @@ async def upload(thread_id: UUID, attachment_id: UUID, request: Request, name: s
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
     )
     try:
-        metadata = {"source": source, "request": {
+        metadata = {"source": source, "local_source": local_runtime_source(), "request": {
             "action": "upload", "thread_id": str(thread_id), "attachment_id": str(attachment_id), "name": name,
         }}
         proc.stdin.write((json.dumps(metadata) + "\n").encode())

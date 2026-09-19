@@ -5,11 +5,10 @@ Send a message, continue with a follow-up, use **New chat**, or select a saved
 conversation. **Stop** requests cancellation of that conversation's active run.
 Status distinguishes queued, working, replied, failed, blocked and cancelled.
 
-Forge uses the model configured in Studio's installed agent runtime. Brutus
-does not change the model, credentials, sandbox or delivery controls. It sends
+Forge uses the local Gemma runtime described below. It sends
 the current user message and saved prior turns to Forge. Each conversation has
-its own Studio workspace. The full conversational answer is the runtime's
-completion-report summary; a successful process is not an independent claim
+its own Studio workspace. The full conversational answer is the local model's
+reply; a successful process is not an independent claim
 that code was delivered or a task was accepted.
 
 History lives in `~/.local/share/brutus-forge-chat/chat.sqlite3` on Studio.
@@ -84,3 +83,25 @@ Elapsed time survives reload and stops at the recorded finish timestamp.
 on the real page to deterministically verify running, quiet, offline, recovery,
 queued, stopped and complete states, ticking/frozen elapsed time, reduced motion
 and narrow layout. Live run verification and Shine proof supplement those states.
+
+
+## Local inference (2026-09-18)
+
+New Forge chat turns use the resident Gemma 4 31B IT 4-bit weights at
+`/Users/jfstudio/.local/share/atlas-models/gemma4-31b-it-4bit` through
+Studio's loopback `http://127.0.0.1:8081/v1/chat/completions`. The transport
+ships the deployed local worker over private SSH; no Codex process, hosted
+provider credentials, or hosted fallback is used. Responses naming a different
+model are rejected. Proxy environment settings and HTTP redirects are disabled.
+
+Historical hosted turns are preserved and labeled with their original model.
+New local run state is in `studio-agents/forge-local.sqlite3`; historical run
+records are read only. Files and chat history remain in their original Studio
+locations. Cancellation stops the local worker; an in-flight server inference
+may need to finish internally before the resident accepts its next request.
+
+Gemma can use a bounded workspace command tool to inspect attachments and edit
+copies. Commands run under macOS sandbox-exec with no network access and writes
+restricted to the conversation workspace. No credentials are inherited. Missing
+local tools, blocked network dependencies, model errors, and step limits are
+reported as failures, never silently delegated to another agent or model.

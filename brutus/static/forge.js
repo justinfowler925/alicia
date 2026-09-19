@@ -68,7 +68,7 @@
   function render(data) {
     runActivity = data.activity || null; turnCount = data.turns.length;
     lastCheck = Date.now(); connection = 'connected'; paintActivity();
-    $('forge-model').textContent = `${data.model} · Studio`;
+    $('forge-model').textContent = `${data.model.split('/').at(-1)} · Local on Studio · No cloud fallback`;
     const key = JSON.stringify(data.turns);
     if (key !== rendered) {
       const log = $('forge-transcript');
@@ -76,7 +76,7 @@
       log.replaceChildren();
       for (const t of data.turns) {
         turn('You', t.message + (t.attachments?.length ? '\n\nAttached: ' + t.attachments.map(a => a.name).join(', ') : ''), true);
-        if (t.answer) turn('Forge', t.answer);
+        if (t.answer) turn('Forge · ' + (t.model || 'Unknown model').split('/').at(-1), t.answer);
         if (t.status !== 'succeeded') turn('Forge · ' + t.status,
           t.cancellation_requested && !terminal.has(t.status) ? 'Stopping…' : t.reason || (terminal.has(t.status) ? 'No completed reply. You can send a follow-up.' : 'Working on Studio…'));
       }
@@ -107,7 +107,7 @@
   }
   async function history() {
     const data = await api('list');
-    $('forge-model').textContent = `${data.model} · Studio`;
+    $('forge-model').textContent = `${data.model.split('/').at(-1)} · Local on Studio · No cloud fallback`;
     $('forge-threads').replaceChildren(new Option('New conversation', ''));
     data.threads.forEach(t => $('forge-threads').append(new Option(t.title, t.id)));
     if (thread && !data.threads.some(t => t.id === thread)) thread = '';
