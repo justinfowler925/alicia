@@ -105,3 +105,16 @@ copies. Commands run under macOS sandbox-exec with no network access and writes
 restricted to the conversation workspace. No credentials are inherited. Missing
 local tools, blocked network dependencies, model errors, and step limits are
 reported as failures, never silently delegated to another agent or model.
+
+
+## Public web tools
+
+Local Gemma has `web_search` (Bing web search results) and `web_fetch`
+(public page text), alongside the workspace file tool. These are ordinary
+web requests from Studio, not hosted model calls. Search snippets are leads;
+Gemma must read and verify relevant sources before asserting specifications,
+price or availability. Captchas, login requirements and JavaScript-only pages
+are reported as source-specific limitations. No challenge bypass is attempted.
+Source HTTP/HTTPS links in replies are clickable and rendered without HTML.
+Shell commands remain network-isolated; dedicated web tools inherit no browser
+sessions or credentials and do not permit private/local network URLs.

@@ -89,3 +89,65 @@ def test_tool_results_return_to_same_local_model(runtime, monkeypatch):
     monkeypatch.setattr(local, 'workspace_command', lambda *args: 'workspace result')
     local.worker(runtime['id'])
     assert len(calls) == 2 and local.get(runtime['id'])['status'] == 'succeeded'
+
+
+def test_web_search_returns_real_source_fields(monkeypatch):
+    def read(url):
+        assert 'q=512GB+Mac+Studio' in url
+        return url, '<rss><channel><item><title>512GB unified memory</title><link>https://store.example/studio</link><description>Listing details</description></item></channel></rss>'
+    monkeypatch.setattr(local, 'read_web', read)
+    result = json.loads(local.web_search('512GB Mac Studio'))
+    assert result['results'][0]['url'] == 'https://store.example/studio'
+    assert result['query'] == '512GB Mac Studio'
+
+
+def test_web_fetch_extracts_text_without_scripts(monkeypatch):
+    monkeypatch.setattr(local, 'read_web', lambda url: (url, '<h1>512GB RAM</h1><script>PRIVATE_SCRIPT</script><p>Out of stock</p>'))
+    result = json.loads(local.web_fetch('https://store.example/studio'))
+    assert '512GB RAM' in result['text'] and 'Out of stock' in result['text']
+    assert 'PRIVATE_SCRIPT' not in result['text']
+
+
+@pytest.mark.parametrize('url', ['file:///etc/passwd', 'http://user:password@example.com', 'http://127.0.0.1:8081', 'http://localhost'])
+def test_public_web_boundary(url):
+    with pytest.raises(ValueError):
+        local.public_url(url)
+
+
+def test_web_failure_is_returned_to_local_model(runtime, monkeypatch):
+    monkeypatch.setattr(local, 'web_search', lambda query: (_ for _ in ()).throw(OSError('Search unavailable')))
+    result = json.loads(local.run_tool({'function': {'name': 'web_search', 'arguments': '{"query":"computer"}'}}, runtime, runtime['id']))
+    assert result['error'] == 'Search unavailable'
+    assert result['tool'] == 'web_search'
+
+
+def test_irrelevant_search_retries_with_numeric_constraint(monkeypatch):
+    seen = []
+    def read(url):
+        seen.append(url)
+        title = 'Cosmetics' if len(seen) == 1 else '512GB unified memory workstation'
+        return url, f'<rss><channel><item><title>{title}</title><link>https://store.example/product</link></item></channel></rss>'
+    monkeypatch.setattr(local, 'read_web', read)
+    result = json.loads(local.web_search('Mac Studio 512GB'))
+    assert len(seen) == 2 and 'q=512GB+Mac+Studio' in seen[-1]
+    assert '512GB' in result['results'][0]['title']
+
+
+def test_web_answer_without_sources_gets_corrected(runtime, monkeypatch):
+    calls = []
+    def complete(messages, tools):
+        calls.append(list(messages))
+        if len(calls) == 1:
+            return {'role': 'assistant', 'tool_calls': [{'id': 'web1', 'function': {'name': 'web_search', 'arguments': '{"query":"computer"}'}}]}
+        if len(calls) == 2:
+            return {'role': 'assistant', 'content': 'An unsupported claim with no source'}
+        if len(calls) == 3:
+            assert 'omitted retrieved sources' in messages[-1]['content']
+            return {'role': 'assistant', 'tool_calls': [{'id': 'web2', 'function': {'name': 'web_fetch', 'arguments': '{"url":"https://store.example/product"}'}}]}
+        return {'role': 'assistant', 'content': 'Source: https://store.example/product'}
+    monkeypatch.setattr(local, 'completion', complete)
+    monkeypatch.setattr(local, 'web_search', lambda query: json.dumps({'results': [{'url': 'https://store.example/product'}]}))
+    monkeypatch.setattr(local, 'web_fetch', lambda url: json.dumps({'url': url, 'text': 'Listing details'}))
+    local.worker(runtime['id'])
+    assert len(calls) == 4 and local.get(runtime['id'])['status'] == 'succeeded'
+    assert (local.STATE / 'runs' / runtime['id'] / 'web-sources.jsonl').exists()

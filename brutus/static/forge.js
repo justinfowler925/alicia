@@ -59,10 +59,24 @@
     connection = 'disconnected'; paintActivity();
     status(error.message); $('forge-reconnect').hidden = false; controls();
   }
+  function sourceLinks(body, text) {
+    const links = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>]+)/g;
+    let offset = 0;
+    for (const match of text.matchAll(links)) {
+      body.append(document.createTextNode(text.slice(offset, match.index)));
+      const link = document.createElement('a');
+      link.href = match[2] || match[3];
+      link.textContent = match[1] || match[3];
+      link.target = '_blank'; link.rel = 'noopener noreferrer';
+      body.append(link); offset = match.index + match[0].length;
+    }
+    body.append(document.createTextNode(text.slice(offset)));
+  }
   function turn(who, text, user = false) {
     const item = document.createElement('article'); item.className = `turn ${user ? 'user' : 'assistant'}`;
     const label = document.createElement('p'); label.className = 'who'; label.textContent = who;
-    const body = document.createElement('div'); body.className = 'body'; body.textContent = text;
+    const body = document.createElement('div'); body.className = 'body';
+    if (user) body.textContent = text; else sourceLinks(body, text);
     item.append(label, body); $('forge-transcript').append(item);
   }
   function render(data) {
