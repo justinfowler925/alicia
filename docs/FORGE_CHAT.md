@@ -39,7 +39,7 @@ no-files conversation with two turns.
 ## File attachments
 
 Choose **Attach files** or drop files anywhere in the Forge panel. Up to 10 files
-per message, each at most 10 MiB. Review the file rows, remove anything unwanted,
+per message, with no application file-size cap. Review the file rows, remove anything unwanted,
 then send a message (files alone send “Please review the attached files.”).
 Uploads show Ready only after Studio acknowledges the bytes; a failed upload has
 Retry and Remove controls. Send is disabled until all selected files are ready.
@@ -49,16 +49,17 @@ be removed and reselected. Attachment names remain visible in saved turns.
 Bytes travel through the loopback, same-origin/header-protected Brutus endpoint
 and private SSH to the conversation workspace on Studio. No local permanent copy
 is created. File names are display data; storage uses UUID directories and safe
-basenames. The bridge bounds sizes, scopes file IDs to the conversation, persists
+basenames. The bridge streams bounded chunks without a file-size cap, scopes file IDs to the conversation, persists
 the turn/file association and checks it on retried sends. Atomic writes recover
 an interrupted upload. Forge receives actual paths and can read files in later
 turns. Supported interpretation depends on Forge's available file-reading tools.
 Removing a staged file detaches it from the outgoing message; uploaded bytes remain
 in the Studio conversation workspace (no automatic deletion policy).
 
-Verification: `tests/test_forge_chat.py` covers bytes, retry, history, bounds and
+Verification: `tests/test_forge_chat.py` covers bytes, retry, history, stream interruption and
 cross-conversation rejection. `scripts/verify-forge-attachments.cjs` runs a headless
 browser against `FORGE_URL` (defaults to local production); supply
 `PLAYWRIGHT_MODULE` if Playwright is installed outside the project. It creates a
-benign test conversation and checks picker/drop, failed-upload retry, oversize
-rejection, removal, reload, narrow layout and a real Forge read of file-only text.
+benign test conversation and checks picker/drop, failed-upload retry, a 32 MiB upload, removal, reload, narrow layout and a real Forge read of file-only text.
+
+Uploads stream browser → Brutus → SSH → Studio with backpressure and no whole-file buffering. An explicit end marker prevents interrupted uploads from being committed. Storage capacity remains the practical limit.

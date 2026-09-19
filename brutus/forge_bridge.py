@@ -5,12 +5,12 @@ The caller supplies an action, never executable code or a shell command.
 """
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import os
 import re
 import sqlite3
+import struct
 import sys
 import tempfile
 import time
@@ -48,7 +48,7 @@ def snapshot(c, agent, thread_id):
     return {**dict(thread), "turns": turns, "model": agent.config()["forge"]["model"]}
 
 
-def handle(request, agent=None, state=None):
+def handle(request, agent=None, state=None, upload_chunks=None):
     agent = agent or runtime()
     state = state or Path.home() / ".local/share/brutus-forge-chat"
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -76,18 +76,8 @@ def handle(request, agent=None, state=None):
             name = request["name"]
             if not isinstance(name, str) or not 1 <= len(name) <= 255:
                 raise ValueError("Invalid filename")
-            if len(request["content"]) > 14 * 1024 * 1024:
-                raise ValueError("Files must be 10 MB or smaller")
-            content = base64.b64decode(request["content"], validate=True)
-            if len(content) > 10 * 1024 * 1024:
-                raise ValueError("Files must be 10 MB or smaller")
-            digest = hashlib.sha256(content).hexdigest()
-            c.execute("BEGIN IMMEDIATE")
-            old = c.execute("SELECT * FROM attachments WHERE id=?", (aid,)).fetchone()
-            if old:
-                if old["thread_id"] != thread_id or old["name"] != name or old["digest"] != digest:
-                    raise ValueError("Attachment ID already belongs to another file")
-                return {k: old[k] for k in ("id", "name", "size", "path")}
+            if upload_chunks is None:
+                raise ValueError("Upload stream required")
             directory = agent.STATE / "workspaces" / "brutus-chat" / thread_id / "attachments" / aid
             workspace = agent.STATE / "workspaces" / "brutus-chat" / thread_id
             if not directory.resolve().is_relative_to(workspace.resolve()):
@@ -98,15 +88,27 @@ def handle(request, agent=None, state=None):
             # Atomic replacement recovers a transfer interrupted before the DB commit.
             fd, temporary = tempfile.mkstemp(dir=directory)
             try:
+                digest = hashlib.sha256()
+                size = 0
                 with os.fdopen(fd, "wb") as f:
-                    f.write(content)
+                    for chunk in upload_chunks:
+                        f.write(chunk)
+                        digest.update(chunk)
+                        size += len(chunk)
+                digest = digest.hexdigest()
+                c.execute("BEGIN IMMEDIATE")
+                old = c.execute("SELECT * FROM attachments WHERE id=?", (aid,)).fetchone()
+                if old:
+                    if old["thread_id"] != thread_id or old["name"] != name or old["digest"] != digest:
+                        raise ValueError("Attachment ID already belongs to another file")
+                    return {k: old[k] for k in ("id", "name", "size", "path")}
                 os.replace(temporary, path)
+                c.execute("INSERT INTO attachments VALUES(?,?,NULL,?,?,?,?)", (aid, thread_id, name, size, str(path), digest))
+                c.commit()
+                return {"id": aid, "name": name, "size": size, "path": str(path)}
             finally:
                 if os.path.exists(temporary):
                     os.unlink(temporary)
-            c.execute("INSERT INTO attachments VALUES(?,?,NULL,?,?,?,?)", (aid, thread_id, name, len(content), str(path), digest))
-            c.commit()
-            return {"id": aid, "name": name, "size": len(content), "path": str(path)}
         if action == "get":
             return snapshot(c, agent, thread_id)
         if action == "send":
@@ -175,6 +177,32 @@ def handle(request, agent=None, state=None):
         raise ValueError("Unknown chat action")
     finally:
         c.close()
+
+
+def upload_frames(stream):
+    """Require explicit completion; an interrupted SSH stream is never a file."""
+    def exact(size):
+        data = bytearray()
+        while len(data) < size:
+            chunk = stream.read(size - len(data))
+            if not chunk:
+                raise ValueError("Upload interrupted. Retry this file.")
+            data.extend(chunk)
+        return bytes(data)
+    while True:
+        size = struct.unpack("!I", exact(4))[0]
+        if size == 0:
+            return
+        if size > 1024 * 1024:
+            raise ValueError("Invalid upload frame")
+        yield exact(size)
+
+
+def stream_main(request, stream):
+    try:
+        print(json.dumps({"ok": True, "data": handle(request, upload_chunks=upload_frames(stream))}))
+    except (ValueError, KeyError, OSError) as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}))
 
 
 def main():

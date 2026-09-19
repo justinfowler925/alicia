@@ -1,8 +1,10 @@
 """Local typed-chat transport to the installed Forge runtime on Studio."""
 from __future__ import annotations
 
-import base64
+import asyncio
 import json
+import shlex
+import struct
 import subprocess
 from pathlib import Path
 from typing import Literal
@@ -11,7 +13,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
-from starlette.concurrency import run_in_threadpool
 
 
 def require_local_chat(request: Request):
@@ -76,16 +77,44 @@ def chat(body: ChatRequest):
 
 @router.post("/upload/{thread_id}/{attachment_id}")
 async def upload(thread_id: UUID, attachment_id: UUID, request: Request, name: str):
-    """Bound the raw stream before encoding; never buffer arbitrary request sizes."""
-    limit = 10 * 1024 * 1024
-    content = bytearray()
-    async for chunk in request.stream():
-        if len(content) + len(chunk) > limit:
-            raise HTTPException(413, "Files must be 10 MB or smaller")
-        content.extend(chunk)
+    """Stream framed chunks directly to Studio with SSH backpressure."""
     if not name or len(name) > 255:
         raise HTTPException(422, "Filename must contain 1–255 characters")
-    return await run_in_threadpool(remote, {
-        "action": "upload", "thread_id": str(thread_id), "attachment_id": str(attachment_id),
-        "name": name, "content": base64.b64encode(content).decode("ascii"),
-    })
+    source = Path(__file__).with_name("forge_bridge.py").read_text()
+    bootstrap = "import json,sys; p=json.loads(sys.stdin.buffer.readline()); ns={'__name__':'bridge'}; exec(compile(p['source'],'forge_bridge.py','exec'),ns); ns['stream_main'](p['request'],sys.stdin.buffer)"
+    proc = await asyncio.create_subprocess_exec(
+        "/usr/bin/ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+        "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=3",
+        "jfstudio@100.102.92.119", "/opt/homebrew/bin/python3 -c " + shlex.quote(bootstrap),
+        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+    )
+    try:
+        metadata = {"source": source, "request": {
+            "action": "upload", "thread_id": str(thread_id), "attachment_id": str(attachment_id), "name": name,
+        }}
+        proc.stdin.write((json.dumps(metadata) + "\n").encode())
+        await proc.stdin.drain()
+        async for chunk in request.stream():
+            for offset in range(0, len(chunk), 1024 * 1024):
+                block = chunk[offset:offset + 1024 * 1024]
+                proc.stdin.write(struct.pack("!I", len(block)))
+                proc.stdin.write(block)
+                await proc.stdin.drain()
+        # Only a complete HTTP body gets the end marker; disconnects cannot commit partial files.
+        proc.stdin.write(struct.pack("!I", 0))
+        await proc.stdin.drain()
+        proc.stdin.close()
+        output = await proc.stdout.read()
+        await proc.wait()
+        if proc.returncode:
+            raise HTTPException(503, "Upload connection interrupted. Retry this file.")
+        body = json.loads(output)
+        if not body.get("ok"):
+            raise HTTPException(409, body.get("error", "Upload failed. Retry this file."))
+        return body["data"]
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(503, "Upload connection interrupted. Retry this file.") from exc
+    finally:
+        if proc.returncode is None:
+            proc.kill()
+            await proc.wait()

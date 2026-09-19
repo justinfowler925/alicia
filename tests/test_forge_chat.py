@@ -112,7 +112,9 @@ def bridge(tmp_path):
     state = tmp_path / "chat"
     thread_id = str(uuid.uuid4())
     def call(action, **kwargs):
-        return forge_bridge.handle(dict(action=action, thread_id=thread_id, **kwargs), agent, state)
+        import base64
+        chunks = [base64.b64decode(kwargs.pop("content"))] if "content" in kwargs else None
+        return forge_bridge.handle(dict(action=action, thread_id=thread_id, **kwargs), agent, state, upload_chunks=chunks)
     call("create")
     return call, agent, state, thread_id
 
@@ -229,17 +231,54 @@ def test_upload_recovers_file_written_before_commit(bridge):
     assert call("upload", **body) == first
 
 
-def test_upload_limits_and_http_boundary(monkeypatch):
-    import base64
+def test_streaming_upload_above_old_limit_and_http_boundary(monkeypatch):
+    import io
+    class Pipe:
+        def __init__(self): self.data = bytearray()
+        def write(self, data): self.data.extend(data)
+        async def drain(self): pass
+        def close(self): pass
+    class Process:
+        returncode = None
+        def __init__(self): self.stdin = Pipe(); self.stdout = self
+        async def read(self): return b'{"ok":true,"data":{"uploaded":true}}'
+        async def wait(self): self.returncode = 0
+        def kill(self): self.returncode = -9
+    processes = []
+    async def spawn(*args, **kwargs):
+        p = Process(); processes.append(p); return p
+    monkeypatch.setattr(forge_chat.asyncio, "create_subprocess_exec", spawn)
     app = FastAPI()
     app.include_router(forge_chat.router)
-    calls = []
-    monkeypatch.setattr(forge_chat, "remote", lambda request: calls.append(request) or {"id": request["attachment_id"]})
-    route = f"/api/forge/upload/{uuid.uuid4()}/{uuid.uuid4()}?name=note.txt"
+    route = f"/api/forge/upload/{uuid.uuid4()}/{uuid.uuid4()}?name=large.bin"
+    content = b"x" * (12 * 1024 * 1024)
     with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)) as client:
         assert client.post(route, content=b"hello").status_code == 403
         assert client.post(route, content=b"hello", headers={"X-Brutus-Chat": "forge", "Origin": "https://foreign.example"}).status_code == 403
-        assert client.post(route, content=b"hello", headers={"X-Brutus-Chat": "forge"}).status_code == 200
-        assert base64.b64decode(calls[0]["content"]) == b"hello"
-        assert client.post(route, content=b"x" * (10 * 1024 * 1024 + 1), headers={"X-Brutus-Chat": "forge"}).status_code == 413
-        assert len(calls) == 1
+        assert client.post(route, content=content, headers={"X-Brutus-Chat": "forge"}).status_code == 200
+    assert len(processes) == 1
+    stream = io.BytesIO(processes[0].stdin.data)
+    metadata = json.loads(stream.readline())
+    assert metadata["request"]["name"] == "large.bin"
+    chunks = list(forge_bridge.upload_frames(stream))
+    assert all(len(chunk) <= 1024 * 1024 for chunk in chunks)
+    assert b"".join(chunks) == content
+
+
+def test_large_stream_and_interrupted_transfer(bridge):
+    import io
+    import struct
+    _call, agent, state, thread_id = bridge
+    aid = str(uuid.uuid4())
+    request = {"action": "upload", "thread_id": thread_id, "attachment_id": aid, "name": "large.bin"}
+    frame = struct.pack("!I", 4) + b"test"
+    with pytest.raises(ValueError, match="interrupted"):
+        forge_bridge.handle(request, agent, state, upload_chunks=forge_bridge.upload_frames(io.BytesIO(frame)))
+    directory = agent.STATE / "workspaces" / "brutus-chat" / thread_id / "attachments" / aid
+    assert list(directory.iterdir()) == []
+    with sqlite3.connect(state / "chat.sqlite3") as c:
+        assert c.execute("SELECT count(*) FROM attachments").fetchone()[0] == 0
+    result = forge_bridge.handle(request, agent, state, upload_chunks=(b"z" * 1024 * 1024 for _ in range(32)))
+    assert result["size"] == 32 * 1024 * 1024
+    from pathlib import Path
+    assert Path(result["path"]).stat().st_size == result["size"]

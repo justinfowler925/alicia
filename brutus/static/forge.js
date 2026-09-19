@@ -177,7 +177,6 @@
     if (busy || pending || working) { status('Wait for the current request before attaching files.'); return; }
     const files = Array.from(fileList);
     if (attachments.length + files.length > 10) { status('Attach up to 10 files per message. Remove a file first.'); return; }
-    if (files.some(f => f.size > 10 * 1024 * 1024)) { status('Files must be 10 MB or smaller. Select smaller files.'); return; }
     if (!files.length) return;
     const added = files.map(file => ({id: crypto.randomUUID(), name: file.name, size: file.size, file, ready: false}));
     attachments.push(...added); drawAttachments(); transfer(added);
