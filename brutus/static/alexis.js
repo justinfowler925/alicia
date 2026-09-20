@@ -27,7 +27,7 @@ window.alexis = (() => {
   const status = text => { node('alexis-status').textContent = text; };
   const looks = {
     alexis: {src: '/static/alexis.jpg', alt: 'Alexis, your AI collaborator'},
-    alicia: {src: '/static/alicia.jpg', alt: 'Alicia'},
+    alicia: {src: '/static/alicia.jpg?v=4', alt: 'Alicia'},
   };
   function setLook(name) {
     const look = looks[name] || looks.alexis;
