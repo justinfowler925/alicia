@@ -54,12 +54,17 @@
     <div id="alexis-attachments" aria-label="Attached files"></div>
     <p id="alexis-composer-status" role="status"></p>
     </section>
+    <section class="alexis-call-panel" aria-label="Voice conversation">
     <figure class="alexis-presenter" data-cite="shadcn-broadcast" data-product-pattern="brutus-voice-stage">
       <div class="alexis-frame" id="alexis-frame">
         <img id="alexis-portrait" src="/static/alexis.jpg" alt="Alexis, your AI collaborator" width="1024" height="1024">
         <video id="alexis-video" playsinline autoplay muted hidden aria-label="Alexis live avatar"></video>
       </div>
       <figcaption id="alexis-caption"><span id="alexis-status" role="status">Ready to talk</span></figcaption>
+      <div class="alexis-looks" role="group" aria-label="Portrait">
+        <button type="button" id="look-alexis" aria-pressed="true">Alexis</button>
+        <button type="button" id="look-alicia" aria-pressed="false">Alicia</button>
+      </div>
       <div class="alexis-session-summary"><span id="supervisor-count" class="count">Checking sessions…</span><button type="button" id="alexis-sessions">View sessions</button></div>
     </figure>
     <header class="voice-stage-head">
@@ -84,9 +89,9 @@
     <div class="alexis-options">
       <button type="button" id="alexis-video-retry" hidden>Reconnect video</button>
       <label><input id="alexis-live" type="checkbox" checked> Live avatar</label>
-      <button type="button" id="alexis-end">End conversation</button>
       <button type="button" id="alexis-type" hidden>Type instead</button>
     </div>
+    </section>
     <details class="alexis-improve" id="alexis-improve">
       <summary>Help Alexis improve</summary>
       <p>Choose a reply and tell Alexis what worked or what to do differently. Feedback joins her shared improvement record.</p>

@@ -54,16 +54,28 @@
       "purpose": "Read every conversational turn without expanding a panel"
     },
     {
-      "id": "end-call",
-      "selector": "#alexis-end",
-      "referenceRole": "playback controls",
-      "purpose": "End voice and video"
-    },
-    {
       "id": "video-status",
       "selector": "#alexis-status",
       "referenceRole": "caption",
       "purpose": "Understand video connection and end state"
+    },
+    {
+      "id": "alexis-look",
+      "selector": "#look-alexis",
+      "referenceRole": "media controls",
+      "purpose": "Choose Alexis portrait"
+    },
+    {
+      "id": "alicia-look",
+      "selector": "#look-alicia",
+      "referenceRole": "media controls",
+      "purpose": "Choose Alicia portrait"
+    },
+    {
+      "id": "portrait",
+      "selector": "#alexis-portrait",
+      "referenceRole": "media frame",
+      "purpose": "See the whole selected portrait"
     }
   ],
   "flows": [
@@ -117,17 +129,20 @@
       ]
     },
     {
-      "id": "video-controls",
-      "userJob": "End the call while keeping the transcript available",
+      "id": "portrait-selection",
+      "userJob": "Switch portraits while keeping conversation visible",
       "steps": [
         {
           "action": "click",
-          "selector": "#alexis-end"
+          "selector": "#look-alicia"
         },
         {
-          "action": "text",
-          "selector": "#alexis-status",
-          "value": "Conversation ended \u00b7 microphone off"
+          "action": "visible",
+          "selector": "#alexis-portrait"
+        },
+        {
+          "action": "click",
+          "selector": "#look-alexis"
         },
         {
           "action": "visible",

@@ -98,7 +98,7 @@ const fs = require('node:fs');
       }
       await page.screenshot({path:'/tmp/alexis-live-provider.png',fullPage:true});
       receipt.answeredTurn={answer,source:'real shared brain and Anam audio passthrough',microphone:fixture ? 'synthetic audio through real transcription; no physical microphone' : 'not tested; typed input'};
-      await page.getByRole('button',{name:'End conversation',exact:true}).click();
+      await page.getByRole('button',{name:'End call',exact:true}).click();
       await page.waitForFunction(()=>document.querySelector('#alexis-video').hidden);
       assert.equal(await page.locator('#alexis-portrait').isVisible(),true);
       if (fixture) {

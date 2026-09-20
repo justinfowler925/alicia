@@ -1530,6 +1530,7 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             "alexis.js": "application/javascript",
             "alexis.css": "text/css",
             "alexis.jpg": "image/jpeg",
+            "alicia.jpg": "image/jpeg",
             "navigation.css": "text/css",
         }
         if name not in types:

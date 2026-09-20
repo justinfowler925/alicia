@@ -29,6 +29,8 @@ def test_homepage_is_preserved_and_pages_have_separate_navigation(client):
     assert 'id="alexis-frame"' in client.get("/alexis").text
     assert 'title="Atlas workspace"' in client.get("/atlas").text
     assert client.get("/static/alexis.jpg").headers["content-type"] == "image/jpeg"
+    assert 'id="look-alicia"' in client.get("/").text
+    assert client.get("/static/alicia.jpg").headers["content-type"] == "image/jpeg"
 
 
 def test_avatar_token_is_audio_only_and_does_not_expose_credentials(client):

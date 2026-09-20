@@ -1,7 +1,7 @@
 {
   "version": 1,
   "category": "media",
-  "primaryTask": "Alexis on the primary left, a single-line attachment/send-stop composer, and one copy of status and session counters",
+  "primaryTask": "Stable left presenter, one call toggle, and uncropped portraits",
   "productPrecedent": {
     "name": "Brutus voice stage",
     "reference": "brutus/static/session.html",
@@ -12,19 +12,20 @@
   },
   "before": {
     "artifact": "brutus/static/alexis.html",
-    "screenshot": "/tmp/brutus-alexis-final.png"
+    "screenshot": "/tmp/alexis-controls-before.png"
   },
   "defects": [
     {
-      "id": "layout-cleanup",
+      "id": "call-framing",
       "bucket": "usability",
       "severity": "major",
-      "problem": "Alexis is on the right, composer lacks attachments and stop, and duplicate readback/status blocks clutter the page",
-      "evidence": "User correction and current rendered home",
+      "problem": "Call actions occupy separate rows, mic doubles as reply stop, and portraits crop head or torso.",
+      "evidence": "Rendered before screenshot and current CSS/phase handler",
       "assertions": [
-        "flow:visible-transcript"
+        "flow:visible-transcript",
+        "flow:portrait-selection"
       ],
-      "expectedEffect": "Alexis on the primary left, a single-line attachment/send-stop composer, and one copy of status and session counters"
+      "expectedEffect": "One stable call toggle beneath the left presenter and full portraits for both looks"
     }
   ],
   "job": "Open Alexis first and converse through an always-visible transcript and composer, with reliable voice and video"

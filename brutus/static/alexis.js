@@ -25,6 +25,20 @@ window.alexis = (() => {
   }
   const node = id => document.getElementById(id);
   const status = text => { node('alexis-status').textContent = text; };
+  const looks = {
+    alexis: {src: '/static/alexis.jpg', alt: 'Alexis, your AI collaborator'},
+    alicia: {src: '/static/alicia.jpg', alt: 'Alicia'},
+  };
+  function setLook(name) {
+    const look = looks[name] || looks.alexis;
+    const portrait = node('alexis-portrait');
+    portrait.src = look.src;
+    portrait.alt = look.alt;
+    node('alexis-frame').classList.toggle('is-alicia', look === looks.alicia);
+    node('look-alexis').setAttribute('aria-pressed', look === looks.alexis ? 'true' : 'false');
+    node('look-alicia').setAttribute('aria-pressed', look === looks.alicia ? 'true' : 'false');
+    try { sessionStorage.setItem('brutus.portrait', look === looks.alicia ? 'alicia' : 'alexis'); } catch (_) {}
+  };
   function portrait() { node('alexis-video').hidden = true; node('alexis-portrait').hidden = false; }
   async function stop() {
     generation++; playback++;
@@ -149,6 +163,9 @@ window.alexis = (() => {
   }
   function clearAttachments() { files = []; renderAttachments(); }
   function bind({session, end, type}) {
+    node('look-alexis').onclick = () => setLook('alexis');
+    node('look-alicia').onclick = () => setLook('alicia');
+    try { setLook(sessionStorage.getItem('brutus.portrait') === 'alicia' ? 'alicia' : 'alexis'); } catch (_) { setLook('alexis'); }
     node('alexis-sessions').onclick = () => { const panel = document.querySelector('.alexis-work-context'); panel.open = !panel.open; };
     node('alexis-attach').onclick = () => node('alexis-files').click();
     node('alexis-files').onchange = async event => {
@@ -171,7 +188,6 @@ window.alexis = (() => {
       } catch (error) { notice(error.message); }
       event.target.value = '';
     };
-    node('alexis-end').onclick = () => { end(); status('Conversation ended · microphone off'); };
     node('alexis-video-retry').onclick = () => { unlock(); void start(session(), new AbortController().signal); };
     node('alexis-type').onclick = type;
     node('alexis-live').onchange = () => { if (!node('alexis-live').checked) void stop(); };

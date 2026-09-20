@@ -1276,12 +1276,14 @@ async function startConvAI(signal) {
       },
       onDisconnect: () => {
         if (!state.convaiStopping) {
-          setVoicePhase("error", "ConvAI disconnected. Tap Talk to reconnect.");
+          if (window.alexis) teardownVoice();
+          setVoicePhase("error", "Voice disconnected. Retry the call to reconnect.");
         }
       },
       onError: () => {
         if (!state.convaiStopping) {
-          setVoicePhase("error", "ConvAI interrupted. Tap Talk to reconnect.");
+          if (window.alexis) teardownVoice();
+          setVoicePhase("error", "Voice interrupted. Retry the call to reconnect.");
         }
       },
     });
@@ -1366,6 +1368,10 @@ async function teardownLiveKit() {
 }
 
 function teardownVoice() {
+  state.voiceReplyAbort?.abort();
+  state.replyEpoch = (state.replyEpoch || 0) + 1;
+  state.brainPending = false;
+  window.alexis?.busy(false);
   void window.alexis?.stop();
   state.voiceStartAbort?.abort();
   state.sayAbort?.abort();
@@ -1449,6 +1455,13 @@ function setVoicePhase(phase, detail = "") {
     if (stateLabel) stateLabel.textContent = "Ready when you are";
     if (stateDetail) stateDetail.textContent = "Voice is off.";
     setStatus("");
+  }
+  if (window.alexis) {
+    const active = Boolean(state.voiceTransport || state.listening || (state.voiceStartAbort && phase !== "error"));
+    const connecting = active && !state.voiceTransport;
+    label.textContent = active ? (connecting ? "Cancel connection" : "End call") : (phase === "error" ? "Retry call" : "Talk with Alexis");
+    btn.setAttribute("aria-label", label.textContent);
+    btn.setAttribute("aria-pressed", String(active));
   }
   syncCorrectIntentControl();
 }
@@ -1922,6 +1935,10 @@ function init() {
     if (supervisorSnapshot) renderSupervisor(supervisorSnapshot);
   });
   $("#mic")?.addEventListener("click", () => {
+    if (window.alexis) {
+      if (state.voiceTransport || state.listening || state.voiceStartAbort) return teardownVoice();
+      return startVoice();
+    }
     if (state.voicePhase === "buffering" && state.voiceStartAbort && !state.voiceTransport) return teardownVoice();
     if (["thinking", "buffering", "speaking"].includes(state.voicePhase)) return bargeIn();
     if (state.voicePhase === "listening") return teardownVoice();
