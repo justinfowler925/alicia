@@ -178,10 +178,15 @@ def main() -> int:
         handle.write("\n")
         temporary = Path(handle.name)
     temporary.replace(target)
+    # Keep the existing efficiency receipt and add the requested work inventory.
+    from weekly_work_recap import collect, write_report
+    recap = collect(now, report)
+    recap_status = write_report(recap, args.output_dir / "work")
     print(
         json.dumps(
             {
                 "report": str(target),
+                "work_recap": recap_status,
                 "gaps": report["gaps"],
                 "recommended_action": report["recommended_action"],
             }
