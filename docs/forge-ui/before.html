@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-cite="spectrum-ai-chat" data-forge-page="true">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forge — chat</title>
+<script>(function(){try{var t=localStorage.getItem("brutus.theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;var d=localStorage.getItem("brutus.dir");if(d==="rtl"||d==="ltr")document.documentElement.setAttribute("dir",d);}catch(e){}})();</script>
+<link rel="stylesheet" href="/static/shine-tokens.css">
+<link rel="stylesheet" href="/static/session.css">
+<link rel="stylesheet" href="/static/forge.css">
+<link rel="stylesheet" href="/static/navigation.css">
+</head>
+<body data-cite="spectrum-ai-chat" class="forge-open" data-forge-page="true">
+<main class="shell voice-shell forge-shell">
+<nav data-product-pattern="workspace-tabs" class="product-tabs" aria-label="Workspaces">
+  <a href="/">Alexis</a>
+  <a href="/forge" aria-current="page">Forge</a>
+  <a href="/atlas">Atlas</a>
+</nav>
+
+  <header class="topbar">
+    <div class="title">
+      <h1>Forge</h1>
+      <p class="tagline">Direct chat · Studio</p>
+    </div>
+    <button type="button" id="theme-toggle" aria-pressed="false" aria-label="Toggle light/dark theme">
+      <span class="label">Dark</span>
+    </button>
+  </header>
+
+  <section class="panel forge-panel" id="forge-panel" aria-label="Forge chat" data-product-pattern="conversation">
+    <header class="forge-head">
+      <div><h2>Forge</h2><p id="forge-model">Direct chat · Studio</p></div>
+      <button type="button" id="forge-new">New chat</button>
+    </header>
+    <div class="forge-history">
+      <label for="forge-threads">Conversation</label>
+      <select id="forge-threads"><option value="">New conversation</option></select>
+    </div>
+    <div class="scroll" id="forge-transcript" role="log" tabindex="0" aria-label="Forge conversation" aria-live="polite">
+      <div class="conversation-empty"><h3>What would you like to work on?</h3><p>Ask Forge a question or give it a task. Your conversation and work stay on Studio.</p></div>
+    </div>
+    <div class="forge-activity" id="forge-activity" data-state="idle" aria-label="Forge turn activity">
+      <div class="forge-activity-heading">
+        <strong id="forge-turn-count">0 turns · 0 active</strong>
+        <span id="forge-phase" role="status">Ready</span>
+      </div>
+      <p id="forge-activity-detail">No turn running.</p>
+    </div>
+    <div class="forge-status-row">
+      <p id="forge-status" role="status">Ready when you are.</p>
+      <button type="button" id="forge-reconnect" hidden>Reconnect</button>
+      <button type="button" id="forge-stop" hidden>Stop</button>
+    </div>
+    <div class="forge-attachments" id="forge-attachments" aria-live="polite"></div>
+    <div class="forge-file-tools">
+      <button id="forge-attach" type="button">Attach files</button>
+      <input id="forge-files" type="file" multiple hidden aria-label="Choose files for Forge">
+      <span id="forge-file-hint">or drop files here · 10 files per message</span>
+    </div>
+    <form class="composer" id="forge-composer">
+      <label class="sr-only" for="forge-message">Message Forge</label>
+      <textarea id="forge-message" rows="2" maxlength="16000" placeholder="Message Forge…" aria-describedby="forge-hint"></textarea>
+      <button type="submit" class="primary" id="forge-send">Send</button>
+    </form>
+    <p class="forge-hint" id="forge-hint">Enter to send · Shift + Enter for a new line. Forge can perform tasks you request.</p>
+  </section>
+</main>
+<script>
+(() => {
+  const root = document.documentElement;
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  const apply = () => {
+    const dark = (root.dataset.theme || 'dark') !== 'light';
+    btn.setAttribute('aria-pressed', String(dark));
+    btn.querySelector('.label').textContent = dark ? 'Dark' : 'Light';
+  };
+  apply();
+  btn.addEventListener('click', () => {
+    root.dataset.theme = root.dataset.theme === 'light' ? 'dark' : 'light';
+    try { localStorage.setItem('brutus.theme', root.dataset.theme); } catch (_) {}
+    apply();
+  });
+})();
+</script>
+<script src="/static/forge.js"></script>
+</body>
+</html>

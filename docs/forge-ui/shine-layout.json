@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "viewports": [
+    {
+      "width": 390,
+      "height": 900
+    },
+    {
+      "width": 768,
+      "height": 900
+    },
+    {
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "width": 1920,
+      "height": 900
+    }
+  ],
+  "states": [
+    "baseline",
+    "long-content",
+    "missing-media",
+    "large-text"
+  ],
+  "content": [
+    {
+      "selector": ".conversation-empty p",
+      "text": "A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. A long request or reply remains readable without hiding controls. "
+    }
+  ],
+  "noMediaReason": "Forge is a text conversation with no media player.",
+  "checks": [
+    {
+      "id": "chat-visible",
+      "type": "visible",
+      "selector": "#forge-panel"
+    },
+    {
+      "id": "composer-visible",
+      "type": "visible",
+      "selector": "#forge-composer"
+    },
+    {
+      "id": "chat-width",
+      "type": "no-overflow",
+      "selector": "#forge-panel"
+    },
+    {
+      "id": "header-separated",
+      "type": "gap",
+      "selector": ".forge-head",
+      "to": "#forge-transcript",
+      "min": 0,
+      "max": 1
+    }
+  ],
+  "missingMedia": []
+}

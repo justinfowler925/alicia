@@ -18,52 +18,50 @@
   <a href="/atlas">Atlas</a>
 </nav>
 
-  <header class="topbar">
-    <div class="title">
-      <h1>Forge</h1>
-      <p class="tagline">Direct chat · Studio</p>
-    </div>
-    <button type="button" id="theme-toggle" aria-pressed="false" aria-label="Toggle light/dark theme">
-      <span class="label">Dark</span>
-    </button>
-  </header>
-
   <section class="panel forge-panel" id="forge-panel" aria-label="Forge chat" data-product-pattern="conversation">
-    <header class="forge-head">
-      <div><h2>Forge</h2><p id="forge-model">Direct chat · Studio</p></div>
-      <button type="button" id="forge-new">New chat</button>
-    </header>
-    <div class="forge-history">
-      <label for="forge-threads">Conversation</label>
-      <select id="forge-threads"><option value="">New conversation</option></select>
-    </div>
-    <div class="scroll" id="forge-transcript" role="log" tabindex="0" aria-label="Forge conversation" aria-live="polite">
-      <div class="conversation-empty"><h3>What would you like to work on?</h3><p>Ask Forge a question or give it a task. Your conversation and work stay on Studio.</p></div>
-    </div>
-    <div class="forge-activity" id="forge-activity" data-state="idle" aria-label="Forge turn activity">
-      <div class="forge-activity-heading">
-        <strong id="forge-turn-count">0 turns · 0 active</strong>
-        <span id="forge-phase" role="status">Ready</span>
+    <header class="forge-head" data-product-pattern="forge-header">
+      <div class="forge-identity"><h1>Forge</h1><p>Chat and work with your local assistant</p></div>
+      <div class="forge-history" data-product-pattern="forge-history">
+        <label class="sr-only" for="forge-threads">Conversation</label>
+        <select id="forge-threads" aria-label="Conversation"><option value="">New conversation</option></select>
       </div>
-      <p id="forge-activity-detail">No turn running.</p>
+      <button type="button" id="forge-new">New chat</button>
+      <button type="button" id="theme-toggle" aria-pressed="false" aria-label="Toggle light/dark theme"><span class="label">Dark</span></button>
+    </header>
+    <div class="scroll" id="forge-transcript" role="log" tabindex="0" aria-label="Forge conversation" aria-live="polite">
+      <div class="conversation-empty"><h2>What would you like to work on?</h2><p>Ask Forge a question or give it a task. Your conversation and work stay on Studio.</p></div>
     </div>
-    <div class="forge-status-row">
-      <p id="forge-status" role="status">Ready when you are.</p>
-      <button type="button" id="forge-reconnect" hidden>Reconnect</button>
-      <button type="button" id="forge-stop" hidden>Stop</button>
-    </div>
-    <div class="forge-attachments" id="forge-attachments" aria-live="polite"></div>
-    <div class="forge-file-tools">
-      <button id="forge-attach" type="button">Attach files</button>
+    <footer class="forge-footer">
+      <div class="forge-feedback">
+        <details class="forge-activity" id="forge-activity" data-state="idle" aria-label="Forge turn activity">
+          <summary><span id="forge-phase" role="status">Ready</span><span class="forge-details-label">Details</span></summary>
+          <div class="forge-activity-body">
+            <strong id="forge-turn-count">0 turns · 0 active</strong>
+            <p id="forge-activity-detail">No turn running.</p>
+            <p id="forge-model">Local on Studio</p>
+          </div>
+        </details>
+        <div class="forge-status-row" id="forge-status-row" hidden>
+          <p id="forge-status" role="status"></p>
+          <button type="button" id="forge-reconnect" hidden>Reconnect</button>
+        </div>
+      </div>
+      <div class="forge-attachments" id="forge-attachments" aria-live="polite"></div>
       <input id="forge-files" type="file" multiple hidden aria-label="Choose files for Forge">
-      <span id="forge-file-hint">or drop files here · 10 files per message</span>
-    </div>
-    <form class="composer" id="forge-composer">
-      <label class="sr-only" for="forge-message">Message Forge</label>
-      <textarea id="forge-message" rows="2" maxlength="16000" placeholder="Message Forge…" aria-describedby="forge-hint"></textarea>
-      <button type="submit" class="primary" id="forge-send">Send</button>
-    </form>
-    <p class="forge-hint" id="forge-hint">Enter to send · Shift + Enter for a new line. Forge can perform tasks you request.</p>
+      <form class="composer" id="forge-composer" data-product-pattern="forge-composer">
+        <label class="sr-only" for="forge-message">Message Forge</label>
+        <textarea id="forge-message" rows="2" maxlength="16000" placeholder="Message Forge…" aria-describedby="forge-hint"></textarea>
+        <div class="forge-compose-actions">
+          <button id="forge-attach" type="button" aria-label="Attach files" title="Attach files">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8L15 6"/></svg>
+          </button>
+          <span id="forge-file-hint">Attach or drop files</span>
+          <button type="button" id="forge-stop" hidden>Stop</button>
+          <button type="submit" class="primary" id="forge-send">Send</button>
+        </div>
+      </form>
+      <p class="forge-hint" id="forge-hint">Enter to send · Shift + Enter for a new line</p>
+    </footer>
   </section>
 </main>
 <script>

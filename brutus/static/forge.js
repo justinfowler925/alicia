@@ -7,7 +7,12 @@
   let busy = false, working = false, timer = null, generation = 0, rendered = '';
   let attachments = [];
   let runActivity = null, turnCount = 0, lastCheck = 0, connection = 'connecting';
-  const status = (text) => { if ($('forge-status').textContent !== text) $('forge-status').textContent = text; };
+  const status = (text) => {
+    if ($('forge-status').textContent !== text) $('forge-status').textContent = text;
+    // Routine progress already has one home in the activity summary.
+    const routine = ['Ready when you are.', 'Reply received.', 'Connecting to Forge…', 'Forge is working on Studio…'];
+    $('forge-status-row').hidden = routine.includes(text);
+  };
   async function api(action, extra = {}) {
     const response = await fetch('/api/forge/request', {
       signal: AbortSignal.timeout(35000),
@@ -51,7 +56,7 @@
     $('forge-send').disabled = busy || working || !!pending;
     $('forge-attach').disabled = busy || working || !!pending;
     $('forge-files').disabled = busy || working || !!pending;
-    $('forge-send').disabled ||= attachments.some(a => !a.ready);
+    $('forge-send').disabled ||= attachments.some(a => !a.ready) || (!$('forge-message').value.trim() && !attachments.length);
     $('forge-attachments').querySelectorAll('button').forEach(b => { b.disabled = busy || !!pending; });
     $('forge-stop').hidden = !working;
     $('forge-new').disabled = busy || !!pending;
@@ -98,7 +103,7 @@
       }
       if (!data.turns.length) {
         const empty = document.createElement('div'); empty.className = 'conversation-empty';
-        const title = document.createElement('h3'); title.textContent = 'What would you like to work on?';
+        const title = document.createElement('h2'); title.textContent = 'What would you like to work on?';
         const text = document.createElement('p'); text.textContent = 'Ask Forge a question or give it a task. Your conversation and work stay on Studio.';
         empty.append(title, text); log.append(empty);
       }
@@ -285,6 +290,7 @@
     } catch (error) { failure(error); }
     finally { busy = false; controls(); schedule(); }
   });
+  $('forge-message').addEventListener('input', controls);
   $('forge-message').addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('forge-composer').requestSubmit(); }
   });

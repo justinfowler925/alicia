@@ -1,0 +1,12 @@
+{
+  "passed": [
+    "send and rendered response",
+    "progress disclosure",
+    "attachment failure retry removal",
+    "connection recovery",
+    "new chat and saved conversation",
+    "multiline keyboard input",
+    "four viewport widths in light and dark; composer visible; header does not overlap",
+    "reduced motion"
+  ]
+}
