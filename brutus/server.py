@@ -76,6 +76,7 @@ from .voice_identity import EnrollmentError, VoiceIdentity
 from .watchdog import Watchdog
 from .workflow_http import router as workflow_router
 from .studio_runs import router as studio_runs_router
+from .forge_chat import router as forge_chat_router
 from .zoom_api import ZoomAPIError, ZoomClient, assets_from_summary, default_window
 from .zoom_ingest import DEFAULT_SOURCE_MODE, ZoomIngestStore, ingest_assets
 from .zoom_my_notes import sync_my_note
@@ -495,6 +496,7 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
     app.state.board_watch = BoardWatcher(on_event=bus.publish)
     app.include_router(canon_router)
     app.include_router(workflow_router)
+    app.include_router(forge_chat_router)
     app.include_router(studio_runs_router)
     app.include_router(alexis_router)
     app.state.alexis_voice = cfg.voice
@@ -554,6 +556,11 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
     @app.get("/alexis", response_class=HTMLResponse)
     async def alexis_page() -> HTMLResponse:
         return HTMLResponse((_STATIC / "alexis.html").read_text(), headers=_NO_STORE)
+
+    @app.get("/forge", response_class=HTMLResponse)
+    async def forge_page() -> HTMLResponse:
+        """Forge is its own workspace tab — Studio-backed typed chat."""
+        return HTMLResponse((_STATIC / "forge.html").read_text(), headers=_NO_STORE)
 
     @app.get("/atlas", response_class=HTMLResponse)
     async def atlas_page() -> HTMLResponse:
@@ -1532,6 +1539,8 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             "alexis.jpg": "image/jpeg",
             "alicia.jpg": "image/jpeg",
             "navigation.css": "text/css",
+            "forge.css": "text/css",
+            "forge.js": "application/javascript",
         }
         if name not in types:
             raise HTTPException(status_code=404, detail="not found")
@@ -1614,8 +1623,10 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         return {"ok": True}
 
     @app.get("/api/resilience")
-    async def resilience_status(request: Request) -> dict[str, Any]:
-        """Billing planes, kill files, canaries, outbox — proof, not hope."""
+    def resilience_status(request: Request) -> dict[str, Any]:
+        """Billing planes, kill files, canaries, outbox — proof, not hope.
+        Sync on purpose: a slow canary must not block the event loop (Forge chat).
+        """
         from . import resilience
         from .claude import ask_claude
 

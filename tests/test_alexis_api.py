@@ -24,11 +24,14 @@ def test_homepage_is_preserved_and_pages_have_separate_navigation(client):
     assert 'id="alexis-frame"' not in home
     assert '/static/alexis.js' not in home
     assert 'id="supervisor-agents"' in home
-    assert 'href="/"' in home and 'href="/atlas"' in home
+    assert 'href="/"' in home and 'href="/atlas"' in home and 'href="/forge"' in home
     assert 'id="alexis-frame"' in client.get("/").text
     assert 'id="alexis-frame"' in client.get("/alexis").text
+    assert 'id="forge-panel"' in client.get("/forge").text
+    assert 'href="/forge"' in client.get("/").text
     assert 'title="Atlas workspace"' in client.get("/atlas").text
     assert client.get("/static/alexis.jpg").headers["content-type"] == "image/jpeg"
+    assert client.get("/static/forge.js").headers["content-type"].startswith("application/javascript")
     assert 'id="look-alicia"' in client.get("/").text
     assert client.get("/static/alicia.jpg").headers["content-type"] == "image/jpeg"
 
