@@ -27,7 +27,8 @@ visual equivalence. The Brutus sibling retains voice-specific panels absent from
 Forge, so strict whole-page product comparison cannot pass. Shared tokens, native
 controls, workspace navigation, turns and attachment handling are preserved; the
 single-column chat layout is an intentional divergence. No overall Shine completion
-certificate is claimed. The UI-only installation is separately hash-verified; backend
+certificate is claimed: the preview also lacks a rendered source/build identity,
+which the aggregate verifier requires. The UI-only installation is separately hash-verified; backend
 version and service deployment status are not relabeled as a full release.
 
 Studio knowledge retrieval over the old Tailscale address was unavailable during

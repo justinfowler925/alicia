@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "cite": "spectrum-ai-chat",
+  "objects": [
+    {
+      "id": "context",
+      "selector": ".forge-head",
+      "referenceRole": "session context",
+      "purpose": "Choose a saved conversation or start fresh"
+    },
+    {
+      "id": "transcript",
+      "selector": "#forge-transcript",
+      "referenceRole": "transcript",
+      "purpose": "Read the conversation"
+    },
+    {
+      "id": "composer",
+      "selector": "#forge-composer",
+      "referenceRole": "composer",
+      "purpose": "Write and attach files"
+    },
+    {
+      "id": "activity",
+      "selector": "#forge-activity",
+      "referenceRole": "tool and source state",
+      "purpose": "Inspect progress without crowding messages"
+    },
+    {
+      "id": "progress-toggle",
+      "selector": "#forge-activity summary",
+      "referenceRole": "tool and source state",
+      "purpose": "Expand or close runtime details"
+    },
+    {
+      "id": "progress-detail",
+      "selector": "#forge-activity-detail",
+      "referenceRole": "tool and source state",
+      "purpose": "Read timing and tool counts",
+      "appearsIn": "activity-details"
+    },
+    {
+      "id": "message",
+      "selector": "#forge-message",
+      "referenceRole": "composer",
+      "purpose": "Enter a multiline message"
+    }
+  ],
+  "flows": [
+    {
+      "id": "activity-details",
+      "userJob": "Inspect activity details",
+      "steps": [
+        {
+          "action": "click",
+          "selector": "#forge-activity summary"
+        },
+        {
+          "action": "visible",
+          "selector": "#forge-activity-detail"
+        },
+        {
+          "action": "click",
+          "selector": "#forge-activity summary"
+        },
+        {
+          "action": "hidden",
+          "selector": "#forge-activity-detail"
+        }
+      ]
+    },
+    {
+      "id": "compose",
+      "userJob": "Draft a multiline message",
+      "steps": [
+        {
+          "action": "fill",
+          "selector": "#forge-message",
+          "value": "Review this idea"
+        },
+        {
+          "action": "press",
+          "selector": "#forge-message",
+          "value": "Shift+Enter"
+        },
+        {
+          "action": "value",
+          "selector": "#forge-message",
+          "value": "Review this idea\n"
+        }
+      ]
+    }
+  ]
+}

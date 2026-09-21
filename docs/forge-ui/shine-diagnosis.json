@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "job": "Clean up the Forge conversation UI",
+  "category": "voice",
+  "primaryTask": "Read a saved conversation and send a message or attached file to Forge",
+  "verdict": "defects",
+  "before": {
+    "artifact": "/Users/justinfowler/Projects/brutus-forge-ui/docs/forge-ui/before.html",
+    "screenshot": "/Users/justinfowler/Projects/brutus-forge-ui/docs/forge-ui/before.png"
+  },
+  "productPrecedent": {
+    "name": "Brutus conversation shell",
+    "reference": "http://127.0.0.1:8768/",
+    "preserved": [
+      "workspace-tabs",
+      "native controls",
+      "theme tokens",
+      "turn and attachment rendering"
+    ],
+    "divergences": [
+      "Dedicated single-column chat replaces inherited two-column voice grid; composer remains at bottom."
+    ]
+  },
+  "referenceGap": "spectrum-ai-chat selected source describes conversation controls but its supplied screenshot depicts the Spectrum marketing site. It cannot establish chat visual equivalence. Product precedent is authoritative.",
+  "defects": [
+    {
+      "id": "header-overlap",
+      "bucket": "usability",
+      "severity": "major",
+      "problem": "Inherited grid overlaps the topbar with the chat panel.",
+      "evidence": "Before screenshot: topbar subtitle hidden behind panel starting at y129.",
+      "expectedEffect": "A single readable header and transcript fit in viewport.",
+      "assertions": [
+        "chat-visible",
+        "composer-visible",
+        "chat-width"
+      ]
+    },
+    {
+      "id": "duplicate-chrome",
+      "bucket": "composition",
+      "severity": "major",
+      "problem": "Duplicate heading, full-width history row and three idle status messages compete with conversation.",
+      "evidence": "Before screenshot shows Forge twice, 0 turns, Ready, No turn running, Ready when you are, then a separate attachment row.",
+      "expectedEffect": "One heading, compact history control and expandable activity details preserve focus.",
+      "assertions": [
+        "flow:activity-details"
+      ]
+    },
+    {
+      "id": "narrow-composer",
+      "bucket": "composition",
+      "severity": "minor",
+      "problem": "Mobile CSS makes Send a full-width row and leaves file attachment in a separate toolbar.",
+      "evidence": "forge.css at max-width40rem sets message and send to100 percent.",
+      "expectedEffect": "Grouped message field with attachment and send actions stays compact."
+    }
+  ]
+}
