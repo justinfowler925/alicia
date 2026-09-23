@@ -7,7 +7,16 @@ from pathlib import Path
 import pytest
 
 from brutus import forge_chat, forge_local
-from brutus.forge_tools import BROWSER_TOOLS, FILE_TOOLS, KNOWLEDGE_TOOLS, StdioMCP, ToolSession, file_tool
+from brutus.forge_tools import (
+    BROWSER_TOOLS,
+    FILE_TOOLS,
+    GITHUB_TOOL_NAMES,
+    KNOWLEDGE_TOOLS,
+    StdioMCP,
+    ToolSession,
+    file_tool,
+    github_tool,
+)
 
 
 def test_file_roundtrip_hash_and_overwrite_guard(tmp_path):
@@ -87,7 +96,23 @@ def test_mcp_cancel_and_cleanup(tmp_path, mcp_server):
     assert client.proc.poll() is not None
 
 
-def test_allowlist_and_unavailable_service(tmp_path, monkeypatch):
+def test_discover_is_files_only_by_default(tmp_path, monkeypatch):
+    """Cold turns must not spawn MCP or inject optional schemas."""
+    def boom(*args, **kwargs):
+        raise AssertionError('StdioMCP must not start on discover')
+    monkeypatch.setattr('brutus.forge_tools.StdioMCP', boom)
+    session = ToolSession(tmp_path, tmp_path)
+    names = {t['function']['name'] for t in session.discover()}
+    assert names == {t['function']['name'] for t in FILE_TOOLS}
+    caps = json.loads((tmp_path / 'tool-capabilities.json').read_text())
+    assert caps['loading'] == 'on_demand'
+    assert 'github' in caps['available'] and 'shine' in caps['available']
+    assert caps['enabled'] == []
+    assert 'browser_navigate' not in caps['tools']
+    session.close()
+
+
+def test_enable_knowledge_and_browser_allowlist(tmp_path, monkeypatch):
     instances = []
     class FakeClient:
         def __init__(self, command, *args):
@@ -102,7 +127,12 @@ def test_allowlist_and_unavailable_service(tmp_path, monkeypatch):
             self.closed = True
     monkeypatch.setattr('brutus.forge_tools.StdioMCP', FakeClient)
     session = ToolSession(tmp_path, tmp_path)
-    names = {t['function']['name'] for t in session.discover()}
+    assert {t['function']['name'] for t in session.discover()} == {t['function']['name'] for t in FILE_TOOLS}
+    knowledge = session.enable('knowledge')
+    assert knowledge['ok'] and set(knowledge['tools']) == KNOWLEDGE_TOOLS
+    browser = session.enable('browser')
+    assert browser['ok'] and set(browser['tools']) == BROWSER_TOOLS
+    names = {t['function']['name'] for t in session.tools}
     assert names == KNOWLEDGE_TOOLS | BROWSER_TOOLS | {t['function']['name'] for t in FILE_TOOLS}
     assert '--headless' in instances[1].command and '--isolated' in instances[1].command
     assert '--no-sandbox' not in instances[1].command
@@ -115,13 +145,57 @@ def test_allowlist_and_unavailable_service(tmp_path, monkeypatch):
     assert all(c.closed for c in instances)
 
 
-def test_optional_services_fail_without_losing_file_tools(tmp_path, monkeypatch):
-    def unavailable(*args):
+def test_enable_knowledge_unavailable_returns_error(tmp_path, monkeypatch):
+    def unavailable(*args, **kwargs):
         raise FileNotFoundError('missing runtime')
     monkeypatch.setattr('brutus.forge_tools.StdioMCP', unavailable)
     session = ToolSession(tmp_path, tmp_path)
-    assert session.discover() == FILE_TOOLS
-    assert set(session.unavailable) == {'knowledge', 'browser'}
+    session.discover()
+    with pytest.raises(ValueError, match='unavailable'):
+        session.enable('knowledge')
+    assert {t['function']['name'] for t in session.tools} == {t['function']['name'] for t in FILE_TOOLS}
+    assert 'knowledge' in session.unavailable
+    session.close()
+
+
+def test_enable_skill_returns_bounded_text_without_schemas(tmp_path, monkeypatch):
+    skill_root = tmp_path / '.agents' / 'skills' / 'shine'
+    skill_root.mkdir(parents=True)
+    (skill_root / 'SKILL.md').write_text('# Shine\n' + ('x' * 15000))
+    (skill_root / 'references').mkdir()
+    (skill_root / 'references' / 'a.md').write_text('ref')
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
+    session = ToolSession(tmp_path, tmp_path)
+    before = [t['function']['name'] for t in session.discover()]
+    result = session.enable('shine')
+    assert result['ok'] and result['skill'] == 'shine' and result['truncated'] is True
+    assert len(result['text']) == 12000
+    assert [t['function']['name'] for t in session.tools] == before
+    assert 'shine' in session.enabled
+    session.close()
+
+
+def test_enable_github_adds_compact_tools_and_rejects_mutations(tmp_path, monkeypatch):
+    monkeypatch.setattr('brutus.forge_tools.gh_binary', lambda: '/bin/true')
+    calls = []
+    def fake_run(argv, timeout=60):
+        calls.append(argv)
+        return {'ok': True, 'output': 'ok', 'argv': argv}
+    monkeypatch.setattr('brutus.forge_tools.run_gh', fake_run)
+    session = ToolSession(tmp_path, tmp_path)
+    session.discover()
+    result = session.enable('github')
+    assert result['ok'] and set(result['tools']) == GITHUB_TOOL_NAMES
+    names = {t['function']['name'] for t in session.tools}
+    assert GITHUB_TOOL_NAMES <= names
+    assert len(GITHUB_TOOL_NAMES) == 5
+    # Mutations via github_api path flags are rejected before gh runs.
+    with pytest.raises(ValueError, match='GET-only'):
+        github_tool('github_api', {'path': 'repos/o/r -X POST'})
+    with pytest.raises(ValueError, match='GET-only'):
+        github_tool('github_api', {'path': 'repos/o/r --method DELETE'})
+    assert session.call('github_repo', {'repo': 'justinfowler925/brutus'})['ok']
+    assert calls == [['repo', 'view', 'justinfowler925/brutus']]
     session.close()
 
 
@@ -181,6 +255,34 @@ def test_worker_file_tools_receipts_and_all_fail_control(tmp_path, monkeypatch):
         assert receipts[-1]['ok'] == (tag == 'good')
     assert (workspace / 'proof.txt').read_text() == 'proof'
     assert not (tmp_path / 'outside.txt').exists()
+
+
+def test_worker_mid_turn_enable_expands_tools(tmp_path, monkeypatch):
+    monkeypatch.setattr(forge_local, 'STATE', tmp_path / 'state')
+    monkeypatch.setattr('brutus.forge_tools.gh_binary', lambda: '/bin/true')
+    monkeypatch.setattr('brutus.forge_tools.run_gh', lambda argv, timeout=60: {'ok': True, 'output': 'repo-ok', 'argv': argv})
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    run = forge_local.enqueue('forge', 'use github', cwd=str(workspace), work_item='enable-github')
+    seen_tools = []
+
+    def complete(messages, tools):
+        seen_tools.append([t['function']['name'] for t in tools])
+        if len(seen_tools) == 1:
+            assert 'github_repo' not in seen_tools[0]
+            assert 'enable_capability' in seen_tools[0]
+            return {'role': 'assistant', 'tool_calls': [{'id': 'e1', 'function': {
+                'name': 'enable_capability', 'arguments': json.dumps({'name': 'github'})}}]}
+        if len(seen_tools) == 2:
+            assert 'github_repo' in seen_tools[1]
+            return {'role': 'assistant', 'tool_calls': [{'id': 'g1', 'function': {
+                'name': 'github_repo', 'arguments': json.dumps({'repo': 'justinfowler925/brutus'})}}]}
+        return {'role': 'assistant', 'content': 'GitHub ready'}
+
+    monkeypatch.setattr(forge_local, 'completion', complete)
+    forge_local.worker(run['id'])
+    assert forge_local.get(run['id'])['status'] == 'succeeded'
+    assert len(seen_tools) == 3
 
 
 def test_malformed_arguments_return_an_error():
