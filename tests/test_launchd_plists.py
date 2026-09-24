@@ -1,6 +1,6 @@
 """A launchd job must run from the deployed artifact, never a shared checkout.
 
-The daemon was moved to ~/.brutus/app because ~/Projects/brutus is a checkout
+The daemon was moved to ~/.alicia/app because ~/Projects/alicia is a checkout
 other sessions switch branches in, and twice in one day the service ended up
 running someone else's unmerged branch. Three sibling agents — the tunnel, the
 local LLM, and the Zoom notes feeder — were left pointing at the shared repo and
@@ -18,10 +18,10 @@ from pathlib import Path
 
 import pytest
 
-from brutus import paths
+from alicia import paths
 
 LAUNCHD = Path(__file__).resolve().parent.parent / "launchd"
-SHARED_CHECKOUT = Path.home() / "Projects" / "brutus"
+SHARED_CHECKOUT = Path.home() / "Projects" / "alicia"
 
 PLISTS = sorted(LAUNCHD.glob("*.plist"))
 
@@ -57,7 +57,7 @@ def test_the_job_runs_from_the_deployed_artifact(plist: Path):
 
 @pytest.mark.parametrize("plist", PLISTS, ids=lambda p: p.stem)
 def test_the_script_it_names_exists_in_this_repo(plist: Path):
-    """A path under ~/.brutus/app is a path in this tree — so it is checkable here.
+    """A path under ~/.alicia/app is a path in this tree — so it is checkable here.
 
     Repointing a plist at the artifact is only safe if the artifact actually
     carries the script. This catches the typo before launchd reports it as a job

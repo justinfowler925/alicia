@@ -3,7 +3,7 @@ const { chromium } = require('playwright');
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
-const staticRoot = path.join(__dirname, '../brutus/static');
+const staticRoot = path.join(__dirname, '../alicia/static');
 const sessions = Array.from({ length: 15 }, (_, i) => ({
   id: `test:${i}`, surface: ['claude', 'cursor', 'codex'][i % 3],
   title: i === 0 ? 'Check very long session titles and progress summaries without clipping or hiding the voice controls' : `Session ${i + 1}`,
@@ -66,10 +66,10 @@ const sessions = Array.from({ length: 15 }, (_, i) => ({
      counts:{needs_you:4,working:1,queued:0},
    };
    if (u.pathname === '/api/todos') data = {todos:[],stages:[]};
-   if (u.pathname === '/api/nucleus') data = {projects:Array.from({length:30},(_,i)=>({id:`brutus-${i}`,name:`Brutus ${i}`,status:'needs_you',ticket_count:3,thread_count:6,recent_thread_count:6}))};
+   if (u.pathname === '/api/nucleus') data = {projects:Array.from({length:30},(_,i)=>({id:`alicia-${i}`,name:`Alicia ${i}`,status:'needs_you',ticket_count:3,thread_count:6,recent_thread_count:6}))};
    return route.fulfill({json:data});
   });
-  await page.goto('http://brutus.test/session');
+  await page.goto('http://alicia.test/session');
   await page.waitForFunction(() => document.querySelector('#claim-text')?.textContent.includes('need'));
   const claim = await page.locator('#claim-text').innerText();
   assert.match(claim, /2 agent sessions need you/i);
@@ -98,7 +98,7 @@ const sessions = Array.from({ length: 15 }, (_, i) => ({
   await page.locator('#sessions-more').click();
   assert.equal(await page.locator('.agent-strip > li details').count(),15);
   assert.equal(await page.locator('#sessions-more').isVisible(),false);
-  await page.getByRole('button',{name:'Archive from Brutus'}).first().click();
+  await page.getByRole('button',{name:'Archive from Alicia'}).first().click();
   await page.waitForFunction(()=>document.querySelectorAll('.agent-strip > li details').length===14);
   await page.locator('#archived-sessions > summary').click();
   await page.locator('#archive-list button').click();
@@ -151,7 +151,7 @@ const sessions = Array.from({ length: 15 }, (_, i) => ({
   await page.locator('#tab-projects').click();
   for (const width of [390,1280]) {
    await page.setViewportSize({width,height:900});
-   await page.screenshot({path:`/tmp/brutus-overview-${width}.png`,fullPage:true});
+   await page.screenshot({path:`/tmp/alicia-overview-${width}.png`,fullPage:true});
   }
   assert.deepEqual(errors,[]);
   console.log('PASS: glance residue claim+residue; attention-first; show-all paging; archive/restore; four viewports.');

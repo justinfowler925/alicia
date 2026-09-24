@@ -2,7 +2,7 @@
 
 import pytest
 
-from brutus.session import SessionStore
+from alicia.session import SessionStore
 
 
 @pytest.fixture()
@@ -17,11 +17,11 @@ def test_a_conversation_keeps_every_turn_not_just_the_last_pair(store):
     sid = store.open_session(title="pricing")
     for i in range(6):
         store.append_turn(sid, "user", f"user {i}")
-        store.append_turn(sid, "brutus", f"brutus {i}")
+        store.append_turn(sid, "alicia", f"alicia {i}")
     turns = store.transcript(sid)
     assert len(turns) == 12
     assert turns[0].text == "user 0"
-    assert turns[-1].text == "brutus 5"
+    assert turns[-1].text == "alicia 5"
 
 
 def test_transcript_survives_a_new_store_instance(tmp_path):
@@ -50,7 +50,7 @@ def test_channel_is_recorded_per_turn(store):
 def test_switching_channel_midconversation_loses_nothing(store):
     sid = store.open_session()
     store.append_turn(sid, "user", "start by voice", channel="voice")
-    store.append_turn(sid, "brutus", "got it")
+    store.append_turn(sid, "alicia", "got it")
     store.append_turn(sid, "user", "finish by typing", channel="text")
     assert len(store.transcript(sid)) == 3
     assert store.history_for_model(sid)[0]["content"] == "start by voice"
@@ -59,7 +59,7 @@ def test_switching_channel_midconversation_loses_nothing(store):
 def test_history_for_model_uses_role_names_the_model_expects(store):
     sid = store.open_session()
     store.append_turn(sid, "user", "hi")
-    store.append_turn(sid, "brutus", "hello")
+    store.append_turn(sid, "alicia", "hello")
     assert store.history_for_model(sid) == [
         {"role": "user", "content": "hi"},
         {"role": "assistant", "content": "hello"},
@@ -70,11 +70,11 @@ def test_history_for_model_excludes_deep_lane_ack_strings(store):
     """Feeding 'Hang on.' / 'Let me dig.' as assistant history taught stall filler."""
     sid = store.open_session()
     store.append_turn(sid, "user", "can you tell me")
-    store.append_turn(sid, "brutus", "Hang on.", meta={"lane": "deep", "thinking": True})
+    store.append_turn(sid, "alicia", "Hang on.", meta={"lane": "deep", "thinking": True})
     store.append_turn(sid, "user", "for what")
-    store.append_turn(sid, "brutus", "Let me dig.", meta={"lane": "deep"})
+    store.append_turn(sid, "alicia", "Let me dig.", meta={"lane": "deep"})
     store.append_turn(sid, "user", "about the renewals")
-    store.append_turn(sid, "brutus", "Waiting on Marcus for the SOW.")
+    store.append_turn(sid, "alicia", "Waiting on Marcus for the SOW.")
     hist = store.history_for_model(sid, keep=8)
     contents = [m["content"] for m in hist]
     assert "Hang on." not in contents

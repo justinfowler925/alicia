@@ -3,8 +3,8 @@
 import subprocess
 from pathlib import Path
 
-from brutus.projects import scan_projects
-from brutus.todos import TodoStore
+from alicia.projects import scan_projects
+from alicia.todos import TodoStore
 
 
 def test_todo_lifecycle(tmp_path: Path):
@@ -107,7 +107,7 @@ def test_scan_projects_reads_real_git(tmp_path: Path):
 def test_todo_survives_a_column_it_has_never_heard_of(tmp_path: Path):
     """A newer writer's column must not blind an older reader.
 
-    On 2026-08-08 a feature branch run against the shared ~/.brutus/state added
+    On 2026-08-08 a feature branch run against the shared ~/.alicia/state added
     seven columns to `todos`; main's `Todo(**dict(row))` then raised TypeError on
     every read, /api/todos returned 500 and the Ideas pad went blank. Reading a row
     is forward-compatible or it is a time bomb on a shared database.

@@ -7,10 +7,10 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from brutus.claude import ask_claude
-from brutus.config import BrutusCfg, ClaudeCfg, CursorRunnerCfg
-from brutus.cursor_runner import build_chat_prompt, run_cursor_chat
-from brutus.tools import _ask_atlas6, _slim_atlas6_result, build_default_registry
+from alicia.claude import ask_claude
+from alicia.config import AliciaCfg, ClaudeCfg, CursorRunnerCfg
+from alicia.cursor_runner import build_chat_prompt, run_cursor_chat
+from alicia.tools import _ask_atlas6, _slim_atlas6_result, build_default_registry
 
 
 def test_slim_atlas6_drops_digest_noise():
@@ -53,17 +53,17 @@ def test_ask_atlas6_slims_success():
 
 
 def test_run_cursor_chat_disabled():
-    cfg = BrutusCfg(cursor_runner=CursorRunnerCfg(enabled=False))
+    cfg = AliciaCfg(cursor_runner=CursorRunnerCfg(enabled=False))
     out = run_cursor_chat(cfg, "refactor me")
     assert out["ok"] is False
     assert out["error"] == "Cursor runner is unavailable."
 
 
 def test_run_cursor_chat_success(tmp_path: Path):
-    repo = tmp_path / "brutus"
+    repo = tmp_path / "alicia"
     repo.mkdir()
     subprocess.run(["git", "init", "-q", "-b", "feature/x", str(repo)], check=True)
-    cfg = BrutusCfg(
+    cfg = AliciaCfg(
         cursor_runner=CursorRunnerCfg(enabled=True, allowlist_roots=[str(repo)], timeout_s=30)
     )
 
@@ -74,7 +74,7 @@ def test_run_cursor_chat_success(tmp_path: Path):
         return {"status": "completed", "result": "Renamed the helper and added a test."}
 
     out = run_cursor_chat(
-        cfg, "refactor the resolver", repo_hint="brutus", prompt_fn=fake_prompt
+        cfg, "refactor the resolver", repo_hint="alicia", prompt_fn=fake_prompt
     )
     assert out["ok"] is True
     assert "Renamed the helper" in out["reply"]
@@ -84,7 +84,7 @@ def test_run_cursor_chat_success(tmp_path: Path):
 def test_run_cursor_chat_refuses_sfdc(tmp_path: Path):
     sfdc = tmp_path / "sfdc"
     sfdc.mkdir()
-    cfg = BrutusCfg(
+    cfg = AliciaCfg(
         cursor_runner=CursorRunnerCfg(enabled=True, allowlist_roots=[str(sfdc)])
     )
     out = run_cursor_chat(cfg, "deploy", repo_hint="sfdc", prompt_fn=lambda *a, **k: {})
@@ -99,24 +99,24 @@ def test_build_chat_prompt_no_verdict_contract():
 
 
 def test_ask_claude_disabled():
-    cfg = BrutusCfg(claude=ClaudeCfg(enabled=False))
+    cfg = AliciaCfg(claude=ClaudeCfg(enabled=False))
     out = ask_claude(cfg, "draft a reply")
     assert out["ok"] is False
     assert out["error"] == "Claude is unavailable."
 
 
 def test_ask_claude_missing_cli(monkeypatch):
-    monkeypatch.setattr("brutus.claude.shutil.which", lambda _name: None)
-    monkeypatch.setattr("brutus.claude.Path.is_file", lambda _path: False)
-    cfg = BrutusCfg(claude=ClaudeCfg(enabled=True, api_key=""))
+    monkeypatch.setattr("alicia.claude.shutil.which", lambda _name: None)
+    monkeypatch.setattr("alicia.claude.Path.is_file", lambda _path: False)
+    cfg = AliciaCfg(claude=ClaudeCfg(enabled=True, api_key=""))
     out = ask_claude(cfg, "draft a reply")
     assert out["ok"] is False
     assert out["error"] == "Claude CLI is unavailable."
 
 
 def test_ask_claude_cli_success(monkeypatch):
-    monkeypatch.setattr("brutus.claude.shutil.which", lambda _name: "/opt/homebrew/bin/claude")
-    cfg = BrutusCfg(claude=ClaudeCfg(enabled=True, api_key=""))
+    monkeypatch.setattr("alicia.claude.shutil.which", lambda _name: "/opt/homebrew/bin/claude")
+    cfg = AliciaCfg(claude=ClaudeCfg(enabled=True, api_key=""))
     payload = {
         "is_error": False,
         "result": "Here is a draft reply.",
@@ -124,7 +124,7 @@ def test_ask_claude_cli_success(monkeypatch):
         "modelUsage": {"claude-sonnet-5": {"inputTokens": 2}},
     }
     proc = subprocess.CompletedProcess([], 0, stdout=json.dumps(payload), stderr="")
-    with patch("brutus.claude.subprocess.run", return_value=proc) as run:
+    with patch("alicia.claude.subprocess.run", return_value=proc) as run:
         out = ask_claude(cfg, "draft a reply", system="Be direct.")
     assert out["ok"] is True
     assert out["reply"] == "Here is a draft reply."
@@ -137,23 +137,23 @@ def test_ask_claude_cli_success(monkeypatch):
 
 
 def test_ask_claude_cli_failure(monkeypatch):
-    monkeypatch.setattr("brutus.claude.shutil.which", lambda _name: "/opt/homebrew/bin/claude")
-    cfg = BrutusCfg(claude=ClaudeCfg(enabled=True))
+    monkeypatch.setattr("alicia.claude.shutil.which", lambda _name: "/opt/homebrew/bin/claude")
+    cfg = AliciaCfg(claude=ClaudeCfg(enabled=True))
     proc = subprocess.CompletedProcess([], 1, stdout="", stderr="subscription exhausted")
-    with patch("brutus.claude.subprocess.run", return_value=proc):
+    with patch("alicia.claude.subprocess.run", return_value=proc):
         out = ask_claude(cfg, "draft a reply")
     assert out["ok"] is False
     assert "subscription exhausted" in out["error"]
 
 
 def test_registry_wires_backends(tmp_path):
-    from brutus.memory import MemoryStore
-    from brutus.todos import TodoStore
+    from alicia.memory import MemoryStore
+    from alicia.todos import TodoStore
 
     client = MagicMock()
     client.chat.side_effect = ConnectionError("down")
     reg = build_default_registry(
-        client, cfg=BrutusCfg(cursor_runner=CursorRunnerCfg(enabled=False)),
+        client, cfg=AliciaCfg(cursor_runner=CursorRunnerCfg(enabled=False)),
         memory=MemoryStore(tmp_path / "memory.sqlite"), todos=TodoStore(tmp_path / "todos.sqlite"),
     )
     names = {t["name"] for t in reg.list_schemas()}

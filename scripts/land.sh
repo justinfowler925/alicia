@@ -7,7 +7,7 @@
 # This laptop has two: justin-fowler_cspd (work) and justinfowler925 (personal,
 # which owns this repo). With the work account active, a push here returns
 #
-#   remote: Permission to justinfowler925/brutus.git denied to justin-fowler_cspd
+#   remote: Permission to justinfowler925/alicia.git denied to justin-fowler_cspd
 #
 # and it reads like a missing credential rather than the wrong one. deploy.sh
 # already carries that lesson for `fetch` — the same mistake cost half an hour

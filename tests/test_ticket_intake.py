@@ -1,4 +1,4 @@
-from brutus.ticket_intake import compile_ticket_intake
+from alicia.ticket_intake import compile_ticket_intake
 
 
 def _history(*turns):
@@ -7,7 +7,7 @@ def _history(*turns):
 
 def test_complete_labelled_ticket_contract_is_reconstructed_from_user_turns():
     intake = compile_ticket_intake(_history(
-        ("user", "new ticket: title: Voice action intake\noutcome: Draft tickets from voice\ntarget: Brutus voice surface\npremise: Text tool calls are unreliable\nscope: Explicit labelled contracts only\npreservation: Existing approval gate\nacceptance: A draft artifact exists; no Linear mutation before yes\ndelivery: test and deploy"),
+        ("user", "new ticket: title: Voice action intake\noutcome: Draft tickets from voice\ntarget: Alicia voice surface\npremise: Text tool calls are unreliable\nscope: Explicit labelled contracts only\npreservation: Existing approval gate\nacceptance: A draft artifact exists; no Linear mutation before yes\ndelivery: test and deploy"),
     ))
 
     assert intake.ready
@@ -35,15 +35,15 @@ def test_natural_voice_intake_collects_one_material_field_at_a_time():
     second = compile_ticket_intake(_history(
         ("user", "draft a ticket to make voice action intake reliable"),
         ("assistant", "For that ticket draft, what is the target?"),
-        ("user", "the Brutus voice work surface"),
+        ("user", "the Alicia voice work surface"),
     ))
-    assert second.fields["target"] == "the Brutus voice work surface"
+    assert second.fields["target"] == "the Alicia voice work surface"
     assert second.missing == ("acceptance",)
 
     complete = compile_ticket_intake(_history(
         ("user", "draft a ticket to make voice action intake reliable"),
         ("assistant", "For that ticket draft, what is the target?"),
-        ("user", "the Brutus voice work surface"),
+        ("user", "the Alicia voice work surface"),
         ("assistant", "For that ticket draft, what proves acceptance?"),
         ("user", "a draft is visible and no mutation happens before yes"),
     ))

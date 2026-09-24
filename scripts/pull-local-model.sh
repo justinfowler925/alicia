@@ -19,9 +19,9 @@ fi
 
 read -r MODEL PORT <<< "$("$PY" - <<'PY'
 from pathlib import Path
-from brutus.config import load_config
+from alicia.config import load_config
 
-cfg = load_config(Path.home() / "Projects/brutus/config.yaml")
+cfg = load_config(Path.home() / "Projects/alicia/config.yaml")
 llm = cfg.local_llm
 model = llm.model if llm else "mlx-community/Qwen3-8B-4bit"
 port = "7901"
@@ -61,6 +61,6 @@ Then enable in config.yaml:
 
 Health check:
 
-  brutus llm-health
+  alicia llm-health
 
 EOF

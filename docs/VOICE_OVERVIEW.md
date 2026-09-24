@@ -6,10 +6,10 @@ Claude/Cursor/OpenAI session summaries, and existing workspace tools below.
 - The main surface shows six observed sessions, ordered by attention then live
   state. Show more reveals additional observed sessions. Coverage is explicit;
   unavailable sources and unverified progress are not represented as successful work.
-- Expanding a session exposes next action, evidence, and Discuss with Brutus.
-  This asks Brutus about that exact session; it does not silently send commands
+- Expanding a session exposes next action, evidence, and Discuss with Alicia.
+  This asks Alicia about that exact session; it does not silently send commands
   to another provider. Existing proposal gates still apply to agent handoffs.
-- Archive from Brutus hides a session using the existing local archive overlay.
+- Archive from Alicia hides a session using the existing local archive overlay.
   Archived sessions exposes Restore. Neither action stops a process or deletes
   a provider conversation. Running → Cancel remains the explicit process stop.
   The same overlay filters background supervision and spoken status queries.
@@ -41,7 +41,7 @@ readback, restored history, stable expansion, five workspace tabs, mute, and
 Python tests cover summary backfill, single-call budget, unchanged evidence,
 silent ordinary progress, and the served stylesheet.
 
-The source precedent is the approved preview and existing Brutus components.
+The source precedent is the approved preview and existing Alicia components.
 The installed Shine catalog returned a record reference without a screenshot;
 external reference comparison cannot establish proof for this design. Browser
 workflow/layout tests and visual inspection supply direct product evidence.
@@ -59,5 +59,5 @@ closes the stream and returning from the browser back/forward cache reconnects.
 
 Run `node scripts/verify-session-connections.cjs` with Playwright available to
 check three concurrent live tabs, API responsiveness, and reload reconnection.
-The check creates and closes one empty test session. Reload existing Brutus tabs
+The check creates and closes one empty test session. Reload existing Alicia tabs
 after deployment to replace the old client and release its extra connections.

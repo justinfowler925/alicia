@@ -1,6 +1,6 @@
 """Focus analyzer ranking."""
 
-from brutus.focus import KIND_CURSOR, KIND_FRONTIER, KIND_GATE, KIND_UNSTICK, KIND_WAIT, build_focus, linear_url
+from alicia.focus import KIND_CURSOR, KIND_FRONTIER, KIND_GATE, KIND_UNSTICK, KIND_WAIT, build_focus, linear_url
 
 
 def test_linear_url():
@@ -115,7 +115,7 @@ def test_awaiting_input_ranks_above_ledger_gates():
 
 def test_board_rows_carry_an_advance_signal():
     """Session board was title-only — Justin could not see what advances the ticket."""
-    from brutus.focus import build_board
+    from alicia.focus import build_board
 
     status = {
         "blocked_justin": [
@@ -173,7 +173,7 @@ def test_board_rows_carry_an_advance_signal():
 
 
 def test_spoken_next_decision_is_one_question():
-    from brutus.focus import spoken_next_decision
+    from alicia.focus import spoken_next_decision
 
     board = {
         "actions": [
@@ -202,7 +202,7 @@ def test_spoken_next_decision_is_one_question():
 
 
 def test_spoken_next_decision_falls_to_frontier_not_nothing():
-    from brutus.focus import spoken_next_decision
+    from alicia.focus import spoken_next_decision
 
     board = {
         "actions": [
@@ -222,7 +222,7 @@ def test_spoken_next_decision_falls_to_frontier_not_nothing():
 
 
 def test_spoken_next_decision_falls_to_one_ready():
-    from brutus.focus import spoken_next_decision
+    from alicia.focus import spoken_next_decision
 
     board = {
         "actions": [],
@@ -240,7 +240,7 @@ def test_spoken_next_decision_falls_to_one_ready():
 
 
 def test_spoken_next_decision_does_not_say_a_uuid():
-    from brutus.focus import spoken_next_decision
+    from alicia.focus import spoken_next_decision
 
     board = {
         "actions": [],

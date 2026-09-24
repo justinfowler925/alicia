@@ -2,8 +2,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brutus.linear_surface import linear_work_surface
-from brutus.tools import _work_surface
+from alicia.linear_surface import linear_work_surface
+from alicia.tools import _work_surface
 
 
 def _response():
@@ -29,7 +29,7 @@ def test_linear_surface_classifies_current_work(monkeypatch):
     response.raise_for_status.return_value = None
     client = MagicMock()
     client.__enter__.return_value.post.return_value = response
-    with patch("brutus.linear_surface.httpx.Client", return_value=client):
+    with patch("alicia.linear_surface.httpx.Client", return_value=client):
         surface = linear_work_surface()
     assert surface["source"] == "linear_direct"
     assert surface["needs_you"][0]["ticket"] == "REV-507"
@@ -40,7 +40,7 @@ def test_linear_surface_classifies_current_work(monkeypatch):
 def test_work_surface_uses_linear_without_probing_retired_atlas(monkeypatch):
     atlas = MagicMock()
     fallback = {"source": "linear_direct", "needs_you": [{"ticket": "REV-507", "title": "Fix prod", "reason": "In Review"}], "working": [], "stuck": [], "queued": [], "actions": []}
-    with patch("brutus.tools.linear_work_surface", return_value=fallback):
+    with patch("alicia.tools.linear_work_surface", return_value=fallback):
         surface = _work_surface(atlas)
     assert surface["source"] == "linear_direct"
     assert surface["next_decision"].startswith("REV-507")
@@ -54,7 +54,7 @@ def test_work_surface_fails_honestly_without_atlas_rollback():
         "blocked_frontier": [], "completion_alarm": {}, "counts": {},
     }
     atlas.list_awaiting_input.return_value = []
-    with patch("brutus.tools.linear_work_surface", side_effect=RuntimeError("offline")), pytest.raises(RuntimeError, match="offline"):
+    with patch("alicia.tools.linear_work_surface", side_effect=RuntimeError("offline")), pytest.raises(RuntimeError, match="offline"):
         _work_surface(atlas)
     atlas.status.assert_not_called()
 

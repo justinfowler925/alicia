@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from brutus import __main__ as brutus_main
-from brutus.canon import CanonStore, InboxItem, InboxStatus, WorkItem
-from brutus.canon.slack import capture_slack_items
+from alicia import __main__ as alicia_main
+from alicia.canon import CanonStore, InboxItem, InboxStatus, WorkItem
+from alicia.canon.slack import capture_slack_items
 
 
 def _invoke(monkeypatch: pytest.MonkeyPatch, args: list[str]) -> None:
-    monkeypatch.setattr(brutus_main.sys, "argv", ["brutus", *args])
-    brutus_main.main()
+    monkeypatch.setattr(alicia_main.sys, "argv", ["alicia", *args])
+    alicia_main.main()
 
 
 def _incoming_message() -> dict[str, object]:
@@ -112,7 +112,7 @@ def test_cli_capture_slack_reuses_atlas_peek(
             assert limit == 7
             return {"items": [_incoming_message()]}
 
-    monkeypatch.setattr("brutus.client.AtlasClient", FakeAtlasClient)
+    monkeypatch.setattr("alicia.client.AtlasClient", FakeAtlasClient)
     _invoke(monkeypatch, ["canon", "--db", str(db_path), "inbox", "capture-slack", "--limit", "7"])
 
     assert "1 captured" in capsys.readouterr().out

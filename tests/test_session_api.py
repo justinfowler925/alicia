@@ -10,15 +10,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from brutus.config import BrutusCfg, LocalLLMCfg
-from brutus.server import create_app
-from brutus.session import SessionStore
-from brutus.session_bus import SessionEventBus
+from alicia.config import AliciaCfg, LocalLLMCfg
+from alicia.server import create_app
+from alicia.session import SessionStore
+from alicia.session_bus import SessionEventBus
 
 
 @pytest.fixture()
 def client(tmp_path):
-    cfg = BrutusCfg(
+    cfg = AliciaCfg(
         local_llm=LocalLLMCfg(enabled=True, model="m", router_url="http://127.0.0.1:7901")
     )
     app = create_app(cfg, start_watchdog=False)
@@ -66,7 +66,7 @@ def test_owner_live_voice_fails_closed_until_enrollment(client):
 
 def test_say_records_both_sides(client):
     sid = client.post("/api/session/open", json={}).json()["session_id"]
-    with patch("brutus.conversation.brain_reply", return_value=("Two need you.", {})):
+    with patch("alicia.conversation.brain_reply", return_value=("Two need you.", {})):
         r = client.post(f"/api/session/{sid}/say", json={"message": "what needs me"})
         assert r.status_code == 200
         body = r.json()
@@ -74,13 +74,13 @@ def test_say_records_both_sides(client):
         assert body["thinking"] is True
         client.app_state.conversation.wait_for_brain(sid)  # type: ignore[attr-defined]
     snap = client.get(f"/api/session/{sid}").json()
-    assert [t["role"] for t in snap["turns"]] == ["user", "brutus"]
+    assert [t["role"] for t in snap["turns"]] == ["user", "alicia"]
     assert snap["turns"][-1]["text"] == "Two need you."
 
 
 def test_say_wait_returns_the_finished_reply_for_voice(client):
     sid = client.post("/api/session/open", json={}).json()["session_id"]
-    with patch("brutus.conversation.brain_reply", return_value=("Two need you.", {})):
+    with patch("alicia.conversation.brain_reply", return_value=("Two need you.", {})):
         r = client.post(
             f"/api/session/{sid}/say",
             json={"message": "what needs me", "channel": "voice", "wait": True},
@@ -97,7 +97,7 @@ def test_the_landed_answer_carries_both_renderings(client):
     sid = client.post("/api/session/open", json={}).json()["session_id"]
     screen = "Merged 3018589 and REV-418 is live."
     mgr = client.app_state.conversation  # type: ignore[attr-defined]
-    with patch("brutus.conversation.brain_reply", return_value=(screen, {})):
+    with patch("alicia.conversation.brain_reply", return_value=(screen, {})):
         result = mgr.handle(sid, "what needs me", wait=True)
     assert result.reply == screen
     assert "3018589" not in result.spoken
@@ -107,14 +107,14 @@ def test_the_landed_answer_carries_both_renderings(client):
 def test_channel_is_recorded_but_changes_nothing(client):
     sid = client.post("/api/session/open", json={}).json()["session_id"]
     mgr = client.app_state.conversation  # type: ignore[attr-defined]
-    with patch("brutus.conversation.brain_reply", return_value=("ok", {})):
+    with patch("alicia.conversation.brain_reply", return_value=("ok", {})):
         client.post(f"/api/session/{sid}/say", json={"message": "digest", "channel": "voice"})
         mgr.wait_for_brain(sid)
         client.post(f"/api/session/{sid}/say", json={"message": "digest", "channel": "text"})
         mgr.wait_for_brain(sid)
     snap = client.get(f"/api/session/{sid}").json()
     assert [t["channel"] for t in snap["turns"] if t["role"] == "user"] == ["voice", "text"]
-    replies = [t["text"] for t in snap["turns"] if t["role"] == "brutus"]
+    replies = [t["text"] for t in snap["turns"] if t["role"] == "alicia"]
     assert replies == ["ok", "ok"]
 
 
@@ -123,8 +123,8 @@ def test_the_brain_is_never_offered_a_gated_tool(client):
     it. The boundary is now structural: whatever registry the endpoint's
     manager builds, the tool catalog offered to the model excludes every gated
     tool."""
-    from brutus.brain import anthropic_tools
-    from brutus.gate import GATED
+    from alicia.brain import anthropic_tools
+    from alicia.gate import GATED
 
     sid = client.post("/api/session/open", json={}).json()["session_id"]
     seen: dict = {}
@@ -133,7 +133,7 @@ def test_the_brain_is_never_offered_a_gated_tool(client):
         seen["registry"] = registry
         return ("ok", {})
 
-    with patch("brutus.conversation.brain_reply", side_effect=spy):
+    with patch("alicia.conversation.brain_reply", side_effect=spy):
         client.post(f"/api/session/{sid}/say", json={"message": "what needs me"})
         client.app_state.conversation.wait_for_brain(sid)  # type: ignore[attr-defined]
     offered = {t["name"] for t in anthropic_tools(seen["registry"])}
@@ -152,7 +152,7 @@ def test_a_mutating_ask_is_proposed_not_executed(client):
         out = kwargs["on_propose"]("dispatch_tick", {"dry_run": False})
         return (f"Queued: {out['summary']}. Say yes to do it.", {})
 
-    with patch("brutus.conversation.brain_reply", side_effect=proposing_brain):
+    with patch("alicia.conversation.brain_reply", side_effect=proposing_brain):
         client.post(f"/api/session/{sid}/say", json={"message": "dispatch a tick for real"})
         mgr.wait_for_brain(sid)
     assert not atlas.dispatch_tick.called
@@ -195,7 +195,7 @@ def test_no_mutating_client_method_is_reachable_by_talking(client):
             stop_reason="end_turn", usage=usage,
         )
 
-    with patch("brutus.brain._create", side_effect=hostile):
+    with patch("alicia.brain._create", side_effect=hostile):
         client.post(f"/api/session/{sid}/say", json={"message": "approve REV-412"})
         mgr.wait_for_brain(sid)
     for method in ("approve", "dispatch_tick", "reconcile", "answer_steering"):
@@ -250,7 +250,7 @@ def test_a_full_queue_drops_the_oldest_rather_than_blocking():
     """A backgrounded tab must never apply backpressure to the conversation."""
     import asyncio
 
-    from brutus.session_bus import QUEUE_DEPTH
+    from alicia.session_bus import QUEUE_DEPTH
 
     async def run():
         bus = SessionEventBus()

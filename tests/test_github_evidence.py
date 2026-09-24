@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from brutus.canon import CanonStore, Evidence, EvidenceType, IdentityRegistry, Run, WorkItem
-from brutus.github_evidence import GitHubEvidenceReceiver
-from brutus.security import allowed_github_repositories
+from alicia.canon import CanonStore, Evidence, EvidenceType, IdentityRegistry, Run, WorkItem
+from alicia.github_evidence import GitHubEvidenceReceiver
+from alicia.security import allowed_github_repositories
 
 OWNER = "justin.fowler@clearspeed.com"
 VERIFIER = "github-evidence-verifier"
 
 
 def test_default_allowed_repository_is_the_public_personal_repo(monkeypatch):
-    monkeypatch.delenv("BRUTUS_GITHUB_REPOSITORIES", raising=False)
+    monkeypatch.delenv("ALICIA_GITHUB_REPOSITORIES", raising=False)
 
-    assert allowed_github_repositories() == frozenset({"justinfowler925/brutus"})
+    assert allowed_github_repositories() == frozenset(
+        {"justinfowler925/alicia", "justinfowler925/brutus"}
+    )
 
 
 def _store() -> CanonStore:
@@ -28,12 +30,12 @@ def _store() -> CanonStore:
 def _merged_pr(*, branch: str, title: str = "REV-521 capture evidence") -> dict:
     return {
         "action": "closed",
-        "repository": {"full_name": "justinfowler925/brutus"},
+        "repository": {"full_name": "justinfowler925/alicia"},
         "pull_request": {
             "id": 89,
             "merged": True,
             "merge_commit_sha": "a" * 40,
-            "html_url": "https://github.com/justinfowler925/brutus/pull/89",
+            "html_url": "https://github.com/justinfowler925/alicia/pull/89",
             "head": {"ref": branch},
             "title": title,
             "body": "",
@@ -77,12 +79,12 @@ def test_failed_ci_creates_unverified_run_output_linked_to_work_item_without_run
         "workflow_run",
         {
             "action": "completed",
-            "repository": {"full_name": "justinfowler925/brutus"},
+            "repository": {"full_name": "justinfowler925/alicia"},
             "workflow_run": {
                 "id": 123,
                 "head_sha": "b" * 40,
                 "head_branch": "justinfowler/rev-521-github-evidence-automation",
-                "html_url": "https://github.com/justinfowler925/brutus/actions/runs/123",
+                "html_url": "https://github.com/justinfowler925/alicia/actions/runs/123",
                 "conclusion": "failure",
                 "name": "CI",
             },
@@ -131,12 +133,12 @@ def test_unrecognized_branch_is_ignored_without_orphan_evidence() -> None:
         "check_suite",
         {
             "action": "completed",
-            "repository": {"full_name": "justinfowler925/brutus"},
+            "repository": {"full_name": "justinfowler925/alicia"},
             "check_suite": {
                 "id": 999,
                 "head_sha": "c" * 40,
                 "head_branch": "justinfowler/rev-999-not-known",
-                "html_url": "https://github.com/justinfowler925/brutus/runs/999",
+                "html_url": "https://github.com/justinfowler925/alicia/runs/999",
                 "conclusion": "success",
             },
         },

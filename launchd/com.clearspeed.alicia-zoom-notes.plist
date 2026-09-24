@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.clearspeed.alicia-zoom-notes</string>
+  <!-- ~/.alicia/app, NOT ~/Projects/alicia. The main daemon was moved off the
+       shared checkout because other sessions switch branches in it; this job was
+       left behind and kept running whatever branch happened to be checked out.
+       On 2026-08-09 that was a branch five months of commits behind main. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/justinfowler/.alicia/app/scripts/schedule-zoom-alicia-notes.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/justinfowler/.alicia/app</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <!-- Hourly. This file said 300 while the loaded copy has run at 3600 for
+       months, so the tracked version was describing a schedule nothing kept. -->
+  <key>StartInterval</key>
+  <integer>3600</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/justinfowler/.cursor/logs/alicia-zoom-notes.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/justinfowler/.cursor/logs/alicia-zoom-notes.err.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>SF_TARGET_ORG</key>
+    <string>prod-admin</string>
+    <key>SF_SKIP_NEW_VERSION_CHECK</key>
+    <string>1</string>
+    <key>SF_USE_GENERIC_UNIX_KEYCHAIN</key>
+    <string>true</string>
+    <key>SFDX_USE_GENERIC_UNIX_KEYCHAIN</key>
+    <string>true</string>
+    <key>ALICIA_URL</key>
+    <string>http://127.0.0.1:8768</string>
+    <key>ZOOM_ALICIA_SINCE_DAYS</key>
+    <string>14</string>
+  </dict>
+</dict>
+</plist>

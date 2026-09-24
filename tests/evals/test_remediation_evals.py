@@ -1,4 +1,4 @@
-"""Hostile acceptance probes for the Brutus remediation.
+"""Hostile acceptance probes for the Alicia remediation.
 
 These tests were written before the implementation and are deliberately aimed
 at the transport/operations layers that the existing 623-test suite did not
@@ -16,20 +16,20 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from brutus.canon import CanonStore, Evidence, IdentityRegistry, WorkItem
-from brutus.config import BrutusCfg
-from brutus.github_evidence import GitHubEvidenceReceiver
-from brutus.server import create_app
+from alicia.canon import CanonStore, Evidence, IdentityRegistry, WorkItem
+from alicia.config import AliciaCfg
+from alicia.github_evidence import GitHubEvidenceReceiver
+from alicia.server import create_app
 
 
 def _client(tmp_path: Path, monkeypatch) -> TestClient:
-    monkeypatch.setenv("BRUTUS_STATE_DIR", str(tmp_path / "state"))
-    monkeypatch.setenv("BRUTUS_CANON_DB_PATH", str(tmp_path / "canon.sqlite"))
-    monkeypatch.setenv("BRUTUS_OWNER_TOKEN", "eval-owner-token")
-    monkeypatch.setenv("BRUTUS_GITHUB_WEBHOOK_SECRET", "eval-webhook-secret")
-    with patch("brutus.server.AtlasClient") as atlas:
+    monkeypatch.setenv("ALICIA_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("ALICIA_CANON_DB_PATH", str(tmp_path / "canon.sqlite"))
+    monkeypatch.setenv("ALICIA_OWNER_TOKEN", "eval-owner-token")
+    monkeypatch.setenv("ALICIA_GITHUB_WEBHOOK_SECRET", "eval-webhook-secret")
+    with patch("alicia.server.AtlasClient") as atlas:
         atlas.return_value = MagicMock()
-        return TestClient(create_app(BrutusCfg(watchdog_enabled=False), start_watchdog=False))
+        return TestClient(create_app(AliciaCfg(watchdog_enabled=False), start_watchdog=False))
 
 
 def test_owner_mutation_rejects_reachability_as_identity(tmp_path, monkeypatch):
@@ -40,12 +40,12 @@ def test_owner_mutation_rejects_reachability_as_identity(tmp_path, monkeypatch):
     )
     wrong = client.post(
         "/api/canon/inbox",
-        headers={"X-Brutus-Owner-Token": "wrong"},
+        headers={"X-Alicia-Owner-Token": "wrong"},
         json={"raw_capture": "wrong token", "source": "eval"},
     )
     valid = client.post(
         "/api/canon/inbox",
-        headers={"X-Brutus-Owner-Token": "eval-owner-token"},
+        headers={"X-Alicia-Owner-Token": "eval-owner-token"},
         json={"raw_capture": "real owner action", "source": "eval"},
     )
     assert unauthenticated.status_code == 401
@@ -64,7 +64,7 @@ def test_owner_browser_session_requires_csrf(tmp_path, monkeypatch):
     )
     valid = client.post(
         "/api/canon/inbox",
-        headers={"X-Brutus-CSRF": csrf},
+        headers={"X-Alicia-CSRF": csrf},
         json={"raw_capture": "cookie and csrf", "source": "eval"},
     )
     assert missing_csrf.status_code == 403
@@ -73,7 +73,7 @@ def test_owner_browser_session_requires_csrf(tmp_path, monkeypatch):
 
 def test_unsigned_and_modified_github_payloads_are_rejected(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
-    payload = {"action": "completed", "repository": {"full_name": "justinfowler925/brutus"}}
+    payload = {"action": "completed", "repository": {"full_name": "justinfowler925/alicia"}}
     raw = json.dumps(payload, separators=(",", ":")).encode()
     signature = "sha256=" + hmac.new(b"eval-webhook-secret", raw, hashlib.sha256).hexdigest()
 
@@ -98,7 +98,7 @@ def test_unsigned_and_modified_github_payloads_are_rejected(tmp_path, monkeypatc
 
 
 def test_ambiguous_ticket_key_never_links_first_match(monkeypatch):
-    monkeypatch.setenv("BRUTUS_GITHUB_REPOSITORIES", "justinfowler925/brutus")
+    monkeypatch.setenv("ALICIA_GITHUB_REPOSITORIES", "justinfowler925/alicia")
     registry = IdentityRegistry(
         owner_identity="owner",
         automated_verifier_identities=frozenset({"github"}),
@@ -109,12 +109,12 @@ def test_ambiguous_ticket_key_never_links_first_match(monkeypatch):
     receiver = GitHubEvidenceReceiver(store, verifier_identity="github")
     payload = {
         "action": "closed",
-        "repository": {"full_name": "justinfowler925/brutus"},
+        "repository": {"full_name": "justinfowler925/alicia"},
         "pull_request": {
             "id": 77,
             "merged": True,
             "merge_commit_sha": "a" * 40,
-            "html_url": "https://github.com/justinfowler925/brutus/pull/77",
+            "html_url": "https://github.com/justinfowler925/alicia/pull/77",
             "head": {"ref": "codex/rev-777-fix"},
             "title": "REV-777 fix",
             "body": "",
@@ -132,4 +132,4 @@ def test_operations_are_shipped_not_documented_only():
     assert "dirty deployed checkout" in deploy
     assert "check-deploy-drift.sh" in deploy
     assert (root / "scripts" / "canon-backup.py").is_file()
-    assert (root / "launchd" / "com.clearspeed.brutus-canon-backup.plist").is_file()
+    assert (root / "launchd" / "com.clearspeed.alicia-canon-backup.plist").is_file()

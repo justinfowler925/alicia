@@ -1,4 +1,4 @@
-"""Brutus must not name a ticket that nothing in this turn justifies.
+"""Alicia must not name a ticket that nothing in this turn justifies.
 
 Measured 2026-08-12 with `scripts/model-bakeoff.py`: empty board, one prior
 assistant turn reading "REV-401 is waiting on you", Qwen3-8B-4bit answered
@@ -15,13 +15,13 @@ control — these tests cover the two mechanisms that are.
 
 from unittest.mock import MagicMock, patch
 
-from brutus.chat_resolve import (
+from alicia.chat_resolve import (
     _sanitize_history,
     _ticket_ids,
     guard_invented_tickets,
     resolve_chat_reply,
 )
-from brutus.config import BrutusCfg, LocalLLMCfg
+from alicia.config import AliciaCfg, LocalLLMCfg
 
 STALE = [
     {"role": "user", "content": "what needs me"},
@@ -32,7 +32,7 @@ STALE = [
 # --- input side: don't hand a small model ids it will echo ---------------
 
 
-def test_history_redaction_strips_ids_from_brutus_own_turns():
+def test_history_redaction_strips_ids_from_alicia_own_turns():
     out = _sanitize_history(STALE, redact_tickets=True)
     assert "REV-401" not in out[1]["content"]
     assert "a ticket is waiting on you" in out[1]["content"].lower()
@@ -97,7 +97,7 @@ def test_ticket_ids_reads_nested_structures():
 
 
 def _cfg():
-    return BrutusCfg(local_llm=LocalLLMCfg(enabled=True, model="m", router_url="http://x"))
+    return AliciaCfg(local_llm=LocalLLMCfg(enabled=True, model="m", router_url="http://x"))
 
 
 def test_resurrected_ticket_never_reaches_justin():
@@ -105,10 +105,10 @@ def test_resurrected_ticket_never_reaches_justin():
     client = MagicMock()
     empty = {"needs_you": [], "working": [], "stuck": [], "queued": [], "headline": ""}
     with (
-        patch("brutus.chat_resolve._fetch_board", return_value=empty),
-        patch("brutus.chat_resolve.build_default_registry") as reg,
+        patch("alicia.chat_resolve._fetch_board", return_value=empty),
+        patch("alicia.chat_resolve.build_default_registry") as reg,
         patch(
-            "brutus.chat_resolve.chat_completion",
+            "alicia.chat_resolve.chat_completion",
             return_value="REV-401 is still waiting on you. Approve or reject? Then 2 more.",
         ),
     ):

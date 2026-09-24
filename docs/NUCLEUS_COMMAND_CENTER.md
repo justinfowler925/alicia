@@ -4,19 +4,19 @@
 
 ## Outcome
 
-Opening Brutus at `/` answers one question first: **what needs Justin across every
+Opening Alicia at `/` answers one question first: **what needs Justin across every
 project, Linear issue, and Codex/Cursor/Claude task?** Each project row carries the
 source records behind its rank, and the same operating graph is available to the
 plain-English brain.
 
 ## Authority and target
 
-- Runtime target: the isolated Brutus service worktree deployed by
-  `scripts/deploy.sh`, currently `~/.brutus/app`.
+- Runtime target: the isolated Alicia service worktree deployed by
+  `scripts/deploy.sh`, currently `~/.alicia/app`.
 - Linear owns issues; Git owns checkout state; Codex, Cursor, and Claude own their
   native tasks; Atlas is an execution overlay; Nucleus owns company operating facts
   and append-only receipts.
-- Brutus normalizes, links, ranks, and deep-links. It does not copy source records
+- Alicia normalizes, links, ranks, and deep-links. It does not copy source records
   into a competing ledger or claim an external mutation without rereading its source.
 
 ## Measured premise
@@ -35,7 +35,7 @@ This increment delivers the read/control spine:
    preserving Cursor and Claude history.
 3. Build one deterministic operating-graph snapshot joining projects, live Linear
    issues, agent tasks, and Atlas overlays, with explicit unmapped/partial counts.
-4. Add the Nucleus data-grid page as Brutus's default daily ritual.
+4. Add the Nucleus data-grid page as Alicia's default daily ritual.
 5. Give the canonical conversation brain the same Nucleus read and proposal-gated
    local project/thread organization tools.
 
@@ -58,7 +58,7 @@ messages, archive native tasks, mutate Linear, or connect Nucleus production dat
 - The Nucleus grid provides search, filters, clear path, sortable headers, column
   visibility, resize, row selection, pagination, row actions, and loading/empty/
   filtered-empty/error/populated states.
-- Selecting a project reveals its source tickets and agent tasks; Ask Brutus scopes a
+- Selecting a project reveals its source tickets and agent tasks; Ask Alicia scopes a
   plain-English prompt to the exact project id.
 - Local keep/park/focus operations executed through conversation are exact stored
   artifacts, single-use, and return the written overlay.

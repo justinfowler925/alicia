@@ -5,11 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from brutus.chat_resolve import _lookup_intent, resolve_chat_reply
-from brutus.config import BrutusCfg, LocalLLMCfg
-from brutus.memory import MemoryStore
-from brutus.todos import TodoStore
-from brutus.tools import (
+from alicia.chat_resolve import _lookup_intent, resolve_chat_reply
+from alicia.config import AliciaCfg, LocalLLMCfg
+from alicia.memory import MemoryStore
+from alicia.todos import TodoStore
+from alicia.tools import (
     _capture_note,
     _delete_note,
     _draft_lesson,
@@ -22,8 +22,8 @@ from brutus.tools import (
 )
 
 
-def _cfg() -> BrutusCfg:
-    return BrutusCfg(local_llm=LocalLLMCfg(enabled=True, model="m"))
+def _cfg() -> AliciaCfg:
+    return AliciaCfg(local_llm=LocalLLMCfg(enabled=True, model="m"))
 
 
 def test_working_notes_search(tmp_path: Path):
@@ -48,7 +48,7 @@ def test_lessons_roundtrip(tmp_path: Path):
 
 def test_capture_and_promote_note(tmp_path: Path):
     todos = TodoStore(tmp_path / "t.sqlite")
-    cap = _capture_note(todos, "ship the agents tab", tags="brutus")
+    cap = _capture_note(todos, "ship the agents tab", tags="alicia")
     assert cap["ok"] is True
     note_id = cap["note"]["id"]
     listed = _list_notes(todos)
@@ -164,9 +164,9 @@ def test_resolve_capture_recipe(tmp_path: Path):
             return "Captured on your Notes pad."
         return "ok"
 
-    with patch("brutus.chat_resolve.chat_completion", side_effect=fake_chat):
-        with patch("brutus.tools.TodoStore", return_value=todos):
-            with patch("brutus.tools.MemoryStore", return_value=mem):
+    with patch("alicia.chat_resolve.chat_completion", side_effect=fake_chat):
+        with patch("alicia.tools.TodoStore", return_value=todos):
+            with patch("alicia.tools.MemoryStore", return_value=mem):
                 text, raw = resolve_chat_reply(
                     client, _cfg(), "capture: check Lucid org chart links", memory=mem
                 )
@@ -178,12 +178,12 @@ def test_resolve_capture_recipe(tmp_path: Path):
 def test_lessons_api(tmp_path: Path):
     from fastapi.testclient import TestClient
 
-    from brutus.server import create_app
+    from alicia.server import create_app
 
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
-        with patch("brutus.server.MemoryStore", return_value=MemoryStore(tmp_path / "m.sqlite")):
+        with patch("alicia.server.MemoryStore", return_value=MemoryStore(tmp_path / "m.sqlite")):
             app = create_app(cfg, start_watchdog=False)
             c = TestClient(app)
             assert c.get("/api/lessons").json()["lessons"] == []

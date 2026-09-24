@@ -3,7 +3,7 @@
 > **Historical scope:** For the current voice, session-continuity and release direction, use the [Apple accessibility reset plan](APPLE_ACCESSIBILITY_RESET_PLAN.md). This document remains evidence of its dated work; it does not override the reset requirements or prove current voice acceptance.
 
 **Date:** 2026-08-10  
-**Audit:** shine adoption pass on live `~/.brutus/app` @ `f1f61d5`  
+**Audit:** shine adoption pass on live `~/.alicia/app` @ `f1f61d5`  
 **Branch:** `feat/focus-surface`  
 **Rule:** no waves. One PR. The product that already knows the truth (`/api/focus`) becomes the screen.
 
@@ -33,7 +33,7 @@ Craft already PASSed shine measure. Failure is decidability.
 
 ## Non-goals
 
-- CRO suite inside Brutus
+- CRO suite inside Alicia
 - New Slack app (brief is on-screen + existing MCP/CLI; doorbell already speaks board deltas)
 - Rewriting Atlas6 ledger semantics
 

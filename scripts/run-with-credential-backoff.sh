@@ -10,8 +10,8 @@ fi
 profile="$1"
 shift 2
 credential_run="${CREDENTIAL_RUN:-$HOME/fowler-brain/scripts/credential-run}"
-retry_seconds="${BRUTUS_CREDENTIAL_RETRY_SECONDS:-900}"
-max_attempts="${BRUTUS_CREDENTIAL_MAX_ATTEMPTS:-0}"
+retry_seconds="${ALICIA_CREDENTIAL_RETRY_SECONDS:-900}"
+max_attempts="${ALICIA_CREDENTIAL_MAX_ATTEMPTS:-0}"
 attempts=0
 
 # A service token does not stop op from probing the desktop app's protected
@@ -24,7 +24,7 @@ export OP_BIOMETRIC_UNLOCK_ENABLED=false
 # launchd does not source ~/.zshenv. Load the existing read-only 1Password
 # service account from the login keychain so credential-run never falls back to
 # desktop-app authorization prompts. Linux/CI safely skips this macOS step.
-security_bin="${BRUTUS_SECURITY_BIN:-/usr/bin/security}"
+security_bin="${ALICIA_SECURITY_BIN:-/usr/bin/security}"
 if [[ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" && -x "$security_bin" ]]; then
   op_service_account_token="$(
     "$security_bin" find-generic-password \

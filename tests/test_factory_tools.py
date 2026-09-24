@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from brutus.chat_resolve import _alarm_line, _board_summary, _lookup_intent, resolve_chat_reply
-from brutus.config import BrutusCfg, LocalLLMCfg
-from brutus.tools import (
+from alicia.chat_resolve import _alarm_line, _board_summary, _lookup_intent, resolve_chat_reply
+from alicia.config import AliciaCfg, LocalLLMCfg
+from alicia.tools import (
     _answer_steering,
     _dispatch_tick,
     _get_digest,
@@ -16,8 +16,8 @@ from brutus.tools import (
 )
 
 
-def _cfg() -> BrutusCfg:
-    return BrutusCfg(local_llm=LocalLLMCfg(enabled=True, model="m"))
+def _cfg() -> AliciaCfg:
+    return AliciaCfg(local_llm=LocalLLMCfg(enabled=True, model="m"))
 
 
 def test_lookup_excludes_atlas_factory_verbs():
@@ -60,7 +60,7 @@ def test_work_surface_includes_alarm_and_hides_probes():
     }
     client.list_awaiting_input.return_value = []
     surface = {"needs_you": [{"ticket": "REV-1"}], "working": [], "queued": [], "stuck": [], "counts": {}, "alarm": {}}
-    with patch("brutus.tools.linear_work_surface", return_value=surface):
+    with patch("alicia.tools.linear_work_surface", return_value=surface):
         out = _work_surface(client)
     assert out["atlas_ignored"] is True
     client.status.assert_not_called()
@@ -79,7 +79,7 @@ def test_get_digest_uses_board():
     client.list_awaiting_input.return_value = []
     client.digest.return_value = {"digest_markdown": "# WIP\n" + ("x" * 2000)}
     surface = {"headline": "1 in review", "needs_you": [], "working": [], "queued": [], "stuck": [], "counts": {}, "alarm": {}}
-    with patch("brutus.tools.linear_work_surface", return_value=surface):
+    with patch("alicia.tools.linear_work_surface", return_value=surface):
         out = _get_digest(client)
     assert out["ok"] is True
     assert out["source"] == "linear_direct"
@@ -138,7 +138,7 @@ def test_resolve_forces_digest_and_surfaces_alarm():
         captured["content"] = messages[-1]["content"]
         return "Factory alarm: nothing has ever finished. Board is quiet otherwise."
 
-    with patch("brutus.chat_resolve.chat_completion", side_effect=fake_chat):
+    with patch("alicia.chat_resolve.chat_completion", side_effect=fake_chat):
         text, raw = resolve_chat_reply(client, _cfg(), "show the wip digest")
     assert raw["path"] == "next_decision"
     assert "?" in text or "Nothing needs you" in text

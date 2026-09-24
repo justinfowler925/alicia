@@ -66,5 +66,5 @@ whose outcome may be uncertain.
 
 Both Python modules are shipped together in a content-addressed Studio runtime.
 Changing either module selects a new runtime directory; active turns keep their
-original source. Brutus deployment and `/version` readback use the normal
+original source. Alicia deployment and `/version` readback use the normal
 repository delivery policy.

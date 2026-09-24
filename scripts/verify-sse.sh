@@ -16,17 +16,17 @@
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
-PY="${PY:-$HOME/Projects/brutus/.venv/bin/python}"
+PY="${PY:-$HOME/Projects/alicia/.venv/bin/python}"
 PORT="${PORT:-8799}"          # deliberately not 8768 — never disturb the live daemon
 BASE="http://127.0.0.1:$PORT"
 TMP="$(mktemp -d)"
 trap 'kill "${SRV:-0}" 2>/dev/null; rm -rf "$TMP"' EXIT
 
 echo "==> starting a server on :$PORT (state in $TMP)"
-BRUTUS_STATE_DIR="$TMP" "$PY" - "$PORT" <<'PYEOF' >"$TMP/server.log" 2>&1 &
+ALICIA_STATE_DIR="$TMP" "$PY" - "$PORT" <<'PYEOF' >"$TMP/server.log" 2>&1 &
 import sys, uvicorn
-from brutus.config import load_config
-from brutus.server import create_app
+from alicia.config import load_config
+from alicia.server import create_app
 cfg = load_config()
 app = create_app(cfg, start_watchdog=False)
 uvicorn.run(app, host="127.0.0.1", port=int(sys.argv[1]), log_level="warning")

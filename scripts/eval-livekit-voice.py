@@ -152,7 +152,7 @@ async def run(
                 snapshot = (await http.get(f"{base_url}/api/session/{sid}")).json()
                 turns = snapshot.get("turns") or []
                 expected = 2 if barge_in_wav else 1
-                assistants = [t for t in turns if t.get("role") in {"brutus", "assistant"}]
+                assistants = [t for t in turns if t.get("role") in {"alicia", "assistant"}]
                 users = [t for t in turns if t.get("role") == "user"]
                 enough_audio = audio_frames >= ((frames_before_barge or 0) + 5)
                 if len(users) >= expected and (media_only or len(assistants) >= expected) and enough_audio:
@@ -163,7 +163,7 @@ async def run(
 
     turns = snapshot.get("turns") or []
     user_turns = [t for t in turns if t.get("role") == "user"]
-    assistant_turns = [t for t in turns if t.get("role") in {"brutus", "assistant"}]
+    assistant_turns = [t for t in turns if t.get("role") in {"alicia", "assistant"}]
     expected = 2 if barge_in_wav else 1
     return {
         "ok": bool(

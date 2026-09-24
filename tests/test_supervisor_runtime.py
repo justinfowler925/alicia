@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from brutus.supervisor_runtime import SupervisorRuntime
+from alicia.supervisor_runtime import SupervisorRuntime
 
 
 def _row(path: Path, *, state: str = "running") -> dict:
@@ -194,7 +194,7 @@ def test_runtime_reassesses_when_unchanged_work_crosses_stale_threshold(tmp_path
     runtime = SupervisorRuntime(
         tmp_path / "s.sqlite", scanner=scanner, stale_after_seconds=100
     )
-    with patch("brutus.supervisor_runtime.time.time", side_effect=lambda: clock[0]):
+    with patch("alicia.supervisor_runtime.time.time", side_effect=lambda: clock[0]):
         assert runtime.observe()["assessment"] is None
         clock[0] = 250.0
         assert runtime.observe()["assessment"]["intervention_type"] == "stale"

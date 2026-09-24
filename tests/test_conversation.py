@@ -8,13 +8,13 @@ from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
-from brutus.config import BrutusCfg, ClaudeCfg, LocalLLMCfg
-from brutus.conversation import ConversationManager, _flatten
-from brutus.session import SessionStore
+from alicia.config import AliciaCfg, ClaudeCfg, LocalLLMCfg
+from alicia.conversation import ConversationManager, _flatten
+from alicia.session import SessionStore
 
 
-def _cfg() -> BrutusCfg:
-    return BrutusCfg(
+def _cfg() -> AliciaCfg:
+    return AliciaCfg(
         claude=ClaudeCfg(enabled=True, model="claude-sonnet-5", api_key="k"),
         local_llm=LocalLLMCfg(enabled=True, model="m"),
     )
@@ -22,11 +22,11 @@ def _cfg() -> BrutusCfg:
 
 @pytest.fixture()
 def mgr(tmp_path, monkeypatch):
-    from brutus.memory import MemoryStore
-    from brutus.todos import TodoStore
+    from alicia.memory import MemoryStore
+    from alicia.todos import TodoStore
 
-    monkeypatch.setattr("brutus.resilience.STATE_DIR", tmp_path)
-    monkeypatch.setattr("brutus.resilience.OUTBOX_DIR", tmp_path / "outbox")
+    monkeypatch.setattr("alicia.resilience.STATE_DIR", tmp_path)
+    monkeypatch.setattr("alicia.resilience.OUTBOX_DIR", tmp_path / "outbox")
     store = SessionStore(tmp_path / "s.sqlite")
     events: list[tuple[str, dict]] = []
     m = ConversationManager(
@@ -42,7 +42,7 @@ def mgr(tmp_path, monkeypatch):
 
 def _brain(reply: str = "Here you go.", meta: dict | None = None):
     return patch(
-        "brutus.conversation.brain_reply", return_value=(reply, meta or {"rounds": 1})
+        "alicia.conversation.brain_reply", return_value=(reply, meta or {"rounds": 1})
     )
 
 
@@ -116,7 +116,7 @@ def test_user_facing_boundary_drops_an_amputated_model_tail(mgr):
 
 def test_the_regex_router_is_gone():
     """Structural: no _lookup_intent, no lane classifier, no canned greetings."""
-    import brutus.conversation as mod
+    import alicia.conversation as mod
 
     src = inspect.getsource(mod)
     assert "_lookup_intent" not in src
@@ -135,7 +135,7 @@ def test_a_human_turn_lands_via_the_brain(mgr):
         assert result.thinking is True and result.reply == ""
         assert mgr.wait_for_brain(sid)
     turns = mgr.store.transcript(sid)
-    assert [t.role for t in turns] == ["user", "brutus"]
+    assert [t.role for t in turns] == ["user", "alicia"]
     assert turns[-1].text == "Two things shipped overnight."
     kinds = [k for k, _ in mgr.events]
     assert "thinking" in kinds and "answer" in kinds
@@ -146,18 +146,18 @@ def test_no_filler_ack_turn_is_ever_landed(mgr):
     with _brain("Answer."):
         mgr.handle(sid, "what do you think about the tracker design?")
         mgr.wait_for_brain(sid)
-    texts = [t.text for t in mgr.store.transcript(sid) if t.role == "brutus"]
+    texts = [t.text for t in mgr.store.transcript(sid) if t.role == "alicia"]
     assert texts == ["Answer."]  # exactly the answer — no "One sec — looking."
 
 
 def test_greetings_and_swears_reach_the_brain_with_context(mgr):
     sid = mgr.store.open_session()
     with _brain("What's up?") as brain:
-        mgr.handle(sid, "hey brutus")
+        mgr.handle(sid, "hey alicia")
         mgr.wait_for_brain(sid)
     brain.assert_called_once()
     history = brain.call_args.kwargs["history"]
-    assert history[-1]["content"] == "hey brutus"
+    assert history[-1]["content"] == "hey alicia"
 
 
 def test_the_brain_gets_the_whole_session_not_four_messages(mgr):
@@ -204,7 +204,7 @@ def test_a_new_question_supersedes_the_one_in_flight(mgr):
             return ("stale answer", {})
         return ("fresh answer", {})
 
-    with patch("brutus.conversation.brain_reply", side_effect=slow_brain):
+    with patch("alicia.conversation.brain_reply", side_effect=slow_brain):
         mgr.handle(sid, "first question")
         mgr.handle(sid, "second question")
         release.set()
@@ -213,7 +213,7 @@ def test_a_new_question_supersedes_the_one_in_flight(mgr):
         import time
 
         time.sleep(0.2)
-    answers = [t.text for t in mgr.store.transcript(sid) if t.role == "brutus"]
+    answers = [t.text for t in mgr.store.transcript(sid) if t.role == "alicia"]
     assert "stale answer" not in answers
     assert "fresh answer" in answers
 
@@ -288,7 +288,7 @@ def test_complete_labelled_ticket_intake_compiles_then_drafts_without_cursor(mgr
         "new ticket:\n"
         "title: Voice intake\n"
         "outcome: Draft a ticket from an explicit voice contract\n"
-        "target: Brutus voice surface\n"
+        "target: Alicia voice surface\n"
         "premise: Cursor text tool calls can fail\n"
         "scope: Explicit labelled ticket contracts\n"
         "preservation: Existing approval gate\n"
@@ -386,7 +386,7 @@ def test_the_reply_is_rendered_once_for_screen_and_once_for_mouth(mgr):
 
 def _pending(mgr, sid):
     """Leave one artifact in draft, the way a gated write does."""
-    from brutus.gate import propose
+    from alicia.gate import propose
 
     proposal = propose("approve_gate", {"ticket": "REV-551", "decision": "approve"})
     return mgr.store.draft_artifact(
@@ -416,7 +416,7 @@ def test_a_verified_voice_still_settles_a_pending_write(mgr):
     with patch.object(mgr, "execute_artifact", return_value=SimpleNamespace(reply="executed")) as run:
         assert mgr.handle(sid, "yes", channel="voice", owner_verified=True).reply == "executed"
     run.assert_called_once()
-    from brutus.resilience import pending_outbox
+    from alicia.resilience import pending_outbox
     assert [(item["status"], item["reply"]) for item in pending_outbox()] == [("done", "executed")]
 
 
@@ -428,7 +428,7 @@ def test_typing_is_never_asked_to_prove_a_voice(mgr):
     with patch.object(mgr, "execute_artifact", return_value=SimpleNamespace(reply="executed")) as run:
         assert mgr.handle(sid, "yes").reply == "executed"
     run.assert_called_once()
-    from brutus.resilience import pending_outbox
+    from alicia.resilience import pending_outbox
     assert [(item["status"], item["reply"]) for item in pending_outbox()] == [("done", "executed")]
 
 
@@ -443,7 +443,7 @@ def test_an_unplaced_voice_is_still_answered_when_nothing_is_pending(mgr):
     assert brain.call_count == 2
     assert verified.reply == unplaced.reply == "Here is the status."
 
-    # The verdict decides what a yes may execute, never whether Brutus answers.
+    # The verdict decides what a yes may execute, never whether Alicia answers.
     assert (unplaced.lane, unplaced.thinking, unplaced.error) == (
         verified.lane,
         verified.thinking,

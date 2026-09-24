@@ -7,9 +7,9 @@ from unittest.mock import MagicMock
 import httpx
 from fastapi.testclient import TestClient
 
-from brutus.client import AtlasClient
-from brutus.config import BrutusCfg
-from brutus.server import create_app
+from alicia.client import AtlasClient
+from alicia.config import AliciaCfg
+from alicia.server import create_app
 
 
 def _resp(status: int, payload: dict | str) -> httpx.Response:
@@ -48,9 +48,9 @@ def test_list_capped_attempts_filters(monkeypatch):
         kw["transport"] = transport
         return real_client(*a, **kw)
 
-    monkeypatch.setattr("brutus.client.httpx.Client", factory)
+    monkeypatch.setattr("alicia.client.httpx.Client", factory)
     client = AtlasClient(
-        BrutusCfg(atlas_enabled=True, atlas6_url="http://127.0.0.1:8767", atlas5_url="http://atlas5.test")
+        AliciaCfg(atlas_enabled=True, atlas6_url="http://127.0.0.1:8767", atlas5_url="http://atlas5.test")
     )
     rows = client.list_capped_attempts(min_attempts=5)
     assert len(rows) == 1
@@ -59,7 +59,7 @@ def test_list_capped_attempts_filters(monkeypatch):
 
 
 def test_reset_requires_confirm():
-    cfg = BrutusCfg()
+    cfg = AliciaCfg()
     app = create_app(cfg, start_watchdog=False)
     app.state.client = MagicMock()
     with TestClient(app) as tc:
@@ -72,7 +72,7 @@ def test_reset_requires_confirm():
 
 
 def test_reset_with_confirm_calls_client():
-    cfg = BrutusCfg()
+    cfg = AliciaCfg()
     app = create_app(cfg, start_watchdog=False)
     mock = MagicMock()
     mock.reset_attempts.return_value = {

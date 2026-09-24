@@ -15,7 +15,7 @@ state/
 # Secrets
 .env
 config.yaml
-.brutus-deploy.json
+.alicia-deploy.json
 
 # Machine-local editor and generated UI audit artifacts
 .claude/

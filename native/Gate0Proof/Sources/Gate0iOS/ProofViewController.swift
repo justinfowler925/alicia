@@ -58,7 +58,7 @@ final class ProofViewController: UIViewController {
     init(session: ProofSession) {
         self.session = session
         super.init(nibName: nil, bundle: nil)
-        title = "Brutus Gate 0"
+        title = "Alicia Gate 0"
     }
 
     @available(*, unavailable)
@@ -97,7 +97,7 @@ final class ProofViewController: UIViewController {
         help.numberOfLines = 0
         help.textColor = .secondaryLabel
         help.font = .preferredFont(forTextStyle: .footnote)
-        help.text = "Enable Voice Control. Focus Brutus draft. Speak continuously for the 20-turn sample — no per-turn send. Pause is app-only; it does not sleep system Voice Control."
+        help.text = "Enable Voice Control. Focus Alicia draft. Speak continuously for the 20-turn sample — no per-turn send. Pause is app-only; it does not sleep system Voice Control."
 
         let stack = UIStackView(arrangedSubviews: [
             help, status, buttons, labeled("Draft", draft),

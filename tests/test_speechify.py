@@ -7,7 +7,7 @@ belongs in the summarizer prompt.
 
 import pytest
 
-from brutus.speechify import MAX_SPOKEN_CHARS, chunk_for_speech, speechify
+from alicia.speechify import MAX_SPOKEN_CHARS, chunk_for_speech, speechify
 
 
 # --- homographs: the /lɪv/ incident ---------------------------------------
@@ -59,7 +59,7 @@ def test_ticket_ids_are_spoken_the_way_people_say_them(raw, spoken):
 
 
 def test_paths_are_not_read_aloud():
-    out = speechify("failed in ~/Projects/brutus/brutus/tools.py")
+    out = speechify("failed in ~/Projects/alicia/alicia/tools.py")
     assert "Projects" not in out
     assert "a file" in out
 
@@ -82,7 +82,7 @@ def test_uuids_are_not_read_aloud():
 
 
 def test_speakable_name_prefers_a_ticket_then_a_title():
-    from brutus.speechify import speakable_name
+    from alicia.speechify import speakable_name
 
     assert speakable_name("REV-484", "Ignore me") == "REV-484"
     assert "6d0b8f2a" not in speakable_name(
@@ -166,7 +166,7 @@ def test_no_model_or_network_is_involved():
     """Guard the 'deterministic' claim structurally, not by comment."""
     import inspect
 
-    import brutus.speechify as mod
+    import alicia.speechify as mod
 
     src = inspect.getsource(mod)
     for forbidden in ("httpx", "requests", "chat_completion", "openai", "urllib"):

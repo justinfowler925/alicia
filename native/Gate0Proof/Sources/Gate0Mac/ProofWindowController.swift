@@ -70,7 +70,7 @@ final class ProofWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Brutus Gate 0 — Voice Control proof"
+        window.title = "Alicia Gate 0 — Voice Control proof"
         window.center()
         super.init(window: window)
         window.delegate = self
@@ -101,11 +101,11 @@ final class ProofWindowController: NSWindowController, NSWindowDelegate {
 
         let turnsScroll = wrap(turnsView)
         let eventsScroll = wrap(eventsView)
-        let draftLabel = NSTextField(labelWithString: "Draft (Voice Control target — named “Brutus draft”)")
+        let draftLabel = NSTextField(labelWithString: "Draft (Voice Control target — named “Alicia draft”)")
         draftLabel.font = .boldSystemFont(ofSize: 12)
         let turnsLabel = NSTextField(labelWithString: "Committed turns")
         turnsLabel.font = .boldSystemFont(ofSize: 12)
-        let eventsLabel = NSTextField(labelWithString: "Event log (also ~/.brutus/gate0-logs)")
+        let eventsLabel = NSTextField(labelWithString: "Event log (also ~/.alicia/gate0-logs)")
         eventsLabel.font = .boldSystemFont(ofSize: 12)
 
         let help = NSTextField(wrappingLabelWithString: """

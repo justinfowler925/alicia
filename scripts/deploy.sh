@@ -1,16 +1,23 @@
 #!/usr/bin/env bash
-# Deploy Brutus to the dedicated service worktree and restart it.
+# Brutus -> Alicia rename: until cutover, fall back to ~/.brutus and BRUTUS_* env.
+ALICIA_HOME="${ALICIA_HOME:-$HOME/.alicia}"
+[ -d "$ALICIA_HOME" ] || [ ! -d "$HOME/.brutus" ] || ALICIA_HOME="$HOME/.brutus"
+for _legacy in $(env | sed -n 's/^BRUTUS_\([A-Za-z0-9_]*\)=.*/\1/p'); do
+  eval "[ -n \"\${ALICIA_${_legacy}+x}\" ] || export ALICIA_${_legacy}=\"\${BRUTUS_${_legacy}}\""
+done
+unset _legacy
+# Deploy Alicia to the dedicated service worktree and restart it.
 #
 # WHY THIS EXISTS
 #
-# The daemon used to run straight out of ~/Projects/brutus, a shared checkout
+# The daemon used to run straight out of ~/Projects/alicia, a shared checkout
 # that other sessions switch branches in. Twice in one day it ended up serving a
 # different branch than intended — once someone else's unmerged feature branch,
 # for half an hour, while a restart reported "up after 2s" and looked perfect.
 #
-# The service now runs from its own detached worktree at ~/.brutus/app. Nothing
-# anyone does in ~/Projects/brutus can change what is running. State lives at
-# ~/.brutus/state, outside every checkout, so a redeploy cannot empty it.
+# The service now runs from its own detached worktree at ~/.alicia/app. Nothing
+# anyone does in ~/Projects/alicia can change what is running. State lives at
+# ~/.alicia/state, outside every checkout, so a redeploy cannot empty it.
 #
 #   ./scripts/deploy.sh            # deploy origin/main
 #   ./scripts/deploy.sh --status   # what is running, and is it current?
@@ -26,7 +33,7 @@
 # Use it to try a fix on the real daemon before landing it, and nothing else.
 #
 # It was FIRST added for a bad reason worth recording: a push had failed with
-# "Permission to justinfowler925/brutus.git denied to justin-fowler_cspd", and
+# "Permission to justinfowler925/alicia.git denied to justin-fowler_cspd", and
 # that was read as "this machine has no write access". It is not. `gh` holds one
 # active account and this laptop has two; the personal one owns this repo. The
 # lesson two paragraphs down, about fetch, is the same lesson. Landing is
@@ -35,29 +42,29 @@
 set -uo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd -P)
-REPO="${BRUTUS_REPO:-$HOME/Projects/brutus}"
-APP="${BRUTUS_APP_DIR:-$HOME/.brutus/app}"
-# Operator state only. Do NOT inherit ambient BRUTUS_STATE_DIR — a scratch
+REPO="${ALICIA_REPO:-$HOME/Projects/alicia}"
+APP="${ALICIA_APP_DIR:-$ALICIA_HOME/app}"
+# Operator state only. Do NOT inherit ambient ALICIA_STATE_DIR — a scratch
 # probe that exports it makes this script mkdir/verify against a temp dir while
-# launchd keeps writing to ~/.brutus/state, and the deploy looks green either way.
-# Override deliberately via BRUTUS_DEPLOY_STATE_DIR if you ever need to.
-STATE="${BRUTUS_DEPLOY_STATE_DIR:-$HOME/.brutus/state}"
-PLIST_NAME=com.clearspeed.brutus.plist
+# launchd keeps writing to ~/.alicia/state, and the deploy looks green either way.
+# Override deliberately via ALICIA_DEPLOY_STATE_DIR if you ever need to.
+STATE="${ALICIA_DEPLOY_STATE_DIR:-$ALICIA_HOME/state}"
+PLIST_NAME=com.clearspeed.alicia.plist
 LOADED_PLIST="$HOME/Library/LaunchAgents/$PLIST_NAME"
 PORT=8768
 VOICE_PORT=8096
-CORE_LABEL="com.clearspeed.brutus"
-VOICE_AGENT_LABEL="com.clearspeed.brutus-livekit-agent"
-DEPLOY_SERVICES_STOPPED="${BRUTUS_DEPLOY_SERVICES_STOPPED:-0}"
+CORE_LABEL="com.clearspeed.alicia"
+VOICE_AGENT_LABEL="com.clearspeed.alicia-livekit-agent"
+DEPLOY_SERVICES_STOPPED="${ALICIA_DEPLOY_SERVICES_STOPPED:-0}"
 DEPLOY_SUCCEEDED=0
-TARGET_REF="${BRUTUS_DEPLOY_REF:-origin/main}"
+TARGET_REF="${ALICIA_DEPLOY_REF:-origin/main}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --ref)
       [ -n "${2:-}" ] || { echo "--ref needs a git ref"; exit 2; }
-      TARGET_REF="$2"; export BRUTUS_DEPLOY_REF="$2"; shift 2 ;;
-    --ref=*) TARGET_REF="${1#--ref=}"; export BRUTUS_DEPLOY_REF="$TARGET_REF"; shift ;;
+      TARGET_REF="$2"; export ALICIA_DEPLOY_REF="$2"; shift 2 ;;
+    --ref=*) TARGET_REF="${1#--ref=}"; export ALICIA_DEPLOY_REF="$TARGET_REF"; shift ;;
     *) break ;;
   esac
 done
@@ -165,7 +172,7 @@ if [ "${1:-}" = "--status" ]; then
   git -C "$REPO" fetch -q origin 2>/dev/null
   echo "origin/main: $(git -C "$REPO" rev-parse --short origin/main)"
   DEPLOYED_REF=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("ref","origin/main"))' \
-    "$APP/.brutus-deploy.json" 2>/dev/null || echo "origin/main")
+    "$APP/.alicia-deploy.json" 2>/dev/null || echo "origin/main")
   echo "deployed ref: $DEPLOYED_REF"
   if [ "$DEPLOYED_REF" != "origin/main" ]; then
     echo "            NOT origin/main — a plain deploy will replace it"
@@ -225,13 +232,13 @@ if [ "$DEPLOY_SERVICES_STOPPED" != "1" ]; then
   wait_for_port_closed "$VOICE_PORT" || { echo "    voice port did not close"; exit 1; }
   unload_job "$CORE_LABEL" || { echo "    core job did not stop"; exit 1; }
   wait_for_port_closed "$PORT" || { echo "    core port did not close"; exit 1; }
-  export BRUTUS_DEPLOY_SERVICES_STOPPED=1
-  export BRUTUS_PRE_RESTART_PID="${PRE_RESTART_PID:-}"
-  export BRUTUS_PRE_VOICE_PID="${PRE_VOICE_PID:-}"
+  export ALICIA_DEPLOY_SERVICES_STOPPED=1
+  export ALICIA_PRE_RESTART_PID="${PRE_RESTART_PID:-}"
+  export ALICIA_PRE_VOICE_PID="${PRE_VOICE_PID:-}"
   DEPLOY_SERVICES_STOPPED=1
 else
-  PRE_RESTART_PID="${BRUTUS_PRE_RESTART_PID:-}"
-  PRE_VOICE_PID="${BRUTUS_PRE_VOICE_PID:-}"
+  PRE_RESTART_PID="${ALICIA_PRE_RESTART_PID:-}"
+  PRE_VOICE_PID="${ALICIA_PRE_VOICE_PID:-}"
 fi
 if [ ! -d "$APP/.git" ] && [ ! -f "$APP/.git" ]; then
   mkdir -p "$(dirname "$APP")"
@@ -253,17 +260,17 @@ fi
 DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 CONFIG_HASH=$(shasum -a 256 "$APP/config.yaml" | awk '{print $1}')
 printf '{"sha":"%s","deployed_at":"%s","config_sha256":"%s","ref":"%s"}\n' \
-  "$(git -C "$APP" rev-parse HEAD)" "$DEPLOYED_AT" "$CONFIG_HASH" "$TARGET_REF" > "$APP/.brutus-deploy.json"
+  "$(git -C "$APP" rev-parse HEAD)" "$DEPLOYED_AT" "$CONFIG_HASH" "$TARGET_REF" > "$APP/.alicia-deploy.json"
 
 # This script is a file the checkout above just rewrote, and bash reads a script
 # incrementally — the deploy that installed the /api/todos check ran the version
 # without it, and reported success. Re-exec once so the code deciding whether
 # this deploy is good is the code being deployed.
-if [ -z "${BRUTUS_DEPLOY_REEXEC:-}" ]; then
+if [ -z "${ALICIA_DEPLOY_REEXEC:-}" ]; then
   SELF="$APP/scripts/deploy.sh"
   if [ -f "$SELF" ] && ! cmp -s "$SELF" "$0"; then
     echo "    the deploy script itself changed — re-running the new one"
-    BRUTUS_DEPLOY_REEXEC=1 exec "$SELF" "$@"
+    ALICIA_DEPLOY_REEXEC=1 exec "$SELF" "$@"
   fi
 fi
 
@@ -283,7 +290,7 @@ if [ ! -x "$RUNTIME_ROOT/bin/python" ]; then
 fi
 if ! ( cd "$APP" && UV_PROJECT_ENVIRONMENT="$RUNTIME_ROOT" \
         "${UV:-/opt/homebrew/bin/uv}" sync -q --locked --extra dev --extra voice \
-        --no-editable --reinstall-package brutus --python "$RUNTIME_ROOT/bin/python" ) >"$INSTALL_LOG" 2>&1; then
+        --no-editable --reinstall-package alicia --python "$RUNTIME_ROOT/bin/python" ) >"$INSTALL_LOG" 2>&1; then
   echo "    install failed:"; tail -5 "$INSTALL_LOG" | sed 's/^/      /'; rm -f "$INSTALL_LOG"; exit 1
 fi
 rm -f "$INSTALL_LOG"
@@ -295,21 +302,21 @@ ln -sfn ".venvs/$TARGET_SHA" "$APP/.runtime-venv.next"
 
 # Prove the pin BEFORE restarting, not after. This is the check whose absence
 # let a green deploy run week-old code.
-RESOLVED=$(cd "$STATE" && BRUTUS_CONFIG="$APP/config.yaml" "$RUNTIME_VENV/bin/python" -c 'import brutus,os;print(os.path.realpath(brutus.__file__))' 2>/dev/null)
+RESOLVED=$(cd "$STATE" && ALICIA_CONFIG="$APP/config.yaml" "$RUNTIME_VENV/bin/python" -c 'import alicia,os;print(os.path.realpath(alicia.__file__))' 2>/dev/null)
 case "$RESOLVED" in
-  "$RUNTIME_ROOT"/*) echo "    imports brutus from immutable runtime $TARGET_SHA" ;;
-  *) echo "    FATAL: runtime imports brutus from ${RESOLVED:-nowhere}, not $RUNTIME_ROOT"; exit 1 ;;
+  "$RUNTIME_ROOT"/*) echo "    imports alicia from immutable runtime $TARGET_SHA" ;;
+  *) echo "    FATAL: runtime imports alicia from ${RESOLVED:-nowhere}, not $RUNTIME_ROOT"; exit 1 ;;
 esac
 
 # uv's default local-project build cache can survive source-only changes.
 # A new venv path alone does not prove that its wheel contains this release.
 "$RUNTIME_VENV/bin/python" "$APP/scripts/verify-runtime-package.py" \
-  "$APP/brutus" "${RESOLVED%/__init__.py}" || exit 1
+  "$APP/alicia" "${RESOLVED%/__init__.py}" || exit 1
 
 # Atlas/Codex adapters receive a separate least-authority credential that can
 # append idempotent event receipts but cannot exercise owner state gates.
-( cd "$STATE" && BRUTUS_CONFIG="$APP/config.yaml" "$RUNTIME_VENV/bin/python" -c \
-  'from brutus.security import configured_adapter_token; configured_adapter_token()' ) || exit 1
+( cd "$STATE" && ALICIA_CONFIG="$APP/config.yaml" "$RUNTIME_VENV/bin/python" -c \
+  'from alicia.security import configured_adapter_token; configured_adapter_token()' ) || exit 1
 
 # Exercise the exact async HTTPX/AnyIO import path that failed in production.
 ( cd "$STATE" && "$RUNTIME_VENV/bin/python" -c \
@@ -317,7 +324,7 @@ esac
 
 echo "==> tests, against the code about to run"
 TEST_LOG="$STATE/deploy-test-$TARGET_SHA.log"
-if ! ( cd "$APP" && BRUTUS_CONFIG="$APP/config.yaml" "$RUNTIME_VENV/bin/python" -m pytest tests/ -q -p no:cacheprovider ) >"$TEST_LOG" 2>&1; then
+if ! ( cd "$APP" && ALICIA_CONFIG="$APP/config.yaml" "$RUNTIME_VENV/bin/python" -m pytest tests/ -q -p no:cacheprovider ) >"$TEST_LOG" 2>&1; then
   echo "    test gate failed; full output: $TEST_LOG"
   tail -60 "$TEST_LOG"
   exit 1
@@ -330,7 +337,7 @@ FAIL=0
 # Capture this before either the plist reload or kickstart. The old readiness
 # loop could accept one response from the process being terminated, then see
 # two 000s while launchd brought up the replacement.
-PRE_RESTART_PID="${PRE_RESTART_PID:-${BRUTUS_PRE_RESTART_PID:-}}"
+PRE_RESTART_PID="${PRE_RESTART_PID:-${ALICIA_PRE_RESTART_PID:-}}"
 
 echo "==> syncing the launchd plist"
 # From $APP, NOT $REPO. The shared checkout sits on whatever branch someone left
@@ -347,7 +354,7 @@ echo "==> syncing the launchd plist"
 # Canon's durability and authenticated GitHub ingestion are required parts of
 # the work surface, not optional operator add-ons. Install them on first deploy;
 # the generic sibling loop below continues to avoid starting unrelated jobs.
-for REQUIRED in com.clearspeed.brutus-canon-backup.plist com.clearspeed.brutus-canon-github.plist com.clearspeed.brutus-livekit.plist com.clearspeed.brutus-livekit-agent.plist com.clearspeed.brutus-my-notes.plist; do
+for REQUIRED in com.clearspeed.alicia-canon-backup.plist com.clearspeed.alicia-canon-github.plist com.clearspeed.alicia-livekit.plist com.clearspeed.alicia-livekit-agent.plist com.clearspeed.alicia-my-notes.plist; do
   SRC="$APP/launchd/$REQUIRED"; DEST="$HOME/Library/LaunchAgents/$REQUIRED"
   if [ ! -f "$DEST" ]; then
     cp "$SRC" "$DEST" || { echo "    ${REQUIRED%.plist}: COULD NOT INSTALL"; FAIL=1; continue; }
@@ -365,7 +372,7 @@ if diff -q "$LOADED_PLIST" "$SRC_PLIST" >/dev/null 2>&1; then
 else
   cp "$SRC_PLIST" "$LOADED_PLIST" && echo "    updated (was drifted)"
   # A changed plist needs a real reload — kickstart re-runs the OLD definition.
-  unload_job "com.clearspeed.brutus"
+  unload_job "com.clearspeed.alicia"
   launchctl bootstrap "gui/$(id -u)" "$LOADED_PLIST" 2>/dev/null
   RELOADED=1
 fi
@@ -382,10 +389,10 @@ fi
 for SRC in "$APP"/launchd/*.plist; do
   NAME=$(basename "$SRC")
   [ "$NAME" = "$PLIST_NAME" ] && continue
-  if [ "$NAME" = "com.clearspeed.brutus-tunnel.plist" ]; then
-    launchctl disable "gui/$(id -u)/com.clearspeed.brutus-tunnel" 2>/dev/null || true
-    unload_job "com.clearspeed.brutus-tunnel" 2>/dev/null || true
-    echo "    com.clearspeed.brutus-tunnel: disabled (Atlas ignored)"
+  if [ "$NAME" = "com.clearspeed.alicia-tunnel.plist" ]; then
+    launchctl disable "gui/$(id -u)/com.clearspeed.alicia-tunnel" 2>/dev/null || true
+    unload_job "com.clearspeed.alicia-tunnel" 2>/dev/null || true
+    echo "    com.clearspeed.alicia-tunnel: disabled (Atlas ignored)"
     continue
   fi
   DEST="$HOME/Library/LaunchAgents/$NAME"
@@ -416,11 +423,11 @@ echo "==> restarting"
 # kickstart only works on a service that is already loaded. If it is not — say
 # a previous deploy booted it out and then skipped bootstrap because the plist
 # happened to match — kickstart fails with "Could not find service" and the
-# deploy leaves Brutus DOWN. Bootstrap covers both cases; ask launchd rather
+# deploy leaves Alicia DOWN. Bootstrap covers both cases; ask launchd rather
 # than assuming.
 if [ -z "${RELOADED:-}" ]; then
-  if launchctl print "gui/$(id -u)/com.clearspeed.brutus" >/dev/null 2>&1; then
-    launchctl kickstart -k "gui/$(id -u)/com.clearspeed.brutus" || exit 1
+  if launchctl print "gui/$(id -u)/com.clearspeed.alicia" >/dev/null 2>&1; then
+    launchctl kickstart -k "gui/$(id -u)/com.clearspeed.alicia" || exit 1
   else
     echo "    service was not loaded — bootstrapping"
     launchctl bootstrap "gui/$(id -u)" "$LOADED_PLIST" || exit 1
@@ -437,7 +444,7 @@ fi
 # Start voice only after the old job and health listener are gone. The worker
 # and core now resolve the same immutable runtime symlink.
 if [ -f "$HOME/Library/LaunchAgents/$VOICE_AGENT_LABEL.plist" ]; then
-  PRE_VOICE_PID="${PRE_VOICE_PID:-${BRUTUS_PRE_VOICE_PID:-}}"
+  PRE_VOICE_PID="${PRE_VOICE_PID:-${ALICIA_PRE_VOICE_PID:-}}"
   unload_job "$VOICE_AGENT_LABEL" || { echo "    voice job did not stop for cutover"; FAIL=1; }
   if launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/$VOICE_AGENT_LABEL.plist" >/dev/null 2>&1 \
     && wait_for_voice_actor "$PRE_VOICE_PID"; then
@@ -483,7 +490,7 @@ fi
 # launchd was still executing the launcher from the shared checkout — because
 # the plist pointed there. A green deploy that deployed nothing is the whole
 # failure mode this file exists to prevent.
-PID=$(launchctl print "gui/$(id -u)/com.clearspeed.brutus" 2>/dev/null | grep -oE 'pid = [0-9]+' | grep -oE '[0-9]+' | head -1)
+PID=$(launchctl print "gui/$(id -u)/com.clearspeed.alicia" 2>/dev/null | grep -oE 'pid = [0-9]+' | grep -oE '[0-9]+' | head -1)
 CWD=$(lsof -a -p "${PID:-0}" -d cwd -Fn 2>/dev/null | grep '^n' | cut -c2-)
 LIVE_SHA=$(git -C "$APP" rev-parse --short HEAD)
 if [ "$CWD" = "$APP" ]; then
@@ -501,7 +508,7 @@ fi
 for SRC in "$APP"/launchd/*.plist; do
   NAME=$(basename "$SRC"); LABEL="${NAME%.plist}"
   [ "$NAME" = "$PLIST_NAME" ] && continue
-  [ "$NAME" = "com.clearspeed.brutus-tunnel.plist" ] && continue
+  [ "$NAME" = "com.clearspeed.alicia-tunnel.plist" ] && continue
   [ -f "$HOME/Library/LaunchAgents/$NAME" ] || continue
   if ! DEF=$(launchctl print "gui/$(id -u)/$LABEL" 2>/dev/null); then
     echo "    $LABEL: installed but NOT LOADED"; FAIL=1; continue

@@ -4,11 +4,11 @@ from pathlib import Path
 
 import yaml
 
-from brutus.config import BrutusCfg, LocalLLMCfg, load_config
+from alicia.config import AliciaCfg, LocalLLMCfg, load_config
 
 
 def test_default_cfg():
-    cfg = BrutusCfg()
+    cfg = AliciaCfg()
     assert "8767" in cfg.atlas6_url
     assert cfg.local_llm is not None
     assert cfg.local_llm.enabled is False
@@ -24,7 +24,7 @@ def test_load_config_falls_back():
     cfg = load_config()
     assert cfg.atlas6_url
     assert cfg.atlas_enabled is False
-    assert "~/.brutus/app" in cfg.cursor_runner.allowlist_roots
+    assert "~/.alicia/app" in cfg.cursor_runner.allowlist_roots
     assert cfg.timeout_s > 0
     assert cfg.local_llm.model
 

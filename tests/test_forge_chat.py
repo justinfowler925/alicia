@@ -12,13 +12,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from brutus import forge_bridge, forge_chat
+from alicia import forge_bridge, forge_chat
 
 
-def test_slow_brutus_canary_does_not_block_forge(monkeypatch):
-    from brutus import resilience
-    from brutus.config import BrutusCfg
-    from brutus.server import create_app
+def test_slow_alicia_canary_does_not_block_forge(monkeypatch):
+    from alicia import resilience
+    from alicia.config import AliciaCfg
+    from alicia.server import create_app
 
     started, release = threading.Event(), threading.Event()
     def slow_probe(**kwargs):
@@ -30,7 +30,7 @@ def test_slow_brutus_canary_does_not_block_forge(monkeypatch):
     monkeypatch.setattr(resilience, "ensure_api_killed_by_default", lambda: None)
     monkeypatch.setattr(resilience, "pending_outbox", lambda limit: [])
     monkeypatch.setattr(forge_chat, "remote", lambda request: {"threads": []})
-    app = create_app(BrutusCfg(watchdog_enabled=False), start_watchdog=False)
+    app = create_app(AliciaCfg(watchdog_enabled=False), start_watchdog=False)
 
     async def exercise():
         transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 50000))
@@ -39,7 +39,7 @@ def test_slow_brutus_canary_does_not_block_forge(monkeypatch):
             probe = asyncio.create_task(client.get("/api/resilience"))
             try:
                 assert await asyncio.to_thread(started.wait, 2)
-                response = await client.post("/api/forge/request", json={"action": "list"}, headers={"X-Brutus-Chat": "forge"})
+                response = await client.post("/api/forge/request", json={"action": "list"}, headers={"X-Alicia-Chat": "forge"})
                 assert response.status_code == 200
                 assert time.monotonic() - before < 2
                 assert not probe.done()
@@ -49,11 +49,11 @@ def test_slow_brutus_canary_does_not_block_forge(monkeypatch):
     asyncio.run(exercise())
 
 
-def test_real_brutus_serves_forge_assets_and_transport(monkeypatch):
-    from brutus.config import BrutusCfg
-    from brutus.server import create_app
+def test_real_alicia_serves_forge_assets_and_transport(monkeypatch):
+    from alicia.config import AliciaCfg
+    from alicia.server import create_app
 
-    app = create_app(BrutusCfg(watchdog_enabled=False), start_watchdog=False)
+    app = create_app(AliciaCfg(watchdog_enabled=False), start_watchdog=False)
     monkeypatch.setattr(forge_chat, "remote", lambda request: {"threads": [], "model": "configured-model"})
     with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)) as client:
         page = client.get("/")
@@ -64,7 +64,7 @@ def test_real_brutus_serves_forge_assets_and_transport(monkeypatch):
             assert asset.status_code == 200
             assert asset.headers["content-type"].startswith(media_type)
             assert "no-store" in asset.headers["cache-control"]
-        assert client.post("/api/forge/request", json={"action": "list"}, headers={"X-Brutus-Chat": "forge"}).json()["model"] == "configured-model"
+        assert client.post("/api/forge/request", json={"action": "list"}, headers={"X-Alicia-Chat": "forge"}).json()["model"] == "configured-model"
 
 
 class Agent:
@@ -173,11 +173,11 @@ def test_message_id_cannot_be_reused_for_different_text(bridge):
 
 
 @pytest.mark.parametrize("base_url,client_host,headers,expected", [
-    ("http://127.0.0.1:8768", "127.0.0.1", {"X-Brutus-Chat": "forge"}, 200),
+    ("http://127.0.0.1:8768", "127.0.0.1", {"X-Alicia-Chat": "forge"}, 200),
     ("http://127.0.0.1:8768", "127.0.0.1", {}, 403),
-    ("http://127.0.0.1:8768", "127.0.0.1", {"X-Brutus-Chat": "forge", "Origin": "https://attacker.example"}, 403),
-    ("http://attacker.example", "127.0.0.1", {"X-Brutus-Chat": "forge"}, 403),
-    ("http://127.0.0.1:8768", "100.1.2.3", {"X-Brutus-Chat": "forge"}, 403),
+    ("http://127.0.0.1:8768", "127.0.0.1", {"X-Alicia-Chat": "forge", "Origin": "https://attacker.example"}, 403),
+    ("http://attacker.example", "127.0.0.1", {"X-Alicia-Chat": "forge"}, 403),
+    ("http://127.0.0.1:8768", "100.1.2.3", {"X-Alicia-Chat": "forge"}, 403),
 ])
 def test_local_boundary(monkeypatch, base_url, client_host, headers, expected):
     app = FastAPI()
@@ -198,7 +198,7 @@ def test_attachment_bytes_scope_history_and_retry(bridge):
     body = {"attachment_id": aid, "name": "../../report.txt", "content": base64.b64encode(b"file-only secret").decode()}
     uploaded = call("upload", **body)
     path = Path(uploaded["path"])
-    assert path.is_relative_to(agent.STATE / "workspaces" / "brutus-chat" / thread_id)
+    assert path.is_relative_to(agent.STATE / "workspaces" / "alicia-chat" / thread_id)
     assert path.read_bytes() == b"file-only secret"
     assert path.stat().st_mode & 0o777 == 0o600
     assert call("upload", **body) == uploaded
@@ -254,8 +254,8 @@ def test_streaming_upload_above_old_limit_and_http_boundary(monkeypatch):
     content = b"x" * (12 * 1024 * 1024)
     with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)) as client:
         assert client.post(route, content=b"hello").status_code == 403
-        assert client.post(route, content=b"hello", headers={"X-Brutus-Chat": "forge", "Origin": "https://foreign.example"}).status_code == 403
-        assert client.post(route, content=content, headers={"X-Brutus-Chat": "forge"}).status_code == 200
+        assert client.post(route, content=b"hello", headers={"X-Alicia-Chat": "forge", "Origin": "https://foreign.example"}).status_code == 403
+        assert client.post(route, content=content, headers={"X-Alicia-Chat": "forge"}).status_code == 200
     assert len(processes) == 1
     stream = io.BytesIO(processes[0].stdin.data)
     metadata = json.loads(stream.readline())
@@ -274,7 +274,7 @@ def test_large_stream_and_interrupted_transfer(bridge):
     frame = struct.pack("!I", 4) + b"test"
     with pytest.raises(ValueError, match="interrupted"):
         forge_bridge.handle(request, agent, state, upload_chunks=forge_bridge.upload_frames(io.BytesIO(frame)))
-    directory = agent.STATE / "workspaces" / "brutus-chat" / thread_id / "attachments" / aid
+    directory = agent.STATE / "workspaces" / "alicia-chat" / thread_id / "attachments" / aid
     assert list(directory.iterdir()) == []
     with sqlite3.connect(state / "chat.sqlite3") as c:
         assert c.execute("SELECT count(*) FROM attachments").fetchone()[0] == 0

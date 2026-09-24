@@ -1,6 +1,6 @@
 """Quality gates ported off the deleted console document.
 
-test_server.py carried seven tests that asserted on `BRUTUS_HTML`. Most were
+test_server.py carried seven tests that asserted on `ALICIA_HTML`. Most were
 markers from build plans that have shipped, but several were real gates earned
 by real regressions, and deleting the page they watched is not a reason to stop
 watching. They are restated here against the one surface.
@@ -13,16 +13,16 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from brutus.config import BrutusCfg
-from brutus.server import create_app
+from alicia.config import AliciaCfg
+from alicia.server import create_app
 
-_STATIC = Path(__file__).resolve().parents[1] / "brutus" / "static"
+_STATIC = Path(__file__).resolve().parents[1] / "alicia" / "static"
 
 
 def _html() -> str:
-    with patch("brutus.server.AtlasClient") as atlas:
+    with patch("alicia.server.AtlasClient") as atlas:
         atlas.return_value = MagicMock()
-        return TestClient(create_app(BrutusCfg(watchdog_enabled=False), start_watchdog=False)).get("/").text
+        return TestClient(create_app(AliciaCfg(watchdog_enabled=False), start_watchdog=False)).get("/").text
 
 
 # --- the scripts parse -------------------------------------------------------
@@ -57,7 +57,7 @@ def test_the_surface_paints_from_the_token_layer():
 
 def test_the_theme_is_declared_and_switchable():
     html = _html()
-    assert "brutus.theme" in html
+    assert "alicia.theme" in html
     assert 'id="theme-toggle"' in html
 
 

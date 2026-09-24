@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Poll authenticated GitHub facts into Canon Evidence.
 
-Brutus is loopback-only, so a public webhook cannot reach it. This job uses the
+Alicia is loopback-only, so a public webhook cannot reach it. This job uses the
 repo-scoped GitHub CLI credential and feeds the same strict receiver with facts
 returned by GitHub's API. Delivery ids are derived from immutable object ids.
 """
@@ -12,12 +12,12 @@ import json
 import os
 import subprocess
 
-from brutus.canon import CanonStore
-from brutus.github_evidence import GitHubEvidenceReceiver
-from brutus.paths import canon_db_path
+from alicia.canon import CanonStore
+from alicia.github_evidence import GitHubEvidenceReceiver
+from alicia.paths import canon_db_path
 
 
-REPOSITORY = os.environ.get("BRUTUS_GITHUB_REPOSITORY", "justinfowler925/brutus")
+REPOSITORY = os.environ.get("ALICIA_GITHUB_REPOSITORY", "justinfowler925/alicia")
 
 
 def gh_json(args: list[str]) -> list[dict]:

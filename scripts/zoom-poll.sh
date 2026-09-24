@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ask Brutus to pull new Zoom meeting summaries into the Inbox. Laptop only.
+# Ask Alicia to pull new Zoom meeting summaries into the Inbox. Laptop only.
 #
 # The work happens inside the daemon (POST /api/zoom/poll) rather than here, so
 # the ledger, the dedupe and the live push to the screen are all one code path
@@ -9,15 +9,15 @@
 # the job loaded and simply tries again next interval.
 set -uo pipefail
 
-BRUTUS_URL="${BRUTUS_URL:-http://127.0.0.1:8768}"
+ALICIA_URL="${ALICIA_URL:-http://127.0.0.1:8768}"
 DAYS="${ZOOM_POLL_DAYS:-7}"
 OWNERS="${ZOOM_POLL_OWNERS:-justin}"
 # The first run on a cold ledger resolves every meeting in the window, which
 # takes minutes; later runs skip everything already decided.
 TIMEOUT="${ZOOM_POLL_TIMEOUT:-900}"
 
-if ! curl -sf --max-time 5 "$BRUTUS_URL/api/todos" >/dev/null; then
-  echo "skip: Brutus down at $BRUTUS_URL"
+if ! curl -sf --max-time 5 "$ALICIA_URL/api/todos" >/dev/null; then
+  echo "skip: Alicia down at $ALICIA_URL"
   exit 0
 fi
 
@@ -34,7 +34,7 @@ body=$(printf '{"days":%s,"owners":[%s]}' "$DAYS" "$owners_json")
 
 response=$(curl -s --max-time "$TIMEOUT" -X POST \
   -H 'content-type: application/json' \
-  -d "$body" "$BRUTUS_URL/api/zoom/poll")
+  -d "$body" "$ALICIA_URL/api/zoom/poll")
 rc=$?
 
 if [[ $rc -ne 0 || -z "$response" ]]; then
@@ -52,7 +52,7 @@ import json, sys
 try:
     d = json.load(sys.stdin)
 except Exception:
-    print("warn: unparseable response from Brutus")
+    print("warn: unparseable response from Alicia")
     raise SystemExit(0)
 
 detail = d.get("detail")

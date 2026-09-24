@@ -1,4 +1,4 @@
-"""Contracts for dependencies required by the deployed Brutus actor."""
+"""Contracts for dependencies required by the deployed Alicia actor."""
 
 import tomllib
 from pathlib import Path

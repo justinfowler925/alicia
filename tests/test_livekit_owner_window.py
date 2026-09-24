@@ -1,7 +1,7 @@
 """The owner voice gate must judge the audio that produced the transcript.
 
 Every test here is a window fault that shipped, and each one looked exactly
-like a stranger at the microphone: Brutus went silent on the owner's own
+like a stranger at the microphone: Alicia went silent on the owner's own
 speech. The measured cost was a 65% refusal rate across 477 verdicts with a
 score mode near 0.0 — noise, not a near miss between two people.
 """
@@ -9,7 +9,7 @@ score mode near 0.0 — noise, not a near miss between two people.
 import asyncio
 from unittest.mock import MagicMock
 
-from brutus.livekit_agent import OwnerVoiceGate
+from alicia.livekit_agent import OwnerVoiceGate
 
 
 def _gate(*, accepted=True, score=0.62):

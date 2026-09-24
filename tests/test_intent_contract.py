@@ -1,6 +1,6 @@
 import pytest
 
-from brutus.intent_contract import IntentNotReady, compile_proposal
+from alicia.intent_contract import IntentNotReady, compile_proposal
 
 
 @pytest.mark.parametrize(

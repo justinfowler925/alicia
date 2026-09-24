@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from brutus.canon import Watch
+from alicia.canon import Watch
 
 
 def test_watch_rejects_channels_the_runtime_cannot_deliver():

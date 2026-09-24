@@ -4,7 +4,7 @@
   "category": "voice",
   "primaryTask": "Select or drop files and ask Forge to read them",
   "before": {
-    "artifact": "brutus/static/session.html",
+    "artifact": "alicia/static/session.html",
     "screenshot": "/tmp/forge-attachments-before.png"
   },
   "verdict": "defects",
@@ -28,5 +28,5 @@
       ]
     }
   ],
-  "referenceLimitation": "Catalog spectrum-ai-chat shot is a Spectrum marketing page; existing Brutus conversation is the authoritative visual precedent."
+  "referenceLimitation": "Catalog spectrum-ai-chat shot is a Spectrum marketing page; existing Alicia conversation is the authoritative visual precedent."
 }

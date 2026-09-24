@@ -61,16 +61,16 @@ owner-authorized local CLI session; policy selection grants no execution,
 Salesforce, deployment, approval, acceptance, or closure authority.
 
 ```sh
-.venv/bin/python -m brutus workflow --db /path/to/canon.sqlite \
+.venv/bin/python -m alicia workflow --db /path/to/canon.sqlite \
   policy /path/to/repository --profile launcher --bind WORK_ITEM_ID
 
 # For Salesforce tasks, explicitly bind --profile salesforce instead.
-.venv/bin/python -m brutus workflow --db /path/to/canon.sqlite \
+.venv/bin/python -m alicia workflow --db /path/to/canon.sqlite \
   receipt WORK_ITEM_ID --requirement-id tests --type run_output \
   --content-ref /path/to/test-output.log --result pass \
   --artifact-digest COMMIT_SHA --captured-by codex --captured-by-kind worker
 
-.venv/bin/python -m brutus workflow --db /path/to/canon.sqlite \
+.venv/bin/python -m alicia workflow --db /path/to/canon.sqlite \
   delivery WORK_ITEM_ID
 ```
 
@@ -81,7 +81,7 @@ selected profile and digest. `WorkItem.delivery_policy_profile` stores the name;
 old records default to `""`. Existing JSON-backed Canon storage needs no DDL or
 backfill. Binding preserves lifecycle state and approval/decision references.
 
-Schema2 hashes `b"brutus-delivery-policy-v2\0" + profile.encode("utf-8") + b"\0"`
+Schema2 hashes `b"alicia-delivery-policy-v2\0" + profile.encode("utf-8") + b"\0"`
 followed by the raw YAML bytes. Different profiles have different digests even
 when their effective requirements are identical. Any policy-byte change also
 changes the digest. Binding snapshots the policy; editing the file alone does
@@ -112,7 +112,7 @@ Independent review, approval and acceptance gates remain the operator's job.
 
 ## Repository profiles and scoped installation
 
-Brutus selects `application` for a full application release: every prior v1
+Alicia selects `application` for a full application release: every prior v1
 requirement, including the full pytest suite and application SHA readback, remains.
 Select `workflow_control` only for policy/receipt/Canon workflow changes. It requires
 workflow, HTTP, identity/state and efficiency tests, lint, Git, an installed module

@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from brutus import __main__ as brutus_main
-from brutus.canon import (
+from alicia import __main__ as alicia_main
+from alicia.canon import (
     CanonStore,
     Project,
     Run,
@@ -17,7 +17,7 @@ from brutus.canon import (
     WorkItem,
     WorkItemState,
 )
-from brutus.canon.report import (
+from alicia.canon.report import (
     age_work_item,
     build_portfolio_report,
     failed_runs_within,
@@ -173,11 +173,11 @@ def test_portfolio_command_renders_rollups_stuck_items_and_failed_runs(
     store.close()
 
     monkeypatch.setattr(
-        brutus_main.sys,
+        alicia_main.sys,
         "argv",
-        ["brutus", "canon", "--db", str(db_path), "report", "portfolio"],
+        ["alicia", "canon", "--db", str(db_path), "report", "portfolio"],
     )
-    brutus_main.main()
+    alicia_main.main()
 
     output = capsys.readouterr().out
     assert "Portfolio report" in output

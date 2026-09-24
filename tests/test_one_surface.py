@@ -16,15 +16,15 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from brutus.config import BrutusCfg
-from brutus.server import create_app
+from alicia.config import AliciaCfg
+from alicia.server import create_app
 
-_STATIC = Path(__file__).resolve().parents[1] / "brutus" / "static"
+_STATIC = Path(__file__).resolve().parents[1] / "alicia" / "static"
 
 
 def _client() -> TestClient:
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         return TestClient(create_app(cfg, start_watchdog=False), follow_redirects=False)
 
@@ -68,8 +68,8 @@ def test_the_console_is_gone_and_its_url_lands_on_the_one_surface():
     UI over endpoints that still work."""
     from pathlib import Path as _P
 
-    assert not (_P(__file__).parents[1] / "brutus" / "ui.py").exists()
-    assert not (_P(__file__).parents[1] / "brutus" / "studio_ui.py").exists()
+    assert not (_P(__file__).parents[1] / "alicia" / "ui.py").exists()
+    assert not (_P(__file__).parents[1] / "alicia" / "studio_ui.py").exists()
 
     response = _client().get("/console")
     assert response.status_code == 308
@@ -187,8 +187,8 @@ def test_the_running_panel_does_not_collide_with_the_shell_script():
     )
     # Nothing but the one deliberate global.
     # One deliberate global assignment. `window.open` for a site link is not one.
-    assert ops.count("window.brutusOps =") == 1
-    assert "window." not in ops.replace("window.brutusOps =", "").replace("window.open(", "")
+    assert ops.count("window.aliciaOps =") == 1
+    assert "window." not in ops.replace("window.aliciaOps =", "").replace("window.open(", "")
 
 
 def test_a_grid_cell_cannot_blow_out_past_the_viewport():

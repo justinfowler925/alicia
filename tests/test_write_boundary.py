@@ -10,8 +10,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock, patch
 
-from brutus.config import BrutusCfg
-from brutus.tools import build_default_registry
+from alicia.config import AliciaCfg
+from alicia.tools import build_default_registry
 
 MUTATING = [
     "approve_gate",
@@ -30,13 +30,13 @@ MUTATING = [
 
 
 def test_read_only_registry_has_no_mutating_tool():
-    reg = build_default_registry(MagicMock(), BrutusCfg(), read_only=True)
+    reg = build_default_registry(MagicMock(), AliciaCfg(), read_only=True)
     present = [n for n in MUTATING if reg.get(n) is not None]
     assert present == [], f"read_only registry exposed: {present}"
 
 
 def test_writable_registry_has_them():
-    reg = build_default_registry(MagicMock(), BrutusCfg(), read_only=False)
+    reg = build_default_registry(MagicMock(), AliciaCfg(), read_only=False)
     available = {n for n in MUTATING if reg.get(n) is not None}
     assert available == {
         "ask_cursor",
@@ -48,7 +48,7 @@ def test_writable_registry_has_them():
 
 def test_chat_endpoint_forwards_read_only():
     """The one-line omission that made the parameter decorative."""
-    from brutus.server import ChatRequest
+    from alicia.server import ChatRequest
 
     assert "read_only" in ChatRequest.model_fields
     assert ChatRequest(message="hi").read_only is False
@@ -56,7 +56,7 @@ def test_chat_endpoint_forwards_read_only():
 
     import inspect
 
-    from brutus import server
+    from alicia import server
 
     src = inspect.getsource(server)
     chat_src = src[src.index('@app.post("/api/chat")') :][:1500]
@@ -65,15 +65,15 @@ def test_chat_endpoint_forwards_read_only():
 
 def test_read_only_turn_never_reaches_a_mutating_client_method():
     """End to end through resolve_chat_reply: the client must stay untouched."""
-    from brutus.chat_resolve import resolve_chat_reply
-    from brutus.config import LocalLLMCfg
-    from brutus.memory import MemoryStore
+    from alicia.chat_resolve import resolve_chat_reply
+    from alicia.config import LocalLLMCfg
+    from alicia.memory import MemoryStore
 
     client = MagicMock()
-    cfg = BrutusCfg(
+    cfg = AliciaCfg(
         local_llm=LocalLLMCfg(enabled=True, model="m", router_url="http://127.0.0.1:7901")
     )
-    with patch("brutus.chat_resolve.chat_completion", return_value="ok"):
+    with patch("alicia.chat_resolve.chat_completion", return_value="ok"):
         for phrase in ("approve REV-412", "dispatch a tick for real", "reconcile now"):
             resolve_chat_reply(
                 client, cfg, phrase, memory=MemoryStore(), read_only=True
@@ -100,10 +100,10 @@ def test_a_with_block_executor_defeats_its_own_timeout():
 
 def test_cursor_chat_returns_within_its_timeout(tmp_path):
     """Declared 1s once measured 6s. The gate now has to actually bite."""
-    from brutus import cursor_runner
-    from brutus.config import CursorRunnerCfg
+    from alicia import cursor_runner
+    from alicia.config import CursorRunnerCfg
 
-    cfg = BrutusCfg(cursor_runner=CursorRunnerCfg(enabled=True, timeout_s=1.0))
+    cfg = AliciaCfg(cursor_runner=CursorRunnerCfg(enabled=True, timeout_s=1.0))
 
     def slow(*_a, **_k):
         time.sleep(6)

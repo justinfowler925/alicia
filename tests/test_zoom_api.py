@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brutus.zoom_api import (
+from alicia.zoom_api import (
     MAX_RANGE_DAYS,
     ZoomAPIError,
     ZoomClient,
@@ -21,7 +21,7 @@ from brutus.zoom_api import (
     default_window,
     double_encode,
 )
-from brutus.zoom_ingest import extract_items, parse_api_next_steps
+from alicia.zoom_ingest import extract_items, parse_api_next_steps
 
 CREDS = ZoomCredentials(account_id="acct", client_id="cid", client_secret="csec")
 
@@ -247,6 +247,6 @@ def test_flat_list_handles_none_and_junk() -> None:
 )
 def test_owner_shaped_prefixes(head: str, is_owner: bool) -> None:
     """Real prefixes seen in Zoom output, and sentence openings that are not names."""
-    from brutus.zoom_ingest import _looks_like_owner
+    from alicia.zoom_ingest import _looks_like_owner
 
     assert _looks_like_owner(head) is is_owner

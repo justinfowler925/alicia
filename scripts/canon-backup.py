@@ -11,13 +11,13 @@ import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from brutus.canon import CanonStore, Evidence, WorkItem
-from brutus.paths import canon_db_path
+from alicia.canon import CanonStore, Evidence, WorkItem
+from alicia.paths import canon_db_path
 
 
 def backup_dir() -> Path:
     return Path(
-        os.environ.get("BRUTUS_CANON_BACKUP_DIR", "~/.brutus/backups/canon")
+        os.environ.get("ALICIA_CANON_BACKUP_DIR", "~/.alicia/backups/canon")
     ).expanduser()
 
 
@@ -68,7 +68,7 @@ def verify_latest(*, max_age_hours: int = 26) -> dict[str, object]:
     actual = checksum(latest)
     if not secrets_equal(expected, actual):
         raise RuntimeError("Canon backup checksum mismatch")
-    with tempfile.TemporaryDirectory(prefix="brutus-canon-restore-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="alicia-canon-restore-") as tmp:
         restored = CanonStore.restore(latest, Path(tmp) / "restored.sqlite")
         try:
             counts = {

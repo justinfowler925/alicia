@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from brutus.config import BrutusCfg
-from brutus.image_passes import decide, key_for, record
-from brutus.server import create_app
+from alicia.config import AliciaCfg
+from alicia.image_passes import decide, key_for, record
+from alicia.server import create_app
 
 
 PROMPT = "photographic headshot of a man in a navy shirt, chest up, facing camera"
@@ -26,9 +26,9 @@ def test_third_pass_is_cursor_not_another_mflux_seed():
 
 
 def test_cursor_pass_endpoint_runs_the_handoff_not_mflux():
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls, \
-         patch("brutus.avatars.run_cursor_image_pass", return_value={
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls, \
+         patch("alicia.avatars.run_cursor_image_pass", return_value={
              "ok": True, "name": "justin", "engine": "cursor"
          }) as run:
         cls.return_value = MagicMock()
@@ -53,7 +53,7 @@ def test_photo_lock_script_is_executable():
 
 
 def test_seed_for_pass_changes_on_pass_two():
-    from brutus.image_passes import seed_for_pass
+    from alicia.image_passes import seed_for_pass
 
     assert seed_for_pass(1) == 42
     assert seed_for_pass(2) == 59

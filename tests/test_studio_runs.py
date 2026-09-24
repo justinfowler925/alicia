@@ -4,8 +4,8 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from brutus.studio_collector import UTC, apply_receipts, base_job, calendar_times, normalized_receipt, redact
-from brutus.studio_runs import assess, router
+from alicia.studio_collector import UTC, apply_receipts, base_job, calendar_times, normalized_receipt, redact
+from alicia.studio_runs import assess, router
 
 NOW = dt.datetime(2026, 9, 9, 14, tzinfo=UTC)
 
@@ -101,8 +101,8 @@ def test_log_path_is_selected_from_inventory_not_request():
     client = TestClient(app)
     data = {"jobs": [job(logs={"stdout": "/trusted/log"})]}
     with (
-        patch("brutus.studio_runs.snapshot", return_value=data),
-        patch("brutus.studio_runs.remote", return_value="safe log") as remote,
+        patch("alicia.studio_runs.snapshot", return_value=data),
+        patch("alicia.studio_runs.remote", return_value="safe log") as remote,
     ):
         assert client.get("/api/studio-runs/nope/log").status_code == 404
         assert client.get("/api/studio-runs/feed/log?kind=../../secret").status_code == 400
@@ -125,7 +125,7 @@ def test_the_studio_job_surface_lives_on_the_one_page_now():
     """
     from pathlib import Path
 
-    ops = (Path(__file__).parents[1] / "brutus" / "static" / "operations.js").read_text()
+    ops = (Path(__file__).parents[1] / "alicia" / "static" / "operations.js").read_text()
 
     assert '/api/studio-runs/${encodeURIComponent(row.id)}/disable' in ops
     assert '/api/studio-runs/${encodeURIComponent(row.id)}/enable' in ops
@@ -138,7 +138,7 @@ def test_collect_discovers_new_jobs_preserves_missing_and_reads_nevada(tmp_path,
     import plistlib
     from pathlib import Path
 
-    from brutus import studio_collector as collector
+    from alicia import studio_collector as collector
 
     agents = tmp_path / "Library/LaunchAgents"
     agents.mkdir(parents=True)
@@ -203,13 +203,13 @@ def test_project_scan_does_not_block_studio_request_loop(monkeypatch):
     import threading
     from unittest.mock import MagicMock
 
-    from brutus.config import BrutusCfg
-    from brutus.server import create_app
+    from alicia.config import AliciaCfg
+    from alicia.server import create_app
 
     released = threading.Event()
-    monkeypatch.setattr("brutus.server.scan_projects", lambda: [{"loop_was_free": released.wait(1)}])
-    with patch("brutus.server.AtlasClient", return_value=MagicMock()):
-        app = create_app(BrutusCfg(watchdog_enabled=False), start_watchdog=False)
+    monkeypatch.setattr("alicia.server.scan_projects", lambda: [{"loop_was_free": released.wait(1)}])
+    with patch("alicia.server.AtlasClient", return_value=MagicMock()):
+        app = create_app(AliciaCfg(watchdog_enabled=False), start_watchdog=False)
     endpoint = next(r.endpoint for r in app.routes if getattr(r, "path", "") == "/api/projects")
 
     async def probe():
@@ -224,10 +224,10 @@ def test_project_scan_does_not_block_studio_request_loop(monkeypatch):
 def test_annotated_launchd_exit_codes_are_failures():
     from types import SimpleNamespace
 
-    from brutus.studio_collector import read_launch_state
+    from alicia.studio_collector import read_launch_state
 
     with patch(
-        "brutus.studio_collector.subprocess.run",
+        "alicia.studio_collector.subprocess.run",
         return_value=SimpleNamespace(returncode=0, stdout="\truns = 1\n\tlast exit code = 78: EX_CONFIG\n"),
     ):
         state = read_launch_state("gui/501", "cro")
@@ -235,7 +235,7 @@ def test_annotated_launchd_exit_codes_are_failures():
 
 
 def test_feed_scope_does_not_confuse_history_services_or_failures():
-    from brutus.studio_collector import classify
+    from alicia.studio_collector import classify
 
     cases = {
         "com.clearspeed.nv-sled-intel": "feed",
@@ -295,7 +295,7 @@ def test_scheduler_reload_does_not_clear_a_known_failure(tmp_path):
     import json
     import plistlib
 
-    from brutus.studio_collector import collect
+    from alicia.studio_collector import collect
 
     agents = tmp_path / "Library/LaunchAgents"
     agents.mkdir(parents=True)
@@ -304,7 +304,7 @@ def test_scheduler_reload_does_not_clear_a_known_failure(tmp_path):
     state = tmp_path / "state"
     state.mkdir()
     (state / "snapshot.json").write_text(json.dumps({"jobs": [job(id=jid, status="failure", runs=3)]}))
-    with patch("brutus.studio_collector.read_launch_state", return_value={"loaded": True, "runs": 0}):
+    with patch("alicia.studio_collector.read_launch_state", return_value={"loaded": True, "runs": 0}):
         data = collect(home=tmp_path, state=state)
     actual = next(j for j in data["jobs"] if j["id"] == jid)
     assert actual["status"] == "failure"
@@ -312,7 +312,7 @@ def test_scheduler_reload_does_not_clear_a_known_failure(tmp_path):
 
 
 def test_read_only_verification_does_not_mask_failed_publication():
-    from brutus.studio_collector import attach_verification
+    from alicia.studio_collector import attach_verification
     j = job(status="failure", last_run_at="2026-09-08T10:00:00Z")
     attach_verification(j, {"status": "success", "finished_at": "2026-09-09T14:00:00Z",
                            "verification_scope": "Read-only: notifications and writes not executed"}, "check.json")

@@ -7,11 +7,11 @@ from datetime import UTC, datetime, timedelta
 import pytest
 import yaml
 
-from brutus import __main__ as cli
-from brutus.canon import CanonError, CanonStore, Evidence, WorkItem, WorkItemState, transition
-from brutus.canon.identity import DEFAULT_IDENTITY_REGISTRY, IdentityRegistry
-from brutus.canon.models import Approval, ApprovalStatus, WorkItemType
-from brutus.workflow_control import (
+from alicia import __main__ as cli
+from alicia.canon import CanonError, CanonStore, Evidence, WorkItem, WorkItemState, transition
+from alicia.canon.identity import DEFAULT_IDENTITY_REGISTRY, IdentityRegistry
+from alicia.canon.models import Approval, ApprovalStatus, WorkItemType
+from alicia.workflow_control import (
     attach_delivery_receipt,
     bind_delivery_policy,
     evaluate_delivery_receipts,
@@ -70,7 +70,7 @@ def attach(store, work, requirement="tests", **kwargs):
 
 
 def invoke(monkeypatch, db, *args):
-    monkeypatch.setattr(cli.sys, "argv", ["brutus", "workflow", "--db", str(db), *args])
+    monkeypatch.setattr(cli.sys, "argv", ["alicia", "workflow", "--db", str(db), *args])
     cli.main()
 
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from brutus import forge_local as local
+from alicia import forge_local as local
 
 
 @pytest.fixture

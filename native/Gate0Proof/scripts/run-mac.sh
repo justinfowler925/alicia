@@ -12,8 +12,8 @@ else
 fi
 swift build --product Gate0Mac -c debug "${BUILD_SYS[@]}"
 BIN="$(swift build --show-bin-path -c debug "${BUILD_SYS[@]}")/Gate0Mac"
-mkdir -p "$HOME/.brutus/gate0-logs"
+mkdir -p "$HOME/.alicia/gate0-logs"
 echo "Launching $BIN"
-echo "Event logs → $HOME/.brutus/gate0-logs"
-echo "Enable macOS Voice Control, focus “Brutus draft”, speak continuously."
+echo "Event logs → $HOME/.alicia/gate0-logs"
+echo "Enable macOS Voice Control, focus “Alicia draft”, speak continuously."
 exec "$BIN"

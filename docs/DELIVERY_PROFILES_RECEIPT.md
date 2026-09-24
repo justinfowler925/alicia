@@ -1,6 +1,6 @@
 # Local delivery-profile execution receipt
 
-Date: 2026-09-15. Executor: Forge (Codex). Environment: isolated local Brutus
+Date: 2026-09-15. Executor: Forge (Codex). Environment: isolated local Alicia
 clone, branch `codex/task-delivery-profiles`, base `329368c`.
 Canon reference: `2b914b18-e334-4d3d-8cb7-fa89b612043b` (supplied reference only;
 no Canon access, rebinding, or duplicate work creation in this execution).
@@ -63,7 +63,7 @@ All Python runs used this clone's `.venv/bin/python` (Python 3.14).
 Full-suite and final focused runs use a temporary `sitecustomize.py` that redirects
 Python home expansion to a scratch home and denies socket connections. State and
 Canon paths point to `/private/tmp/forge-dod-profiles-checks/`; the real Canon
-store is not used. `BRUTUS_SECURITY_BIN=/nonexistent` disables credential-helper
+store is not used. `ALICIA_SECURITY_BIN=/nonexistent` disables credential-helper
 fallback. The isolation does not change the host HOME or launcher configuration.
 
 The diagnostic full run exposed an existing backend test whose mock did not
@@ -96,7 +96,7 @@ fixed future-dated profile evidence after an independent failing probe.
 
 Independent workflow/HTTP/Canon/efficiency tests: **128 passed**. Changed-file
 verification script passed. Actual Brain policy probes preserve all 12 original
-Salesforce requirements; application policy preserves all 5 original Brutus gates.
+Salesforce requirements; application policy preserves all 5 original Alicia gates.
 Cross-profile proof and missing/unknown profile selections are rejected.
 
 After installing declared optional voice dependencies in the isolated environment,

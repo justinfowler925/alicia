@@ -1,6 +1,6 @@
-"""Bake-off: score a model on the work Brutus actually asks of it.
+"""Bake-off: score a model on the work Alicia actually asks of it.
 
-Uses Brutus's OWN prompt assembly (`_build_messages`) and its OWN tool-call
+Uses Alicia's OWN prompt assembly (`_build_messages`) and its OWN tool-call
 parser (`_parse_tool_call`), so a pass here means the real code path would have
 worked. A hand-written prompt or a hand-written regex would be measuring
 something adjacent and calling it the product.
@@ -11,11 +11,11 @@ before the LLM is consulted, so those prove nothing about a model. Every
 scenario below is asserted to fall through that regex first.
 
 SCOPE — read this before filing a bug off a red line here. This harness calls
-the model directly. It measures the MODEL, not Brutus. A failure below is a
+the model directly. It measures the MODEL, not Alicia. A failure below is a
 hypothesis about user impact, not evidence of one: `resolve_chat_reply` sits in
 front of all of this and answers gate questions deterministically
 (`spoken_next_decision`), retries tool calls, and since #68 strips ticket ids
-from Brutus's own prior turns and refuses to emit an id this turn cannot
+from Alicia's own prior turns and refuses to emit an id this turn cannot
 justify. `gate.stale_history` in particular still fails on Qwen3-8B-4bit and is
 expected to — the model really does resurrect the id, and the guard upstream of
 this connection point means it never reaches Justin. Confirm any finding by
@@ -34,13 +34,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from brutus.chat_resolve import (  # noqa: E402
+from alicia.chat_resolve import (  # noqa: E402
     _build_messages,
     _lookup_intent,
     _parse_tool_call,
 )
-from brutus.config import load_config  # noqa: E402
-from brutus.tools import build_default_registry  # noqa: E402
+from alicia.config import load_config  # noqa: E402
+from alicia.tools import build_default_registry  # noqa: E402
 
 BASE, MODEL, LABEL = sys.argv[1], sys.argv[2], sys.argv[3]
 
@@ -172,7 +172,7 @@ STALE_HISTORY = [
 # (id, user message, board, grader, needs_tool_catalog, history)
 SCENARIOS = [
     # --- routing the model actually decides ---
-    ("route.cursor", "have cursor take a look at the watchdog code in brutus", EMPTY_BOARD,
+    ("route.cursor", "have cursor take a look at the watchdog code in alicia", EMPTY_BOARD,
      all_of(routes_to("ask_cursor")), True, None),
     ("route.claude", "draft me a long writeup on our Q3 pipeline risks", EMPTY_BOARD,
      all_of(routes_to("ask_claude")), True, None),

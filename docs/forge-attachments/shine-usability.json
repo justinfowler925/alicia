@@ -7,7 +7,7 @@
       "id": "toggle",
       "selector": "#forge-toggle",
       "referenceRole": "navigation",
-      "purpose": "Switch between Brutus and Forge"
+      "purpose": "Switch between Alicia and Forge"
     },
     {
       "id": "panel",

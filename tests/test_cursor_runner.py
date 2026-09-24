@@ -5,8 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from brutus.config import BrutusCfg, CursorRunnerCfg
-from brutus.cursor_runner import (
+from alicia.config import AliciaCfg, CursorRunnerCfg
+from alicia.cursor_runner import (
     allowed_roots,
     branch_is_safe,
     build_prompt,
@@ -47,8 +47,8 @@ class _FakeClient:
         return {"ok": True}
 
 
-def _cfg(root: Path, **kw) -> BrutusCfg:
-    return BrutusCfg(
+def _cfg(root: Path, **kw) -> AliciaCfg:
+    return AliciaCfg(
         cursor_runner=CursorRunnerCfg(
             enabled=True, allowlist_roots=[str(root)], max_per_tick=1, **kw
         )

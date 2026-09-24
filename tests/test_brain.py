@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brutus.brain import (
+from alicia.brain import (
     BRAIN_FREE_WRITES,
     BRAIN_READS,
     PROPOSABLE,
@@ -15,13 +15,13 @@ from brutus.brain import (
     complete,
     pack_messages,
 )
-from brutus.config import BrutusCfg, ClaudeCfg, CursorRunnerCfg
-from brutus.gate import GATED
-from brutus.tools import Tool, ToolRegistry, build_default_registry
+from alicia.config import AliciaCfg, ClaudeCfg, CursorRunnerCfg
+from alicia.gate import GATED
+from alicia.tools import Tool, ToolRegistry, build_default_registry
 
 
-def _cfg() -> BrutusCfg:
-    return BrutusCfg(
+def _cfg() -> AliciaCfg:
+    return AliciaCfg(
         claude=ClaudeCfg(enabled=True, model="claude-sonnet-5", api_key="k", transport="api", api_enabled=True),
         cursor_runner=CursorRunnerCfg(enabled=True),
     )
@@ -29,14 +29,14 @@ def _cfg() -> BrutusCfg:
 
 @pytest.fixture(autouse=True)
 def isolated_brain_stores(tmp_path, monkeypatch):
-    from brutus.memory import MemoryStore
-    from brutus.todos import TodoStore
+    from alicia.memory import MemoryStore
+    from alicia.todos import TodoStore
 
     memory = MemoryStore(tmp_path / "memory.sqlite")
     todos = TodoStore(tmp_path / "todos.sqlite")
-    monkeypatch.setattr("brutus.tools.MemoryStore", lambda: memory)
-    monkeypatch.setattr("brutus.tools.TodoStore", lambda: todos)
-    monkeypatch.setattr("brutus.resilience.KILL_API", tmp_path / "brain.api.off")
+    monkeypatch.setattr("alicia.tools.MemoryStore", lambda: memory)
+    monkeypatch.setattr("alicia.tools.TodoStore", lambda: todos)
+    monkeypatch.setattr("alicia.resilience.KILL_API", tmp_path / "brain.api.off")
 
 
 def _registry():
@@ -112,7 +112,7 @@ def test_proposable_matches_the_gate():
 
 
 def test_a_plain_answer_lands_in_one_round():
-    with patch("brutus.brain._create", return_value=_text_resp("Yeah — it shipped.")):
+    with patch("alicia.brain._create", return_value=_text_resp("Yeah — it shipped.")):
         reply, meta = brain_reply(_cfg(), _registry(), history=_history(("user", "did the fix ship?")))
     assert reply == "Yeah — it shipped."
     assert meta["rounds"] == 1
@@ -131,7 +131,7 @@ def test_the_brain_gets_the_whole_history():
         ("assistant", "What about it?"),
         ("user", "is it done"),
     )
-    with patch("brutus.brain._create", side_effect=create):
+    with patch("alicia.brain._create", side_effect=create):
         brain_reply(_cfg(), _registry(), history=history)
     sent = seen["messages"]
     assert len(sent) == 3
@@ -173,7 +173,7 @@ def test_accepting_the_brains_offer_executes_it_without_repeating_or_reasking():
         ),
         ("user", "Go ahead. I'm listening"),
     )
-    with patch("brutus.brain._create", side_effect=create):
+    with patch("alicia.brain._create", side_effect=create):
         reply, meta = brain_reply(_cfg(), registry, history=history, channel="voice")
 
     assert looked_up == ["notes"]
@@ -204,7 +204,7 @@ def test_accepted_offer_drops_an_amputated_follow_up_question():
         ("assistant", "Want me to pull up REV-507's details?"),
         ("user", "Go ahead. I'm listening"),
     )
-    with patch("brutus.brain._create", side_effect=lambda cfg, **kw: next(responses)):
+    with patch("alicia.brain._create", side_effect=lambda cfg, **kw: next(responses)):
         reply, meta = brain_reply(_cfg(), registry, history=history, channel="voice")
 
     assert reply == "REV-507 is in review."
@@ -215,7 +215,7 @@ def test_native_claude_call_caches_stable_system_and_uses_low_effort():
     client = MagicMock()
     client.messages.create.return_value = _text_resp("ok")
     with patch("anthropic.Anthropic", return_value=client):
-        from brutus.brain import _create
+        from alicia.brain import _create
 
         _create(
             _cfg(),
@@ -237,7 +237,7 @@ def test_voice_turn_gets_the_current_short_spoken_contract():
         seen.update(kwargs)
         return _text_resp("Direct answer.")
 
-    with patch("brutus.brain._create", side_effect=create):
+    with patch("alicia.brain._create", side_effect=create):
         brain_reply(_cfg(), _registry(), history=_history(("user", "status")), channel="voice")
     system = seen["system"]
     assert "LIVE VOICE TURN" in system[1]["text"]
@@ -257,7 +257,7 @@ def test_a_tool_round_executes_and_answers_in_one_user_message():
         sent_messages.append(kwargs["messages"])
         return next(responses)
 
-    with patch("brutus.brain._create", side_effect=create):
+    with patch("alicia.brain._create", side_effect=create):
         reply, meta = brain_reply(_cfg(), _registry(), history=_history(("user", "anything on the pad?")))
     assert reply == "Nothing on the pad."
     assert meta["tools"] == ["list_notes"]
@@ -284,7 +284,7 @@ def test_propose_action_drafts_and_never_executes():
             _text_resp("Queued: approve REV-412. Say yes to do it."),
         ]
     )
-    with patch("brutus.brain._create", side_effect=lambda cfg, **kw: next(responses)):
+    with patch("alicia.brain._create", side_effect=lambda cfg, **kw: next(responses)):
         reply, _meta = brain_reply(
             _cfg(),
             registry,
@@ -298,7 +298,7 @@ def test_propose_action_drafts_and_never_executes():
 
 def test_prose_cannot_claim_a_proposal_without_a_stored_artifact():
     with patch(
-        "brutus.brain._create",
+        "alicia.brain._create",
         side_effect=[
             _text_resp("Queued create_linear_ticket. Say yes to do it."),
             _text_resp("The proposal is queued. Say yes to do it."),
@@ -323,7 +323,7 @@ def test_unbacked_proposal_claim_gets_one_chance_to_call_the_real_tool():
         return {"artifact_id": "real", "summary": "Create ticket", "spoken": "Create it?"}
 
     with patch(
-        "brutus.brain._create",
+        "alicia.brain._create",
         side_effect=[
             _text_resp("Queued the ticket. Say yes to do it."),
             _tool_resp(
@@ -354,7 +354,7 @@ def test_unbacked_proposal_claim_gets_one_chance_to_call_the_real_tool():
 
 
 def test_voice_does_not_spend_a_second_model_call_correcting_an_action_claim():
-    with patch("brutus.brain._create", return_value=_text_resp("Queued it. Say yes to do it.")) as create:
+    with patch("alicia.brain._create", return_value=_text_resp("Queued it. Say yes to do it.")) as create:
         reply, meta = brain_reply(
             _cfg(),
             _registry(),
@@ -368,7 +368,7 @@ def test_voice_does_not_spend_a_second_model_call_correcting_an_action_claim():
 
 
 def test_cursor_tool_protocol_accepts_one_markdown_fence():
-    from brutus.brain import _parse_cursor_tool_call
+    from alicia.brain import _parse_cursor_tool_call
 
     assert _parse_cursor_tool_call('```json\nTOOL: list_notes\nARGS: {"q": "x"}\n```') == (
         "list_notes",
@@ -390,7 +390,7 @@ def test_propose_action_refuses_non_gated_tools():
         captured.append(kwargs["messages"])
         return next(responses)
 
-    with patch("brutus.brain._create", side_effect=create):
+    with patch("alicia.brain._create", side_effect=create):
         brain_reply(
             _cfg(),
             _registry(),
@@ -415,7 +415,7 @@ def test_voice_cannot_propose_keyboard_only_tools():
         captured.append(kwargs["messages"])
         return next(responses)
 
-    with patch("brutus.brain._create", side_effect=create):
+    with patch("alicia.brain._create", side_effect=create):
         brain_reply(
             _cfg(),
             _registry(),
@@ -444,7 +444,7 @@ def test_an_invented_ticket_is_challenged_then_annotated():
         sent.append(kwargs["messages"])
         return next(responses)
 
-    with patch("brutus.brain._create", side_effect=create):
+    with patch("alicia.brain._create", side_effect=create):
         reply, meta = brain_reply(_cfg(), _registry(), history=_history(("user", "carry on")))
     # Round two carried the challenge.
     challenge = sent[1][-1]["content"]
@@ -459,7 +459,7 @@ def test_a_ticket_from_history_is_not_invented():
         ("assistant", "REV-401 is with the bots."),
         ("user", "and now?"),
     )
-    with patch("brutus.brain._create", return_value=_text_resp("REV-401 landed an hour ago.")):
+    with patch("alicia.brain._create", return_value=_text_resp("REV-401 landed an hour ago.")):
         reply, meta = brain_reply(_cfg(), _registry(), history=history)
     assert "unverified" not in reply
     assert "invented_tickets" not in meta
@@ -477,7 +477,7 @@ def test_a_ticket_from_a_tool_result_is_not_invented():
             _text_resp("REV-777 is the only open one."),
         ]
     )
-    with patch("brutus.brain._create", side_effect=lambda cfg, **kw: next(responses)):
+    with patch("alicia.brain._create", side_effect=lambda cfg, **kw: next(responses)):
         reply, meta = brain_reply(_cfg(), registry, history=_history(("user", "what's open?")))
     assert "unverified" not in reply
     assert "invented_tickets" not in meta
@@ -488,8 +488,8 @@ def test_a_ticket_from_a_tool_result_is_not_invented():
 
 def test_claude_failure_never_falls_back_to_cursor():
     with (
-        patch("brutus.brain._create", side_effect=RuntimeError("boom")),
-        patch("brutus.cursor_runner.run_cursor_chat") as cursor,
+        patch("alicia.brain._create", side_effect=RuntimeError("boom")),
+        patch("alicia.cursor_runner.run_cursor_chat") as cursor,
     ):
         reply, meta = brain_reply(_cfg(), _registry(), history=_history(("user", "you there?")))
     assert "couldn't finish" in reply
@@ -499,8 +499,8 @@ def test_claude_failure_never_falls_back_to_cursor():
 
 def test_voice_social_fallback_never_calls_cursor():
     with (
-        patch("brutus.brain._create", side_effect=RuntimeError("api down")),
-        patch("brutus.cursor_runner.run_cursor_chat") as cursor,
+        patch("alicia.brain._create", side_effect=RuntimeError("api down")),
+        patch("alicia.cursor_runner.run_cursor_chat") as cursor,
     ):
         reply, meta = brain_reply(
             _cfg(), _registry(), history=_history(("user", "you there?")), channel="voice"
@@ -521,8 +521,8 @@ def test_voice_brain_failure_keeps_work_status_grounded_without_external_fallbac
         },
     }
     with (
-        patch("brutus.brain._create", side_effect=RuntimeError("api down")),
-        patch("brutus.cursor_runner.run_cursor_chat") as cursor,
+        patch("alicia.brain._create", side_effect=RuntimeError("api down")),
+        patch("alicia.cursor_runner.run_cursor_chat") as cursor,
     ):
         reply, meta = brain_reply(
             _cfg(),
@@ -538,8 +538,8 @@ def test_voice_brain_failure_keeps_work_status_grounded_without_external_fallbac
 
 def test_voice_brain_failure_answers_greeting_without_external_fallback():
     with (
-        patch("brutus.brain._create", side_effect=RuntimeError("api down")),
-        patch("brutus.cursor_runner.run_cursor_chat") as cursor,
+        patch("alicia.brain._create", side_effect=RuntimeError("api down")),
+        patch("alicia.cursor_runner.run_cursor_chat") as cursor,
     ):
         reply, meta = brain_reply(
             _cfg(),
@@ -554,7 +554,7 @@ def test_voice_brain_failure_answers_greeting_without_external_fallback():
 
 def test_voice_auth_failure_never_exposes_credential_implementation():
     with patch(
-        "brutus.brain._create",
+        "alicia.brain._create",
         side_effect=RuntimeError("ANTHROPIC_API_KEY missing from 1Password vault"),
     ):
         reply, meta = brain_reply(
@@ -568,9 +568,9 @@ def test_voice_auth_failure_never_exposes_credential_implementation():
 
 def test_total_failure_says_so_instead_of_inventing():
     with (
-        patch("brutus.brain._create", side_effect=RuntimeError("api down")),
+        patch("alicia.brain._create", side_effect=RuntimeError("api down")),
         patch(
-            "brutus.claude.ask_claude",
+            "alicia.claude.ask_claude",
             return_value={"ok": False, "error": "claude cli down"},
         ),
     ):
@@ -595,9 +595,9 @@ def test_pack_messages_single_user_is_bare_body():
 
 def test_complete_uses_cursor_even_when_claude_is_configured():
     with (
-        patch("brutus.claude.ask_claude", return_value={"ok": True, "reply": "from sonnet"}) as claude,
+        patch("alicia.claude.ask_claude", return_value={"ok": True, "reply": "from sonnet"}) as claude,
         patch(
-            "brutus.cursor_runner.run_cursor_chat",
+            "alicia.cursor_runner.run_cursor_chat",
             return_value={"ok": True, "reply": "from cursor"},
         ) as cursor,
     ):
@@ -608,9 +608,9 @@ def test_complete_uses_cursor_even_when_claude_is_configured():
 
 def test_complete_does_not_consult_claude_before_cursor():
     with (
-        patch("brutus.claude.ask_claude", return_value={"ok": False, "error": "down"}) as claude,
+        patch("alicia.claude.ask_claude", return_value={"ok": False, "error": "down"}) as claude,
         patch(
-            "brutus.cursor_runner.run_cursor_chat",
+            "alicia.cursor_runner.run_cursor_chat",
             return_value={"ok": True, "reply": "from cursor"},
         ) as cursor,
     ):
@@ -623,10 +623,10 @@ def test_complete_does_not_consult_claude_before_cursor():
 def test_complete_prefer_cursor_flips_order():
     with (
         patch(
-            "brutus.cursor_runner.run_cursor_chat",
+            "alicia.cursor_runner.run_cursor_chat",
             return_value={"ok": True, "reply": "from cursor"},
         ) as cursor,
-        patch("brutus.claude.ask_claude") as claude,
+        patch("alicia.claude.ask_claude") as claude,
     ):
         assert complete(_cfg(), [{"role": "user", "content": "hi"}], prefer="cursor") == "from cursor"
     cursor.assert_called_once()
@@ -634,7 +634,7 @@ def test_complete_prefer_cursor_flips_order():
 
 
 def test_complete_raises_when_cursor_is_disabled():
-    cfg = BrutusCfg(claude=ClaudeCfg(enabled=False), cursor_runner=CursorRunnerCfg(enabled=False))
+    cfg = AliciaCfg(claude=ClaudeCfg(enabled=False), cursor_runner=CursorRunnerCfg(enabled=False))
     with pytest.raises(BrainError) as exc:
         complete(cfg, [{"role": "user", "content": "hi"}])
     assert "cursor" in str(exc.value)
@@ -643,16 +643,16 @@ def test_complete_raises_when_cursor_is_disabled():
 
 def test_complete_does_not_call_local_llm():
     with (
-        patch("brutus.claude.ask_claude", return_value={"ok": True, "reply": "ok"}),
-        patch("brutus.cursor_runner.run_cursor_chat", return_value={"ok": True, "reply": "ok"}),
-        patch("brutus.local_llm.chat_completion") as local,
+        patch("alicia.claude.ask_claude", return_value={"ok": True, "reply": "ok"}),
+        patch("alicia.cursor_runner.run_cursor_chat", return_value={"ok": True, "reply": "ok"}),
+        patch("alicia.local_llm.chat_completion") as local,
     ):
         complete(_cfg(), [{"role": "user", "content": "hi"}])
     local.assert_not_called()
 
 
 def test_chat_only_prompt_forbids_edits():
-    from brutus.cursor_runner import build_chat_prompt
+    from alicia.cursor_runner import build_chat_prompt
 
     p = build_chat_prompt("what is the gate design", mutate=False)
     assert "do not create, edit, delete, commit" in p.lower()
@@ -661,7 +661,7 @@ def test_chat_only_prompt_forbids_edits():
 
 def test_the_round_cap_fails_honest():
     with patch(
-        "brutus.brain._create",
+        "alicia.brain._create",
         side_effect=lambda cfg, **kw: _tool_resp("list_notes", {}),
     ):
         reply, meta = brain_reply(_cfg(), _registry(), history=_history(("user", "loop forever")))
@@ -675,7 +675,7 @@ def test_the_round_cap_fails_honest():
 def test_not_found_is_challenged_until_agent_threads_have_been_searched():
     """From the transcript of 2026-09-09, session 7ac0ae3e2421, turn 1816.
 
-    Asked "can you tell me the status of the UI/UX audit redesign?", Brutus
+    Asked "can you tell me the status of the UI/UX audit redesign?", Alicia
     answered "Sorry, I can't find that shit — nothing in Linear or notes
     matching a UI/UX audit redesign. ... Want me to check agent threads for
     it?" — and 55 agent threads matched those words, two of them running.
@@ -701,7 +701,7 @@ def test_not_found_is_challenged_until_agent_threads_have_been_searched():
         ]
     )
 
-    with patch("brutus.brain._create", side_effect=lambda cfg, **kw: next(responses)):
+    with patch("alicia.brain._create", side_effect=lambda cfg, **kw: next(responses)):
         reply, meta = brain_reply(
             _cfg(),
             registry,
@@ -732,7 +732,7 @@ def test_not_found_stands_once_the_threads_really_were_searched():
         ]
     )
 
-    with patch("brutus.brain._create", side_effect=lambda cfg, **kw: next(responses)):
+    with patch("alicia.brain._create", side_effect=lambda cfg, **kw: next(responses)):
         reply, meta = brain_reply(
             _cfg(), registry, history=_history(("user", "where is the renewal tracker rewrite?"))
         )
@@ -744,7 +744,7 @@ def test_not_found_stands_once_the_threads_really_were_searched():
 def test_the_not_found_guard_matches_the_sentence_as_actually_spoken():
     """The prompt asks for the bare line; the transcript had it with a clause
     appended, and a guard that only caught the exact string missed it."""
-    from brutus.brain import _looks_not_found
+    from alicia.brain import _looks_not_found
 
     assert _looks_not_found("Sorry, I can't find that shit.")
     assert _looks_not_found(
@@ -761,11 +761,11 @@ def test_selected_conversation_transport_never_changes_provider(transport, failu
     cfg.claude.transport = transport
     error = RuntimeError("selected provider unavailable") if failure else None
     with (
-        patch("brutus.brain._create", return_value=_text_resp("Selected answer."), side_effect=error) as api,
-        patch("brutus.claude.ask_claude", return_value={
+        patch("alicia.brain._create", return_value=_text_resp("Selected answer."), side_effect=error) as api,
+        patch("alicia.claude.ask_claude", return_value={
             "ok": not failure, "reply": "Selected answer." if not failure else "", "error": "unavailable",
         }) as cli,
-        patch("brutus.brain.complete") as alternate,
+        patch("alicia.brain.complete") as alternate,
     ):
         reply, meta = brain_reply(cfg, ToolRegistry(), history=_history(("user", "explain the design")))
     assert api.call_count == int(transport == "api")
@@ -777,7 +777,7 @@ def test_selected_conversation_transport_never_changes_provider(transport, failu
 
 @pytest.mark.parametrize("gate", ["disabled", "kill_file", "missing_key", "unknown_transport"])
 def test_selected_api_refuses_missing_opt_in_without_running_another_transport(gate, tmp_path):
-    from brutus import resilience
+    from alicia import resilience
 
     cfg = _cfg()
     if gate == "disabled":
@@ -789,9 +789,9 @@ def test_selected_api_refuses_missing_opt_in_without_running_another_transport(g
     else:
         cfg.claude.transport = "unknown"
     with (
-        patch("brutus.brain._create") as api,
-        patch("brutus.claude.ask_claude") as cli,
-        patch("brutus.brain.complete") as alternate,
+        patch("alicia.brain._create") as api,
+        patch("alicia.claude.ask_claude") as cli,
+        patch("alicia.brain.complete") as alternate,
     ):
         reply, meta = brain_reply(cfg, ToolRegistry(), history=_history(("user", "explain the design")))
     assert "couldn't finish" in reply and meta["error"]
@@ -830,9 +830,9 @@ def test_each_transport_reaches_truthfulness_gates(transport, case):
         text = block.text if block.type == "text" else f"TOOL: {block.name}\nARGS: {json.dumps(block.input)}"
         cli_replies.append({"ok": True, "reply": text})
     with (
-        patch("brutus.brain._create", side_effect=api_replies) as api,
-        patch("brutus.claude.ask_claude", side_effect=cli_replies) as cli,
-        patch("brutus.brain.complete") as alternate,
+        patch("alicia.brain._create", side_effect=api_replies) as api,
+        patch("alicia.claude.ask_claude", side_effect=cli_replies) as cli,
+        patch("alicia.brain.complete") as alternate,
     ):
         reply, meta = brain_reply(cfg, registry, history=_history(("user", "find the work")), channel="voice")
     alternate.assert_not_called()

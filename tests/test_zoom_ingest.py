@@ -12,10 +12,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from brutus.config import BrutusCfg
-from brutus.server import create_app
-from brutus.todos import Todo, TodoStore
-from brutus.zoom_ingest import (
+from alicia.config import AliciaCfg
+from alicia.server import create_app
+from alicia.todos import Todo, TodoStore
+from alicia.zoom_ingest import (
     ZoomIngestStore,
     extract_items,
     ingest_assets,
@@ -279,7 +279,7 @@ def test_status_reports_ingested_meetings(itc: dict, empty: dict, stores) -> Non
 def test_ingest_never_reshapes_the_todos_table(itc: dict, stores) -> None:
     """Ingest bookkeeping must not add a column to the shared `todos` table.
 
-    A branch that added seven columns to ~/.brutus/state on 2026-08-08 broke
+    A branch that added seven columns to ~/.alicia/state on 2026-08-08 broke
     every read path on deployed main. New *tables* are safe — no older reader
     selects from them — so the ledger lives in its own two.
     """
@@ -306,9 +306,9 @@ def api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     would inherit the previous one's rows and the idempotency assertions would
     pass for the wrong reason.
     """
-    monkeypatch.setenv("BRUTUS_STATE_DIR", str(tmp_path))
-    cfg = BrutusCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    monkeypatch.setenv("ALICIA_STATE_DIR", str(tmp_path))
+    cfg = AliciaCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         with TestClient(create_app(cfg, start_watchdog=False)) as client:
             yield client
@@ -428,11 +428,11 @@ class _FakeZoom:
 
 @pytest.fixture
 def poll_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("BRUTUS_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ALICIA_STATE_DIR", str(tmp_path))
     fake = _FakeZoom()
-    monkeypatch.setattr("brutus.server.ZoomClient", lambda *a, **k: fake)
-    cfg = BrutusCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    monkeypatch.setattr("alicia.server.ZoomClient", lambda *a, **k: fake)
+    cfg = AliciaCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         with TestClient(create_app(cfg, start_watchdog=False)) as client:
             yield client, fake
@@ -480,16 +480,16 @@ def test_poll_dry_run_writes_nothing(poll_api) -> None:
 
 def test_poll_reports_credential_failure_as_503(tmp_path: Path, monkeypatch) -> None:
     """launchd should see a retryable status, not a stack trace."""
-    from brutus.zoom_api import ZoomAPIError
+    from alicia.zoom_api import ZoomAPIError
 
-    monkeypatch.setenv("BRUTUS_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ALICIA_STATE_DIR", str(tmp_path))
 
     def _boom(*a, **k):
         raise ZoomAPIError("missing Zoom credentials: ZOOM_CLIENT_SECRET")
 
-    monkeypatch.setattr("brutus.server.ZoomClient", _boom)
-    cfg = BrutusCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    monkeypatch.setattr("alicia.server.ZoomClient", _boom)
+    cfg = AliciaCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         with TestClient(create_app(cfg, start_watchdog=False)) as client:
             r = client.post("/api/zoom/poll", json={})
@@ -543,7 +543,7 @@ def test_resolved_uuids_covers_both_ledgers(itc: dict, empty: dict, stores) -> N
 def test_poll_reads_the_ledger_once_not_per_meeting(poll_api, monkeypatch) -> None:
     """The walk is 600+ meetings; a per-meeting query made it lock-bound."""
     client, _ = poll_api
-    import brutus.zoom_ingest as zi
+    import alicia.zoom_ingest as zi
 
     calls = {"n": 0}
     original = zi.ZoomIngestStore.resolved_uuids
@@ -560,7 +560,7 @@ def test_poll_reads_the_ledger_once_not_per_meeting(poll_api, monkeypatch) -> No
 def test_poll_writes_not_mine_verdicts_in_one_batch(poll_api, monkeypatch) -> None:
     """Hundreds of separate writes on the daemon's own database is the slow path."""
     client, _ = poll_api
-    import brutus.zoom_ingest as zi
+    import alicia.zoom_ingest as zi
 
     batches: list[int] = []
     original = zi.ZoomIngestStore.mark_many_not_mine

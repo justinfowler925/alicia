@@ -1,6 +1,6 @@
 import pytest
 
-from brutus.model_profiles import (
+from alicia.model_profiles import (
     ModelCandidate,
     ModelProfileUnavailable,
     select_model_profile,

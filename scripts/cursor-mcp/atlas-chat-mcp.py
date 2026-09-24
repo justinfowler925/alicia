@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Cursor MCP server — chat with Studio Atlas.
 
-Prefers Atlas6 portfolio conductor at http://127.0.0.1:8767 (Brutus tunnel).
+Prefers Atlas6 portfolio conductor at http://127.0.0.1:8767 (Alicia tunnel).
 Falls back to Atlas5 worker chat at :8766, then one-shot SSH into atlas-direct.
-Prefer the dedicated `brutus` MCP for ledger/dispatch/gates; this remains the
+Prefer the dedicated `alicia` MCP for ledger/dispatch/gates; this remains the
 chat-shaped entry used by existing Cursor sessions.
 """
 from __future__ import annotations
@@ -149,7 +149,7 @@ def atlas_chat(
 ) -> str:
     """Send a message to Studio Atlas and return the reply.
 
-    Prefers Atlas6 (:8767 / Brutus tunnel) — portfolio ledger + skills.
+    Prefers Atlas6 (:8767 / Alicia tunnel) — portfolio ledger + skills.
     Falls back to Atlas5 worker chat (:8766) then SSH into atlas-direct.
     mode=manager — skill/agent path (default). mode=direct — raw model chat.
     """

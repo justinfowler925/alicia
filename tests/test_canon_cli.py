@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from brutus import __main__ as brutus_main
-from brutus.canon import (
+from alicia import __main__ as alicia_main
+from alicia.canon import (
     DEFAULT_IDENTITY_REGISTRY,
     Approval,
     CanonStore,
@@ -21,7 +21,7 @@ from brutus.canon import (
     WorkItem,
     WorkItemState,
 )
-from brutus.canon import cli as canon_cli
+from alicia.canon import cli as canon_cli
 
 OWNER = "justin.fowler@clearspeed.com"
 WORKER = "atlas6-worker"
@@ -42,8 +42,8 @@ def _review_item(title: str = "Review this") -> WorkItem:
 
 
 def _invoke(monkeypatch: pytest.MonkeyPatch, args: list[str]) -> None:
-    monkeypatch.setattr(brutus_main.sys, "argv", ["brutus", *args])
-    brutus_main.main()
+    monkeypatch.setattr(alicia_main.sys, "argv", ["alicia", *args])
+    alicia_main.main()
 
 
 def test_list_filters_by_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -77,7 +77,7 @@ def test_show_renders_linked_review_objects(
         captured_by=WORKER,
         captured_by_kind="worker",
         linked_object_id=work_item.id,
-        content_ref="https://github.com/justinfowler925/brutus/pull/515",
+        content_ref="https://github.com/justinfowler925/alicia/pull/515",
     )
     decision = Decision(
         question="Which interface?",
@@ -91,7 +91,7 @@ def test_show_renders_linked_review_objects(
         actor=WORKER,
         work_item_id=work_item.id,
         status=RunStatus.READY_FOR_REVIEW,
-        target="brutus",
+        target="alicia",
     )
     for obj in (evidence, decision, approval, run):
         store.save(obj)

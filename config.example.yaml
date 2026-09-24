@@ -1,4 +1,4 @@
-# Brutus runs standalone by default. Atlas compatibility fields are inert while disabled.
+# Alicia runs standalone by default. Atlas compatibility fields are inert while disabled.
 atlas_enabled: false
 atlas6_url: "http://127.0.0.1:8767"
 timeout_s: 60
@@ -27,10 +27,10 @@ local_llm:
   probe_timeout_s: 30
   probe_failures_before_restart: 2
   autorestart_enabled: true
-  autorestart_label: "com.clearspeed.brutus-local-llm"
+  autorestart_label: "com.clearspeed.alicia-local-llm"
   autorestart_cooldown_s: 600
 
-# Headless Cursor SDK runner (needs CURSOR_API_KEY via brutus-serve.sh / 1Password).
+# Headless Cursor SDK runner (needs CURSOR_API_KEY via alicia-serve.sh / 1Password).
 # Allowlist only laptop-safe checkouts — never sfdc / atlas-direct.
 # Cursor reasoning runs read-only against the deployed artifact.
 cursor_runner:
@@ -38,10 +38,10 @@ cursor_runner:
   timeout_s: 900
   model: "composer-2.5"
   max_per_tick: 1
-  reasoning_root: "~/.brutus/app"
+  reasoning_root: "~/.alicia/app"
   allowlist_roots:
-    - "~/.brutus/app"
-    - "~/Projects/brutus"
+    - "~/.alicia/app"
+    - "~/Projects/alicia"
 
 # Claude supplies structured session judgment. It is never an implicit fallback
 # for conversation, frontier, or builder profiles.

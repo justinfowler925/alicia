@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Re-vendor the shine token layer into brutus/static/shine-tokens.css.
+# Re-vendor the shine token layer into alicia/static/shine-tokens.css.
 #
-# Brutus has no build step, so the tokens are copied in rather than imported.
+# Alicia has no build step, so the tokens are copied in rather than imported.
 # The copy's own header has named this script since it was created; the script
 # did not exist, which is why the vendored layer sat stale behind shine and the
 # type tokens took a second pass to arrive. A documented step nobody can run is
@@ -18,7 +18,7 @@ set -euo pipefail
 
 SHINE="${SHINE_DIR:-$HOME/Projects/shine}"
 SRC="$SHINE/tokens/dist/personal/artifact.css"
-DEST="$(cd "$(dirname "$0")/.." && pwd)/brutus/static/shine-tokens.css"
+DEST="$(cd "$(dirname "$0")/.." && pwd)/alicia/static/shine-tokens.css"
 MODE="${1:-}"
 
 if [[ "$MODE" != "--check" ]]; then
@@ -41,13 +41,13 @@ header() {
 /* -------------------------------------------------------
  * Vendored from @shine/personal (tokens/dist/personal/artifact.css).
  * DO NOT EDIT — re-vendor with scripts/sync-shine-tokens.sh when shine
- * rebuilds. Brutus has no build step, so the token layer is copied in
+ * rebuilds. Alicia has no build step, so the token layer is copied in
  * rather than imported; that copy is the only reason this file exists.
  * ------------------------------------------------------- */
 EOF
 }
 
-# The vendored file carries Brutus's own header instead of shine's generated one,
+# The vendored file carries Alicia's own header instead of shine's generated one,
 # so strip shine's leading comment block and prepend ours.
 body() { awk 'BEGIN{s=0} s==1{print} /^ \* -+ \*\/$/{if(s==0){s=1}}' "$SRC" | sed '/./,$!d'; }
 
@@ -70,11 +70,11 @@ if [[ "$MODE" == "--check" ]]; then
     echo "shine-tokens.css in sync with $SRC ($n tokens)"
     exit 0
   fi
-  echo "STALE: brutus/static/shine-tokens.css differs from shine's dist" >&2
+  echo "STALE: alicia/static/shine-tokens.css differs from shine's dist" >&2
   diff -u "$DEST" "$TMP" | head -40 >&2
   echo "fix: scripts/sync-shine-tokens.sh" >&2
   exit 1
 fi
 
 cp "$TMP" "$DEST"
-echo "vendored $SRC -> brutus/static/shine-tokens.css ($n tokens)"
+echo "vendored $SRC -> alicia/static/shine-tokens.css ($n tokens)"
