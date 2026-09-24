@@ -1,7 +1,7 @@
 {
   "pages": [
     "Brutus preserved",
-    "Alexis responsive frame, keyboard path, feedback empty state",
+    "Alicia responsive frame, keyboard path, feedback empty state",
     "Atlas existing workspace embedded"
   ],
   "liveAvatar": {
@@ -10,7 +10,7 @@
     "displayedHeight": 489.328125
   },
   "answeredTurn": {
-    "answer": "AlexisI'm Alexis, Justin's AI collaborator here on Brutus.",
+    "answer": "AliciaI'm Alicia, Justin's AI collaborator here on Brutus.",
     "source": "real shared brain and Anam audio passthrough",
     "microphone": "synthetic audio through real transcription; no physical microphone"
   },

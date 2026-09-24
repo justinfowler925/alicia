@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "ready": "#alexis-frame",
+  "ready": "#alicia-frame",
   "viewports": [
     {
       "width": 390,
@@ -25,25 +25,25 @@
   ],
   "content": [
     {
-      "selector": "#alexis-status",
+      "selector": "#alicia-status",
       "text": "A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. A longer connection explanation with enough detail to make the next action clear. "
     }
   ],
   "media": [
     {
-      "video": "#alexis-video",
-      "frame": "#alexis-frame",
-      "poster": "#alexis-portrait"
+      "video": "#alicia-video",
+      "frame": "#alicia-frame",
+      "poster": "#alicia-portrait"
     }
   ],
   "missingMedia": [
-    "#alexis-portrait"
+    "#alicia-portrait"
   ],
   "checks": [
     {
       "id": "frame-ratio",
       "type": "aspect-ratio",
-      "selector": "#alexis-frame",
+      "selector": "#alicia-frame",
       "ratio": 1.5
     },
     {
@@ -54,7 +54,7 @@
     {
       "id": "presenter-visible",
       "type": "visible",
-      "selector": "#alexis-frame"
+      "selector": "#alicia-frame"
     },
     {
       "id": "talk-visible",

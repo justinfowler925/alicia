@@ -5,7 +5,7 @@ from threading import Event
 import pytest
 from fastapi.testclient import TestClient
 
-from brutus.alexis_brain import create_app
+from brutus.alicia_brain import create_app
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def post(client, message="Remember Orchard", session="one", request="request1", 
 def test_same_conversation_across_surfaces_and_protocols(setup):
     client, _brain, calls = setup
     first = post(client).json()
-    result = client.post("/v1/chat/completions", headers={**headers("other-secret"), "X-Alexis-Session-Id": "one"},
+    result = client.post("/v1/chat/completions", headers={**headers("other-secret"), "X-Alicia-Session-Id": "one"},
                          json={"messages": [{"role": "user", "content": "What did I call it?"}]})
     assert result.status_code == 200
     assert len(calls[-1][1]) == 3
@@ -144,8 +144,8 @@ def test_tool_round_limit_prevents_an_infinite_memory_loop(setup):
 
 
 def test_local_tool_retries_use_persisted_receipt(tmp_path, monkeypatch):
-    from brutus.alexis_client import execute_once
-    monkeypatch.setattr("brutus.alexis_client.state_path", lambda _: tmp_path / "calls.sqlite")
+    from brutus.alicia_client import execute_once
+    monkeypatch.setattr("brutus.alicia_client.state_path", lambda _: tmp_path / "calls.sqlite")
     calls = []
     def action():
         calls.append(1)
@@ -155,8 +155,8 @@ def test_local_tool_retries_use_persisted_receipt(tmp_path, monkeypatch):
 
 
 def test_interrupted_tool_is_not_repeated(tmp_path, monkeypatch):
-    from brutus.alexis_client import execute_once
-    monkeypatch.setattr("brutus.alexis_client.state_path", lambda _: tmp_path / "calls.sqlite")
+    from brutus.alicia_client import execute_once
+    monkeypatch.setattr("brutus.alicia_client.state_path", lambda _: tmp_path / "calls.sqlite")
     calls = []
     def action():
         calls.append(1)

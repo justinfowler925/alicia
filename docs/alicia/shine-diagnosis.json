@@ -6,13 +6,13 @@
     "name": "Brutus voice stage",
     "reference": "brutus/static/session.html",
     "divergences": [
-      "Add Alexis portrait and live video above existing conversation controls",
+      "Add Alicia portrait and live video above existing conversation controls",
       "Add turn-linked feedback inside the existing voice stage"
     ]
   },
   "before": {
-    "artifact": "brutus/static/alexis.html",
-    "screenshot": "/tmp/alexis-controls-before.png"
+    "artifact": "brutus/static/alicia.html",
+    "screenshot": "/tmp/alicia-controls-before.png"
   },
   "defects": [
     {
@@ -28,5 +28,5 @@
       "expectedEffect": "One stable call toggle beneath the left presenter and full portraits for both looks"
     }
   ],
-  "job": "Open Alexis first and converse through an always-visible transcript and composer, with reliable voice and video"
+  "job": "Open Alicia first and converse through an always-visible transcript and composer, with reliable voice and video"
 }

@@ -3,23 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Alexis — conversation</title>
+<title>Alicia — conversation</title>
 <script>(function(){try{var t=localStorage.getItem("brutus.theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;var d=localStorage.getItem("brutus.dir");if(d==="rtl"||d==="ltr")document.documentElement.setAttribute("dir",d);}catch(e){}})();</script>
 <link rel="stylesheet" href="/static/shine-tokens.css">
 <link rel="stylesheet" href="/static/session.css">
 <link rel="stylesheet" href="/static/overview.css">
-<link rel="stylesheet" href="/static/alexis.css">
+<link rel="stylesheet" href="/static/alicia.css">
 <link rel="stylesheet" href="/static/navigation.css">
 </head>
 <body data-cite="shadcn-broadcast">
 <!-- Voice is the work surface. The transcript is durable evidence, the
      supervisor is the attention policy, and the queue is supporting detail. -->
 <main class="shell voice-shell" data-product-pattern="brutus-conversation-shell">
-<nav data-product-pattern="workspace-tabs" class="product-tabs" aria-label="Workspaces"><a href="/" aria-current="page">Alexis</a><a href="/forge">Forge</a><a href="/atlas">Atlas</a></nav>
+<nav data-product-pattern="workspace-tabs" class="product-tabs" aria-label="Workspaces"><a href="/" aria-current="page">Alicia</a><a href="/forge">Forge</a><a href="/atlas">Atlas</a></nav>
 
   <header class="topbar">
     <div class="title">
-      <h1>Alexis</h1>
+      <h1>Alicia</h1>
       <p class="tagline">Talk through the work.</p>
     </div>
     <span id="live" class="live" data-connected="false" role="status" aria-live="polite">offline</span>
@@ -33,7 +33,7 @@
   </header>
 
   <section class="panel voice-stage" data-testid="voice-stage" aria-label="Live conversation">
-    <section class="alexis-transcript" id="conversation-details" aria-label="Live transcript">
+    <section class="alicia-transcript" id="conversation-details" aria-label="Live transcript">
       <h2>Conversation</h2>
     <div class="conversation-wrap">
       <div class="scroll" id="conversation" tabindex="0" role="log" aria-label="Conversation history">
@@ -44,34 +44,30 @@
       <button type="button" id="to-latest" class="to-latest" hidden>New messages ↓</button>
     </div>
     <form class="composer" id="composer">
-      <input type="file" id="alexis-files" accept="text/*,.md,.csv,.json,.log,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.xml,.sql" multiple hidden>
-      <button type="button" id="alexis-attach" aria-label="Attach file" title="Attach a text file"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9"/><path d="m8 12-2 2a2 2 0 0 0 3 3l8-8"/></svg></button>
-      <label class="sr-only" for="say">Message Alexis</label>
-      <input type="text" id="say" placeholder="Message Alexis…" autocomplete="off" aria-describedby="composer-hint">
+      <input type="file" id="alicia-files" accept="text/*,.md,.csv,.json,.log,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.xml,.sql" multiple hidden>
+      <button type="button" id="alicia-attach" aria-label="Attach file" title="Attach a text file"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9"/><path d="m8 12-2 2a2 2 0 0 0 3 3l8-8"/></svg></button>
+      <label class="sr-only" for="say">Message Alicia</label>
+      <input type="text" id="say" placeholder="Message Alicia…" autocomplete="off" aria-describedby="composer-hint">
       <span id="composer-hint" class="sr-only">Attach text files. Press Enter to send. Stop interrupts the current reply.</span>
       <button type="submit" id="send" class="primary" aria-label="Send message">Send</button>
     </form>
-    <div id="alexis-attachments" aria-label="Attached files"></div>
-    <p id="alexis-composer-status" role="status"></p>
+    <div id="alicia-attachments" aria-label="Attached files"></div>
+    <p id="alicia-composer-status" role="status"></p>
     </section>
-    <section class="alexis-call-panel" aria-label="Voice conversation">
-    <figure class="alexis-presenter" data-cite="shadcn-broadcast" data-product-pattern="brutus-voice-stage">
-      <div class="alexis-frame" id="alexis-frame">
-        <img id="alexis-portrait" src="/static/alexis.jpg" alt="Alexis, your AI collaborator" width="1024" height="1024">
-        <video id="alexis-video" playsinline autoplay muted hidden aria-label="Alexis live avatar"></video>
+    <section class="alicia-call-panel" aria-label="Voice conversation">
+    <figure class="alicia-presenter" data-cite="shadcn-broadcast" data-product-pattern="brutus-voice-stage">
+      <div class="alicia-frame" id="alicia-frame">
+        <img id="alicia-portrait" src="/static/alicia.jpg" alt="Alicia, your AI collaborator" width="1024" height="1024">
+        <video id="alicia-video" playsinline autoplay muted hidden aria-label="Alicia live avatar"></video>
       </div>
-      <figcaption id="alexis-caption"><span id="alexis-status" role="status">Ready to talk</span></figcaption>
-      <div class="alexis-looks" role="group" aria-label="Portrait">
-        <button type="button" id="look-alexis" aria-pressed="true">Alexis</button>
-        <button type="button" id="look-alicia" aria-pressed="false">Alicia</button>
-      </div>
-      <div class="alexis-session-summary"><span id="supervisor-count" class="count">Checking sessions…</span><button type="button" id="alexis-sessions">View sessions</button></div>
+      <figcaption id="alicia-caption"><span id="alicia-status" role="status">Ready to talk</span></figcaption>
+      <div class="alicia-session-summary"><span id="supervisor-count" class="count">Checking sessions…</span><button type="button" id="alicia-sessions">View sessions</button></div>
     </figure>
     <header class="voice-stage-head">
       <div class="voice-presence" aria-live="polite">
         <span class="voice-presence-ring" aria-hidden="true"></span>
         <div>
-          <p class="voice-kicker">Alexis is with you</p>
+          <p class="voice-kicker">Alicia is with you</p>
           <h2 id="voice-state-label">Ready when you are</h2>
           <p id="voice-state-detail">Voice is off.</p>
         </div>
@@ -83,27 +79,27 @@
       </div>
       <button type="button" id="mic" class="mic voice-primary" data-testid="voice-control"
               aria-label="Start voice conversation" aria-pressed="false">
-        <span class="glyph" aria-hidden="true">◎</span><span class="label">Talk with Alexis</span>
+        <span class="glyph" aria-hidden="true">◎</span><span class="label">Talk with Alicia</span>
       </button>
     </header>
-    <div class="alexis-options">
-      <button type="button" id="alexis-video-retry" hidden>Reconnect video</button>
-      <label><input id="alexis-live" type="checkbox" checked> Live avatar</label>
-      <button type="button" id="alexis-type" hidden>Type instead</button>
+    <div class="alicia-options">
+      <button type="button" id="alicia-video-retry" hidden>Reconnect video</button>
+      <label><input id="alicia-live" type="checkbox" checked> Live avatar</label>
+      <button type="button" id="alicia-type" hidden>Type instead</button>
     </div>
     </section>
-    <details class="alexis-improve" id="alexis-improve">
-      <summary>Help Alexis improve</summary>
-      <p>Choose a reply and tell Alexis what worked or what to do differently. Feedback joins her shared improvement record.</p>
-      <form id="alexis-feedback">
-        <label for="alexis-turn">Reply</label><select id="alexis-turn" required><option value="">Have a conversation first</option></select>
-        <label for="alexis-dimension">Skill</label><select id="alexis-dimension"><option value="conversation">Conversation</option><option value="organization">Organization</option><option value="presentation">Presentation</option></select>
-        <label for="alexis-rating">Assessment</label><select id="alexis-rating"><option value="needs_work">Needs work</option><option value="helpful">Helpful</option></select>
-        <label for="alexis-correction">What should she keep or change?</label><textarea id="alexis-correction" rows="2" maxlength="2000" required></textarea>
-        <button type="submit" id="alexis-feedback-save">Save feedback</button>
+    <details class="alicia-improve" id="alicia-improve">
+      <summary>Help Alicia improve</summary>
+      <p>Choose a reply and tell Alicia what worked or what to do differently. Feedback joins her shared improvement record.</p>
+      <form id="alicia-feedback">
+        <label for="alicia-turn">Reply</label><select id="alicia-turn" required><option value="">Have a conversation first</option></select>
+        <label for="alicia-dimension">Skill</label><select id="alicia-dimension"><option value="conversation">Conversation</option><option value="organization">Organization</option><option value="presentation">Presentation</option></select>
+        <label for="alicia-rating">Assessment</label><select id="alicia-rating"><option value="needs_work">Needs work</option><option value="helpful">Helpful</option></select>
+        <label for="alicia-correction">What should she keep or change?</label><textarea id="alicia-correction" rows="2" maxlength="2000" required></textarea>
+        <button type="submit" id="alicia-feedback-save">Save feedback</button>
       </form>
-      <p id="alexis-feedback-status" role="status">No feedback captured in this view.</p>
-      <p class="alexis-promotion">Automatic promotion awaits an agreed baseline and tests. Capturing feedback does not change her behavior by itself.</p>
+      <p id="alicia-feedback-status" role="status">No feedback captured in this view.</p>
+      <p class="alicia-promotion">Automatic promotion awaits an agreed baseline and tests. Capturing feedback does not change her behavior by itself.</p>
     </details>
 
 
@@ -126,13 +122,13 @@
          what eyes must verify. Sessions are attention targets, not a peer grid. -->
     <section class="intent-readback" aria-label="Latest readback">
       <div class="readback-heading">
-        <span id="readback-label">Alexis · ready</span>
+        <span id="readback-label">Alicia · ready</span>
         <button type="button" id="correct-intent">Correct intent</button>
       </div>
       <p id="intent-readback" aria-live="polite">Start voice. I’ll repeat the task I understood and keep you informed as work progresses.</p>
     </section>
 
-    <details class="alexis-work-context"><summary>Discuss current work</summary>
+    <details class="alicia-work-context"><summary>Discuss current work</summary>
     <button type="button" id="voice-enroll" aria-label="Enroll your voice">Voice enrollment</button>
 
     <section class="spoken-claim" data-testid="spoken-claim" aria-label="What needs you">
@@ -362,7 +358,7 @@
   </dialog>
 
 </main>
-<script src="/static/alexis.js"></script>
+<script src="/static/alicia.js"></script>
 <script src="/static/session.js"></script>
 <script src="/static/operations.js"></script>
 </body>

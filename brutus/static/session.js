@@ -259,8 +259,8 @@ async function hydrate(sessionId) {
   const snap = await fetch(`/api/session/${sessionId}`).then((r) => r.json());
   $("#conversation").innerHTML = "";
   state.seenTurns.clear();
-  $("#intent-readback").textContent = window.alexis ? "Talk with Alexis or type a message." : "Start voice or give Brutus a direction.";
-  $("#readback-label").textContent = window.alexis ? "Alexis · ready" : "Brutus · ready";
+  $("#intent-readback").textContent = window.alicia ? "Talk with Alicia or type a message." : "Start voice or give Brutus a direction.";
+  $("#readback-label").textContent = window.alicia ? "Alicia · ready" : "Brutus · ready";
   state.fields.clear();
   (snap.turns || []).forEach((t) => renderTurn(t, { animate: false }));
   restoreThinking(snap.turns || []);
@@ -277,7 +277,7 @@ function renderConversationEmpty() {
   const empty = document.createElement("div");
   empty.className = "conversation-empty";
   empty.id = "conversation-empty";
-  if (window.alexis) {
+  if (window.alicia) {
     const hint = document.createElement("p");
     hint.textContent = "Send a message or start a call.";
     empty.append(hint);
@@ -287,7 +287,7 @@ function renderConversationEmpty() {
   const title = document.createElement("h2");
   title.textContent = "Your voice is the work surface";
   const body = document.createElement("p");
-  body.textContent = window.alexis ? "Your words and Alexis’s replies stay visible as you talk." : "Talk naturally. Brutus will judge the work and answer with one useful next move.";
+  body.textContent = window.alicia ? "Your words and Alicia’s replies stay visible as you talk." : "Talk naturally. Brutus will judge the work and answer with one useful next move.";
   const action = document.createElement("button");
   action.type = "button";
   action.dataset.startVoice = "";
@@ -405,9 +405,9 @@ function renderTurn(turn, { animate = true, live = animate } = {}) {
     // A complete first sentence is a compact readback, never a chopped word stream.
     const sentence = text.match(/^[\s\S]*?[.!?](?=\s|$)/)?.[0] || text.split("\n")[0];
     renderText($("#intent-readback"), sentence);
-    $("#readback-label").textContent = window.alexis ? "Alexis · latest reply" : "Brutus · latest reply";
+    $("#readback-label").textContent = window.alicia ? "Alicia · latest reply" : "Brutus · latest reply";
   } else {
-    $("#readback-label").textContent = window.alexis ? "Alexis · considering your direction" : "Brutus · considering your direction";
+    $("#readback-label").textContent = window.alicia ? "Alicia · considering your direction" : "Brutus · considering your direction";
   }
   const empty = $("#conversation-empty");
   if (empty) empty.hidden = true;
@@ -418,7 +418,7 @@ function renderTurn(turn, { animate = true, live = animate } = {}) {
 
   const who = document.createElement("div");
   who.className = "who";
-  who.append(turn.role === "user" ? "You" : (window.alexis ? "Alexis" : "Brutus"));
+  who.append(turn.role === "user" ? "You" : (window.alicia ? "Alicia" : "Brutus"));
   if (turn.channel === "voice") {
     const badge = document.createElement("span");
     badge.className = "badge";
@@ -698,20 +698,20 @@ async function say(message, channel, attachments = []) {
   const controller = new AbortController();
   state.sayAbort = controller;
   if (channel === "voice") setVoicePhase("thinking");
-  if (window.alexis) window.alexis.busy(true);
+  if (window.alicia) window.alicia.busy(true);
   else $("#send").disabled = true;
   try {
     const r = await fetch(`/api/session/${state.sessionId}/say`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ message: text, channel, ...(window.alexis ? {attachments, wait: true} : {}) }),
+      body: JSON.stringify({ message: text, channel, ...(window.alicia ? {attachments, wait: true} : {}) }),
       signal: controller.signal,
     });
     // A non-2xx used to sail straight through as success: the box had already been
     // cleared by the submit handler, so the message simply vanished with no reply
     // and no error. Only a network throw was ever caught.
     if (!r.ok) throw new Error(`server said ${r.status}`);
-    window.alexis?.clearAttachments();
+    window.alicia?.clearAttachments();
   } catch (err) {
     if (err.name === "AbortError") return;
     setStatus(`Couldn't send that — ${err.message}. Your text is back in the box.`);
@@ -724,7 +724,7 @@ async function say(message, channel, attachments = []) {
     }
   } finally {
     if (state.sayAbort === controller) state.sayAbort = null;
-    if (window.alexis) window.alexis.busy(false);
+    if (window.alicia) window.alicia.busy(false);
     else $("#send").disabled = false;
   }
 }
@@ -840,20 +840,20 @@ async function startVoice() {
   state.voiceStartAbort = controller;
   setVoicePhase("buffering", "Connecting voice…");
   try {
-    if (window.alexis) {
+    if (window.alicia) {
       // Unlock playback from the click, and ask for mic permission before network work.
-      window.alexis.unlock();
+      window.alicia.unlock();
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone access requires localhost or HTTPS.');
       const permission = await navigator.mediaDevices.getUserMedia({audio: audioCaptureDefaults});
       permission.getTracks().forEach(track => track.stop());
       if (controller.signal.aborted) return;
       // Video connection must never hold the microphone hostage.
-      void window.alexis.start(state.sessionId, controller.signal);
+      void window.alicia.start(state.sessionId, controller.signal);
     }
     if (controller.signal.aborted) return;
     const convaiOk = await startConvAI(controller.signal);
     if (convaiOk) return;
-    if (window.alexis && !controller.signal.aborted) throw new Error("Voice connection unavailable. Retry Talk with Alexis.");
+    if (window.alicia && !controller.signal.aborted) throw new Error("Voice connection unavailable. Retry Talk with Alicia.");
     if (controller.signal.aborted) return;
 
     const response = await fetch(`/api/session/${state.sessionId}/voice-token`, {
@@ -922,10 +922,10 @@ async function startVoice() {
     await teardownConvAI();
     await teardownLiveKit();
     state.voiceTransport = null;
-    if (window.alexis) {
+    if (window.alicia) {
       controller.abort();
-      await window.alexis.stop();
-      const detail = err.name === "NotAllowedError" ? "Microphone blocked. Allow microphone access for this page, then press Talk with Alexis." :
+      await window.alicia.stop();
+      const detail = err.name === "NotAllowedError" ? "Microphone blocked. Allow microphone access for this page, then press Talk with Alicia." :
         err.name === "NotFoundError" ? "No microphone found. Connect or select a microphone, then retry." :
         err.name === "NotReadableError" ? "Microphone could not open. Check your browser and system microphone settings." : err.message;
       return setVoicePhase("error", detail);
@@ -1043,7 +1043,7 @@ async function speak(text, { productOwned = false } = {}) {
     if (controller.signal.aborted) return;
     state.speaking = true;
     setVoicePhase("speaking");
-    if (await window.alexis?.play(blob, controller.signal)) {
+    if (await window.alicia?.play(blob, controller.signal)) {
       rememberSpoken(text);
       state.speaking = false;
       state.productBrainSpeak = false;
@@ -1076,7 +1076,7 @@ async function speak(text, { productOwned = false } = {}) {
 }
 
 function stopSpeaking() {
-  window.alexis?.interrupt();
+  window.alicia?.interrupt();
   state.speechAbort?.abort();
   state.speechAbort = null;
   if (state.audio) {
@@ -1232,7 +1232,7 @@ async function startConvAI(signal) {
         if (!message) return;
         if (source === "user") {
           setConversationFilled();
-          if (!window.alexis) appendLocalTurn("user", message);
+          if (!window.alicia) appendLocalTurn("user", message);
           state.lastUserUtterance = message;
           state.brainPending = true;
           setVoicePhase("thinking", "Thinking — working that through.");
@@ -1244,7 +1244,7 @@ async function startConvAI(signal) {
                 }
                 const spoken = await runProductBrain(message);
                 if (!spoken) return;
-                if (!window.alexis) appendLocalTurn("brutus", spoken);
+                if (!window.alicia) appendLocalTurn("brutus", spoken);
                 await speak(spoken, { productOwned: true });
               } catch (err) {
                 console.warn("product-owned turn failed", err);
@@ -1276,13 +1276,13 @@ async function startConvAI(signal) {
       },
       onDisconnect: () => {
         if (!state.convaiStopping) {
-          if (window.alexis) teardownVoice();
+          if (window.alicia) teardownVoice();
           setVoicePhase("error", "Voice disconnected. Retry the call to reconnect.");
         }
       },
       onError: () => {
         if (!state.convaiStopping) {
-          if (window.alexis) teardownVoice();
+          if (window.alicia) teardownVoice();
           setVoicePhase("error", "Voice interrupted. Retry the call to reconnect.");
         }
       },
@@ -1302,19 +1302,19 @@ async function startConvAI(signal) {
       // Mute EL agent TTS always in product-owned mode.
       conversation.setVolume({ volume: productOwned ? 0 : 1 });
     }
-    if (!window.alexis && state.muted && typeof conversation.setMicMuted === "function") {
+    if (!window.alicia && state.muted && typeof conversation.setMicMuted === "function") {
       conversation.setMicMuted(true);
     }
     setVoicePhase(
       "listening",
-      window.alexis ? "Microphone open · Alexis is listening" : (productOwned ? "ConvAI mic · product brain · Chris voice" : "ConvAI · ElevenLabs voice"),
+      window.alicia ? "Microphone open · Alicia is listening" : (productOwned ? "ConvAI mic · product brain · Chris voice" : "ConvAI · ElevenLabs voice"),
     );
     return true;
   } catch (err) {
     clearTimeout(watchdog);
     if (err && err.name === "AbortError") return false;
     console.warn("ConvAI unavailable", err);
-    if (window.alexis) throw err;
+    if (window.alicia) throw err;
     return false;
   }
 }
@@ -1371,8 +1371,8 @@ function teardownVoice() {
   state.voiceReplyAbort?.abort();
   state.replyEpoch = (state.replyEpoch || 0) + 1;
   state.brainPending = false;
-  window.alexis?.busy(false);
-  void window.alexis?.stop();
+  window.alicia?.busy(false);
+  void window.alicia?.stop();
   state.voiceStartAbort?.abort();
   state.sayAbort?.abort();
   state.speechAbort?.abort();
@@ -1405,7 +1405,7 @@ function bargeIn() {
 function setVoicePhase(phase, detail = "") {
   document.querySelector(".voice-shell")?.setAttribute("data-voice-phase", phase);
   state.voicePhase = phase;
-  window.alexis?.phase(phase);
+  window.alicia?.phase(phase);
   const btn = $("#mic");
   if (!btn) return;
   btn.dataset.voiceState = phase;
@@ -1420,7 +1420,7 @@ function setVoicePhase(phase, detail = "") {
     label.textContent = "Stop";
     btn.setAttribute("aria-label", "Stop reading");
     btn.setAttribute("aria-pressed", "true");
-    if (stateLabel) stateLabel.textContent = window.alexis ? "Alexis is speaking" : "Brutus is speaking";
+    if (stateLabel) stateLabel.textContent = window.alicia ? "Alicia is speaking" : "Brutus is speaking";
     if (stateDetail) stateDetail.textContent = "Reply in progress.";
     setStatus("Speaking…");
   } else if (phase === "thinking" || phase === "buffering") {
@@ -1449,17 +1449,17 @@ function setVoicePhase(phase, detail = "") {
     setStatus(detail || "Voice failed. Tap Talk to retry.");
   } else {
     glyph.textContent = "◎";
-    label.textContent = window.alexis ? "Talk with Alexis" : "Start voice";
+    label.textContent = window.alicia ? "Talk with Alicia" : "Start voice";
     btn.setAttribute("aria-label", "Start voice conversation");
     btn.setAttribute("aria-pressed", "false");
     if (stateLabel) stateLabel.textContent = "Ready when you are";
     if (stateDetail) stateDetail.textContent = "Voice is off.";
     setStatus("");
   }
-  if (window.alexis) {
+  if (window.alicia) {
     const active = Boolean(state.voiceTransport || state.listening || (state.voiceStartAbort && phase !== "error"));
     const connecting = active && !state.voiceTransport;
-    label.textContent = active ? (connecting ? "Cancel connection" : "End call") : (phase === "error" ? "Retry call" : "Talk with Alexis");
+    label.textContent = active ? (connecting ? "Cancel connection" : "End call") : (phase === "error" ? "Retry call" : "Talk with Alicia");
     btn.setAttribute("aria-label", label.textContent);
     btn.setAttribute("aria-pressed", String(active));
   }
@@ -1914,7 +1914,7 @@ const setMicState = () =>
 
 function setStatus(text) {
   $("#status-line").textContent = text;
-  if (window.alexis && /couldn.t|failed|unavailable/i.test(text)) window.alexis.notice(text);
+  if (window.alicia && /couldn.t|failed|unavailable/i.test(text)) window.alicia.notice(text);
 }
 
 /* --- wiring ------------------------------------------------------------- */
@@ -1935,7 +1935,7 @@ function init() {
     if (supervisorSnapshot) renderSupervisor(supervisorSnapshot);
   });
   $("#mic")?.addEventListener("click", () => {
-    if (window.alexis) {
+    if (window.alicia) {
       if (state.voiceTransport || state.listening || state.voiceStartAbort) return teardownVoice();
       return startVoice();
     }
@@ -1944,7 +1944,7 @@ function init() {
     if (state.voicePhase === "listening") return teardownVoice();
     startVoice(); // first audio follows a gesture; never on load
   });
-  window.alexis?.bind({
+  window.alicia?.bind({
     session: () => state.sessionId,
     end: teardownVoice,
     type: () => { $("#say").focus(); },
@@ -1957,7 +1957,7 @@ function init() {
       element.muted = state.muted;
       if (!state.muted) void element.play().catch(() => {});
     }
-    if (!window.alexis && state.convai && typeof state.convai.setMicMuted === "function") {
+    if (!window.alicia && state.convai && typeof state.convai.setMicMuted === "function") {
       state.convai.setMicMuted(state.muted);
     }
     e.currentTarget.setAttribute("aria-pressed", String(state.muted));
@@ -1973,25 +1973,25 @@ function init() {
 
   $("#composer").addEventListener("submit", (e) => {
     e.preventDefault();
-    if (window.alexis?.isBusy()) {
+    if (window.alicia?.isBusy()) {
       state.replyEpoch = (state.replyEpoch || 0) + 1;
       state.brainPending = false;
       state.voiceReplyAbort?.abort();
       state.sayAbort?.abort();
       stopSpeaking();
-      window.alexis.busy(false);
+      window.alicia.busy(false);
       void fetch(`/api/session/${state.sessionId}/stop`, {method:"POST"}).then(r => {
         if (!r.ok) throw new Error();
-        window.alexis.notice("Stopped.");
-      }).catch(() => window.alexis.notice("Playback stopped; server cancellation could not be confirmed."));
+        window.alicia.notice("Stopped.");
+      }).catch(() => window.alicia.notice("Playback stopped; server cancellation could not be confirmed."));
       return;
     }
-    window.alexis?.unlock();
+    window.alicia?.unlock();
     const box = $("#say");
     const text = box.value;
     box.value = "";
     autoGrow(box);
-    say(text, "text", window.alexis?.attachments() || []);
+    say(text, "text", window.alicia?.attachments() || []);
   });
 
   $("#say").addEventListener("input", (e) => autoGrow(e.currentTarget));

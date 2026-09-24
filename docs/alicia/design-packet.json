@@ -6,7 +6,7 @@
   },
   "implementationSelection": {
     "version": 1,
-    "job": "Build a dedicated Alexis conversation page with Brutus and Atlas navigation while preserving Brutus home",
+    "job": "Build a dedicated Alicia conversation page with Brutus and Atlas navigation while preserving Brutus home",
     "pageExamples": [
       {
         "id": "report",
@@ -675,7 +675,7 @@
     "contract": "shine-reuse.json",
     "command": "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/integrations/blocks.mjs --project \"/Users/justinfowler/Projects/brutus\" --contract shine-reuse.json"
   },
-  "job": "Build a dedicated Alexis conversation page with Brutus and Atlas navigation while preserving Brutus home",
+  "job": "Build a dedicated Alicia conversation page with Brutus and Atlas navigation while preserving Brutus home",
   "lane": "internal",
   "mode": "existing",
   "category": "media",
@@ -865,7 +865,7 @@
   "diagnosis": {
     "required": true,
     "reference": "/Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/skill/references/diagnose.md",
-    "command": "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/core/diagnosis.mjs init --job \"Build a dedicated Alexis conversation page with Brutus and Atlas navigation while preserving Brutus home\" --category media --out shine-diagnosis.json",
+    "command": "node /Users/justinfowler/.local/share/shine/releases/2864fd7997f7a4892f2d2eab6a886b47c5f476b1/core/diagnosis.mjs init --job \"Build a dedicated Alicia conversation page with Brutus and Atlas navigation while preserving Brutus home\" --category media --out shine-diagnosis.json",
     "verdicts": [
       "defects",
       "no-change"

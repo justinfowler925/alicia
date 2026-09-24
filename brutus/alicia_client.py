@@ -12,7 +12,7 @@ from .paths import state_path
 
 def execute_once(call_id, invoke):
     """A retried central turn must never repeat a local write after a lost reply."""
-    conn = sqlite3.connect(state_path("alexis-tool-calls.sqlite"), timeout=10)
+    conn = sqlite3.connect(state_path("alicia-tool-calls.sqlite"), timeout=10)
     try:
         with conn:
             conn.execute("CREATE TABLE IF NOT EXISTS calls (id TEXT PRIMARY KEY, result TEXT)")
@@ -36,10 +36,10 @@ def shared_reply(cfg, registry, *, session_id, turn_id, message, channel,
         {"name": "recall", "description": "Search earlier Brutus history", "parameters": {"type": "object", "properties": {"q": {"type": "string"}}}},
         {"name": "propose_action", "description": "Prepare a gated action for owner review, never execute it", "parameters": {"type": "object", "properties": {"tool": {"type": "string"}, "args": {"type": "object"}}}},
     ]
-    meta = {"brain": True, "backend": "alexis_shared", "tools": []}
+    meta = {"brain": True, "backend": "alicia_shared", "tools": []}
     try:
-        with httpx.Client(base_url=cfg.alexis_brain_url.rstrip("/"), timeout=150,
-                          headers={"Authorization": f"Bearer {cfg.alexis_brain_token}"}) as client:
+        with httpx.Client(base_url=cfg.alicia_brain_url.rstrip("/"), timeout=150,
+                          headers={"Authorization": f"Bearer {cfg.alicia_brain_token}"}) as client:
             response = client.post("/v1/turns", json={
                 "session_id": session_id, "request_id": f"brutus:{session_id}:{turn_id}",
                 "message": message, "channel": channel, "context": standing_notes[:12000], "tools": schemas,
@@ -65,4 +65,4 @@ def shared_reply(cfg, registry, *, session_id, turn_id, message, channel,
                                        json={"call_id": call["call_id"], "result": payload})
         raise ValueError("Tool budget exhausted")
     except (httpx.HTTPError, ValueError, KeyError):
-        return "I couldn't reach a complete answer from my shared brain. Please try again.", {**meta, "error": "alexis_unavailable"}
+        return "I couldn't reach a complete answer from my shared brain. Please try again.", {**meta, "error": "alicia_unavailable"}

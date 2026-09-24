@@ -129,8 +129,8 @@ class BrutusCfg:
     # Hard cap on decision cards shown at once. The surface is only useful if it
     # stays answerable in about a minute; overflow is summarised, never dropped.
     max_actions: int = 7
-    alexis_brain_url: str = ""
-    alexis_brain_token: str = ""
+    alicia_brain_url: str = ""
+    alicia_brain_token: str = ""
     local_llm: LocalLLMCfg | None = None
     openai: OpenAICfg | None = None
     voice: VoiceCfg | None = None
@@ -268,8 +268,8 @@ def load_config(path: Path | None = None) -> BrutusCfg:
         linear_workspace=str(data.get("linear_workspace") or "clearspeed"),
         max_working_set=int(data.get("max_working_set") or 5),
         max_actions=int(data.get("max_actions") or 7),
-        alexis_brain_url=str(data.get("alexis_brain_url") or os.environ.get("ALEXIS_BRAIN_URL", "")),
-        alexis_brain_token=str(data.get("alexis_brain_token") or os.environ.get("ALEXIS_SURFACE_TOKEN", "")),
+        alicia_brain_url=str(data.get("alicia_brain_url") or os.environ.get("ALICIA_BRAIN_URL", "")),
+        alicia_brain_token=str(data.get("alicia_brain_token") or os.environ.get("ALICIA_SURFACE_TOKEN", "")),
         local_llm=_parse_local_llm(data),
         openai=_parse_openai(data),
         voice=_parse_voice(data),

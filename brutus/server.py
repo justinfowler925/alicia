@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response, Streamin
 from pydantic import BaseModel, Field
 
 from . import avatars as avatar_ctl
-from .alexis import router as alexis_router
+from .alicia import router as alicia_router
 from .agent_sessions import (
     active_counts,
     filter_cockpit,
@@ -498,9 +498,9 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
     app.include_router(workflow_router)
     app.include_router(forge_chat_router)
     app.include_router(studio_runs_router)
-    app.include_router(alexis_router)
-    app.state.alexis_voice = cfg.voice
-    app.state.alexis_config = cfg
+    app.include_router(alicia_router)
+    app.state.alicia_voice = cfg.voice
+    app.state.alicia_config = cfg
 
     @app.exception_handler(AtlasDisabled)
     async def atlas_disabled_handler(_request: Request, exc: AtlasDisabled) -> Response:
@@ -524,8 +524,8 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
 
     @app.get("/", response_class=HTMLResponse)
     async def home() -> HTMLResponse:
-        """Alexis is the conversation-first home workspace."""
-        return HTMLResponse((_STATIC / "alexis.html").read_text(), headers=_NO_STORE)
+        """Alicia is the conversation-first home workspace."""
+        return HTMLResponse((_STATIC / "alicia.html").read_text(), headers=_NO_STORE)
 
     @app.get("/brutus", response_class=HTMLResponse)
     async def brutus_page() -> HTMLResponse:
@@ -553,9 +553,9 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
         """
         return RedirectResponse("/", status_code=308)
 
-    @app.get("/alexis", response_class=HTMLResponse)
-    async def alexis_page() -> HTMLResponse:
-        return HTMLResponse((_STATIC / "alexis.html").read_text(), headers=_NO_STORE)
+    @app.get("/alicia", response_class=HTMLResponse)
+    async def alicia_page() -> HTMLResponse:
+        return HTMLResponse((_STATIC / "alicia.html").read_text(), headers=_NO_STORE)
 
     @app.get("/forge", response_class=HTMLResponse)
     async def forge_page() -> HTMLResponse:
@@ -1534,9 +1534,8 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
             "session.js": "application/javascript",
             "operations.js": "application/javascript",
             "shine-tokens.css": "text/css",
-            "alexis.js": "application/javascript",
-            "alexis.css": "text/css",
-            "alexis.jpg": "image/jpeg",
+            "alicia.js": "application/javascript",
+            "alicia.css": "text/css",
             "alicia.jpg": "image/jpeg",
             "navigation.css": "text/css",
             "forge.css": "text/css",
@@ -1607,16 +1606,16 @@ def create_app(cfg: BrutusCfg | None = None, *, start_watchdog: bool = True) -> 
 
     @app.post("/api/session/{session_id}/stop")
     async def stop_session_reply(session_id: str, request: Request):
-        from .alexis import same_origin
+        from .alicia import same_origin
         same_origin(request)
         if not request.app.state.sessions.get_session(session_id):
             raise HTTPException(404, "unknown session")
         request.app.state.conversation.cancel_reply(session_id)
-        if cfg.alexis_brain_url:
+        if cfg.alicia_brain_url:
             async with httpx.AsyncClient(timeout=10) as client:
                 try:
-                    response = await client.post(cfg.alexis_brain_url.rstrip("/") + f"/v1/sessions/{session_id}/cancel",
-                                                 headers={"Authorization": f"Bearer {cfg.alexis_brain_token}"})
+                    response = await client.post(cfg.alicia_brain_url.rstrip("/") + f"/v1/sessions/{session_id}/cancel",
+                                                 headers={"Authorization": f"Bearer {cfg.alicia_brain_token}"})
                     response.raise_for_status()
                 except httpx.HTTPError as exc:
                     raise HTTPException(503, "Playback stopped; shared-brain cancellation could not be confirmed.") from exc

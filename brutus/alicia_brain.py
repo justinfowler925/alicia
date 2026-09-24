@@ -1,6 +1,6 @@
-"""Private, surface-independent Alexis conversation service.
+"""Private, surface-independent Alicia conversation service.
 
-Run anywhere: uvicorn brutus.alexis_brain:create_app --factory --port 8794.
+Run anywhere: uvicorn brutus.alicia_brain:create_app --factory --port 8794.
 Transport adapters execute their own tools; this service cannot execute them.
 All protocols share the same authenticated principal, sessions and turn engine.
 """
@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 from .claude import ask_claude
 from .config import ClaudeCfg
 
-IDENTITY = """You are Alexis, Justin's AI collaborator across Brutus and other interfaces.
+IDENTITY = """You are Alicia, Justin's AI collaborator across Brutus and other interfaces.
 Keep a consistent identity across sessions, voice, text, and protocols. Be warm,
 direct, thoughtful and concrete. You are an AI, never claim to be human.
 Lead with a useful answer. Organize complex work into clear decisions and next
@@ -112,20 +112,20 @@ class Brain:
 
     @staticmethod
     def complete(system, messages):
-        provider = os.environ.get("ALEXIS_MODEL_PROVIDER", "")
+        provider = os.environ.get("ALICIA_MODEL_PROVIDER", "")
         if provider == "claude-cli":
             # Explicit development adapter, never required by the service.
             result = ask_claude(ClaudeCfg(enabled=True), json.dumps(messages), system=system, timeout_s=120)
             if not result.get("ok"):
-                raise RuntimeError("Alexis's model is unavailable")
+                raise RuntimeError("Alicia's model is unavailable")
             return result["reply"]
         if provider == "openai-compatible":
-            base = os.environ["ALEXIS_MODEL_BASE_URL"].rstrip("/")
+            base = os.environ["ALICIA_MODEL_BASE_URL"].rstrip("/")
             if not base.startswith("https://"):
                 raise ValueError("Model API must use HTTPS")
             response = httpx.post(base + "/chat/completions", timeout=120,
-                headers={"Authorization": "Bearer " + os.environ["ALEXIS_MODEL_API_KEY"]},
-                json={"model": os.environ["ALEXIS_MODEL"],
+                headers={"Authorization": "Bearer " + os.environ["ALICIA_MODEL_API_KEY"]},
+                json={"model": os.environ["ALICIA_MODEL"],
                       "messages": [{"role": "system", "content": system}, *messages]})
             response.raise_for_status()
             return response.json()["choices"][0]["message"]["content"]
@@ -173,7 +173,7 @@ class Brain:
     @staticmethod
     def response(row):
         if row["status"] == "failed":
-            raise HTTPException(503, "Alexis could not finish this turn. Retry with a new request id.")
+            raise HTTPException(503, "Alicia could not finish this turn. Retry with a new request id.")
         return {"turn_id": row["id"], "session_id": row["session_id"], "status": row["status"],
                 **json.loads(row["response"])}
 
@@ -214,7 +214,7 @@ class Brain:
         except Exception as exc:
             with self.db() as db:
                 db.execute("UPDATE turns SET status='failed',updated=? WHERE id=? AND status='running'", (time.time(), turn_id))
-            raise HTTPException(503, "Alexis's shared brain could not answer. No alternate brain was used.") from exc
+            raise HTTPException(503, "Alicia's shared brain could not answer. No alternate brain was used.") from exc
         with self.db() as db:
             updated = db.execute("UPDATE turns SET response=?,status=?,updated=? WHERE id=? AND status='running'",
                                  (json.dumps(output), status, time.time(), turn_id)).rowcount
@@ -263,11 +263,11 @@ class Brain:
 
 
 def create_app(path=None, tokens=None, model=None):
-    app = FastAPI(title="Alexis shared brain")
-    brain = Brain(Path(path or os.environ.get("ALEXIS_DB", str(Path.home() / ".alexis/brain.sqlite"))), model)
+    app = FastAPI(title="Alicia shared brain")
+    brain = Brain(Path(path or os.environ.get("ALICIA_DB", str(Path.home() / ".alicia/brain.sqlite"))), model)
     app.state.brain = brain
-    token_file = os.environ.get("ALEXIS_SURFACE_TOKENS_FILE")
-    configured_tokens = Path(token_file).read_text() if token_file else os.environ.get("ALEXIS_SURFACE_TOKENS", "{}")
+    token_file = os.environ.get("ALICIA_SURFACE_TOKENS_FILE")
+    configured_tokens = Path(token_file).read_text() if token_file else os.environ.get("ALICIA_SURFACE_TOKENS", "{}")
     credentials = tokens if tokens is not None else json.loads(configured_tokens)
 
     def auth(request: Request):
@@ -281,7 +281,7 @@ def create_app(path=None, tokens=None, model=None):
 
     @app.get("/health")
     def health():
-        return {"ok": True, "service": "alexis-brain", "protocols": ["turns-v1", "openai-chat"],
+        return {"ok": True, "service": "alicia-brain", "protocols": ["turns-v1", "openai-chat"],
                 "brain_version": hashlib.sha256(IDENTITY.encode()).hexdigest()[:12]}
 
     @app.post("/v1/turns")
@@ -327,9 +327,9 @@ def create_app(path=None, tokens=None, model=None):
         body = await request.json()
         if body.get("stream"):
             raise HTTPException(422, "Use turns-v1 for tool conversations; streaming adapter is not enabled")
-        session_id = request.headers.get("x-alexis-session-id")
+        session_id = request.headers.get("x-alicia-session-id")
         if not session_id:
-            raise HTTPException(422, "X-Alexis-Session-Id is required for continuity")
+            raise HTTPException(422, "X-Alicia-Session-Id is required for continuity")
         messages = body.get("messages", [])
         if not messages or messages[-1].get("role") != "user" or not isinstance(messages[-1].get("content"), str):
             raise HTTPException(422, "A final user text message is required")
@@ -339,7 +339,7 @@ def create_app(path=None, tokens=None, model=None):
             message=messages[-1]["content"]))
         if result["status"] != "done":
             raise HTTPException(409, "Turn is still running; use its original request id to retry")
-        return {"id": result["turn_id"], "object": "chat.completion", "model": "alexis",
+        return {"id": result["turn_id"], "object": "chat.completion", "model": "alicia",
                 "choices": [{"index": 0, "message": {"role": "assistant", "content": result["reply"]}, "finish_reason": "stop"}]}
 
     return app

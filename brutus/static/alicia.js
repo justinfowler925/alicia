@@ -10,7 +10,7 @@ fetch('/version').then(response => response.ok ? response.json() : null).then(ve
     document.head.append(meta);
   }
 }).catch(() => {});
-window.alexis = (() => {
+window.alicia = (() => {
   let client = null, generation = 0, audioStream = null, playback = 0;
   let outputContext = null, remoteAudio = null, localAudio = null;
   function unlock() {
@@ -24,22 +24,8 @@ window.alexis = (() => {
     }
   }
   const node = id => document.getElementById(id);
-  const status = text => { node('alexis-status').textContent = text; };
-  const looks = {
-    alexis: {src: '/static/alexis.jpg', alt: 'Alexis, your AI collaborator'},
-    alicia: {src: '/static/alicia.jpg', alt: 'Alicia'},
-  };
-  function setLook(name) {
-    const look = looks[name] || looks.alexis;
-    const portrait = node('alexis-portrait');
-    portrait.src = look.src;
-    portrait.alt = look.alt;
-    node('alexis-frame').classList.toggle('is-alicia', look === looks.alicia);
-    node('look-alexis').setAttribute('aria-pressed', look === looks.alexis ? 'true' : 'false');
-    node('look-alicia').setAttribute('aria-pressed', look === looks.alicia ? 'true' : 'false');
-    try { sessionStorage.setItem('brutus.portrait', look === looks.alicia ? 'alicia' : 'alexis'); } catch (_) {}
-  };
-  function portrait() { node('alexis-video').hidden = true; node('alexis-portrait').hidden = false; }
+  const status = text => { node('alicia-status').textContent = text; };
+  function portrait() { node('alicia-video').hidden = true; node('alicia-portrait').hidden = false; }
   async function stop() {
     generation++; playback++;
     const old = client; client = null; audioStream = null;
@@ -47,7 +33,7 @@ window.alexis = (() => {
     try { localAudio?.stop(); } catch (_) {}
     localAudio = null;
     portrait();
-    const video = node('alexis-video'); video.pause(); video.srcObject = null;
+    const video = node('alicia-video'); video.pause(); video.srcObject = null;
     status('Video off');
     if (old) await old.stopStreaming().catch(() => {});
   }
@@ -58,15 +44,15 @@ window.alexis = (() => {
     try { client?.interruptPersona(); audioStream?.endSequence(); } catch (_) {}
   }
   async function start(sessionId, signal) {
-    if (!node('alexis-live').checked) { status('Voice only · same Alexis'); return false; }
+    if (!node('alicia-live').checked) { status('Voice only · same Alicia'); return false; }
     await stop();
     const gen = generation;
-    status('Connecting Alexis…');
+    status('Connecting Alicia…');
     let candidate, timer;
-    const video = node('alexis-video');
-    node('alexis-video-retry').hidden = true;
+    const video = node('alicia-video');
+    node('alicia-video-retry').hidden = true;
     try {
-      const response = await fetch(`/api/session/${sessionId}/alexis-token`, {method:'POST', signal});
+      const response = await fetch(`/api/session/${sessionId}/alicia-token`, {method:'POST', signal});
       if (!response.ok) {
         const failure = await response.json().catch(() => ({}));
         throw new Error(typeof failure.detail === 'string' ? failure.detail : 'Avatar unavailable');
@@ -78,15 +64,15 @@ window.alexis = (() => {
       client = candidate;
       candidate.addListener(AnamEvent.CONNECTION_CLOSED, () => {
         if (client !== candidate) return;
-        client = null; audioStream = null; remoteAudio?.disconnect(); remoteAudio = null; portrait(); status('Video disconnected · voice remains available'); node('alexis-video-retry').hidden = false;
+        client = null; audioStream = null; remoteAudio?.disconnect(); remoteAudio = null; portrait(); status('Video disconnected · voice remains available'); node('alicia-video-retry').hidden = false;
       });
       video.muted = true; // Playback is routed through the gesture-unlocked audio context.
       video.onloadeddata = () => {
         if (client !== candidate || gen !== generation) return;
-        video.hidden = false; node('alexis-portrait').hidden = true; connectAudio(video); status('Alexis · live');
+        video.hidden = false; node('alicia-portrait').hidden = true; connectAudio(video); status('Alicia · live');
       };
       await Promise.race([
-        (async () => { await candidate.streamToVideoElement('alexis-video'); await video.play(); })(),
+        (async () => { await candidate.streamToVideoElement('alicia-video'); await video.play(); })(),
         new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Video connection timed out')), 25000); }),
       ]);
       clearTimeout(timer);
@@ -100,7 +86,7 @@ window.alexis = (() => {
       if (gen === generation) {
         client = null; audioStream = null; portrait();
         status(signal.aborted ? 'Conversation ended' : `Video unavailable: ${error.message}. Voice can still connect.`);
-        node('alexis-video-retry').hidden = signal.aborted;
+        node('alicia-video-retry').hidden = signal.aborted;
       }
       return false;
     }
@@ -116,7 +102,7 @@ window.alexis = (() => {
       if (localAudio === source) localAudio = null;
       return true;
     }
-    connectAudio(node('alexis-video'));
+    connectAudio(node('alicia-video'));
     const target = client, stream = audioStream, sequence = ++playback;
     const context = new AudioContext({sampleRate:16000});
     try {
@@ -141,19 +127,19 @@ window.alexis = (() => {
     } finally { await context.close(); }
   }
   let pending = false, currentPhase = 'idle', files = [];
-  const notice = text => { node('alexis-composer-status').textContent = text; };
+  const notice = text => { node('alicia-composer-status').textContent = text; };
   const isBusy = () => pending || ['thinking', 'buffering', 'speaking'].includes(currentPhase);
   function updateComposer() {
     const button = node('send'), stopping = isBusy();
     button.disabled = false;
     button.textContent = stopping ? 'Stop' : 'Send';
     button.setAttribute('aria-label', stopping ? 'Stop reply' : 'Send message');
-    node('alexis-attach').disabled = pending;
+    node('alicia-attach').disabled = pending;
   }
   function busy(value) { pending = value; updateComposer(); }
   function phase(value) { currentPhase = value; updateComposer(); }
   function renderAttachments() {
-    const host = node('alexis-attachments'); host.replaceChildren();
+    const host = node('alicia-attachments'); host.replaceChildren();
     files.forEach((file, index) => {
       const button = document.createElement('button'); button.type = 'button';
       button.textContent = `${file.name} ×`; button.setAttribute('aria-label', `Remove ${file.name}`);
@@ -163,12 +149,9 @@ window.alexis = (() => {
   }
   function clearAttachments() { files = []; renderAttachments(); }
   function bind({session, end, type}) {
-    node('look-alexis').onclick = () => setLook('alexis');
-    node('look-alicia').onclick = () => setLook('alicia');
-    try { setLook(sessionStorage.getItem('brutus.portrait') === 'alicia' ? 'alicia' : 'alexis'); } catch (_) { setLook('alexis'); }
-    node('alexis-sessions').onclick = () => { const panel = document.querySelector('.alexis-work-context'); panel.open = !panel.open; };
-    node('alexis-attach').onclick = () => node('alexis-files').click();
-    node('alexis-files').onchange = async event => {
+    node('alicia-sessions').onclick = () => { const panel = document.querySelector('.alicia-work-context'); panel.open = !panel.open; };
+    node('alicia-attach').onclick = () => node('alicia-files').click();
+    node('alicia-files').onchange = async event => {
       notice('');
       try {
         const selected = Array.from(event.target.files);
@@ -188,30 +171,30 @@ window.alexis = (() => {
       } catch (error) { notice(error.message); }
       event.target.value = '';
     };
-    node('alexis-video-retry').onclick = () => { unlock(); void start(session(), new AbortController().signal); };
-    node('alexis-type').onclick = type;
-    node('alexis-live').onchange = () => { if (!node('alexis-live').checked) void stop(); };
-    node('alexis-rating').onchange = () => { node('alexis-correction').required = node('alexis-rating').value === 'needs_work'; };
-    node('alexis-improve').ontoggle = async () => {
-      if (!node('alexis-improve').open || !session()) return;
-      const select = node('alexis-turn'); select.replaceChildren(new Option('Choose an answered reply', ''));
+    node('alicia-video-retry').onclick = () => { unlock(); void start(session(), new AbortController().signal); };
+    node('alicia-type').onclick = type;
+    node('alicia-live').onchange = () => { if (!node('alicia-live').checked) void stop(); };
+    node('alicia-rating').onchange = () => { node('alicia-correction').required = node('alicia-rating').value === 'needs_work'; };
+    node('alicia-improve').ontoggle = async () => {
+      if (!node('alicia-improve').open || !session()) return;
+      const select = node('alicia-turn'); select.replaceChildren(new Option('Choose an answered reply', ''));
       try {
         const response = await fetch(`/api/session/${session()}`);
         if (!response.ok) throw new Error();
         const data = await response.json();
         const turns = (data.turns || data.session?.turns || []).filter(t => t.role === 'brutus' && !t.meta?.thinking && t.meta?.central_turn_id);
         for (const turn of turns.slice(-12).reverse()) select.add(new Option(turn.text.slice(0, 120), String(turn.id)));
-        node('alexis-feedback-status').textContent = turns.length ? 'Choose a reply to review.' : 'An answered turn from the shared brain is needed first.';
-      } catch (_) { node('alexis-feedback-status').textContent = 'Could not load replies. Close and reopen to retry.'; }
+        node('alicia-feedback-status').textContent = turns.length ? 'Choose a reply to review.' : 'An answered turn from the shared brain is needed first.';
+      } catch (_) { node('alicia-feedback-status').textContent = 'Could not load replies. Close and reopen to retry.'; }
     };
-    node('alexis-feedback').onsubmit = async event => {
+    node('alicia-feedback').onsubmit = async event => {
       event.preventDefault();
-      const button = node('alexis-feedback-save'); button.disabled = true;
+      const button = node('alicia-feedback-save'); button.disabled = true;
       try {
-        const response = await fetch(`/api/session/${session()}/feedback`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({turn_id:Number(node('alexis-turn').value), dimension:node('alexis-dimension').value, rating:node('alexis-rating').value, correction:node('alexis-correction').value})});
+        const response = await fetch(`/api/session/${session()}/feedback`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({turn_id:Number(node('alicia-turn').value), dimension:node('alicia-dimension').value, rating:node('alicia-rating').value, correction:node('alicia-correction').value})});
         if (!response.ok) throw new Error();
-        node('alexis-feedback-status').textContent = 'Saved to Alexis’s shared improvement record.';
-      } catch (_) { node('alexis-feedback-status').textContent = 'Feedback was not saved. Your correction is still here; retry.'; }
+        node('alicia-feedback-status').textContent = 'Saved to Alicia’s shared improvement record.';
+      } catch (_) { node('alicia-feedback-status').textContent = 'Feedback was not saved. Your correction is still here; retry.'; }
       finally { button.disabled = false; }
     };
     window.addEventListener('pagehide', end);

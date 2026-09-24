@@ -6,13 +6,13 @@
       "id": "navigation",
       "selector": ".product-tabs",
       "referenceRole": "navigation",
-      "purpose": "Choose Brutus, Alexis, or Atlas"
+      "purpose": "Choose Brutus, Alicia, or Atlas"
     },
     {
       "id": "presenter",
-      "selector": "#alexis-frame",
+      "selector": "#alicia-frame",
       "referenceRole": "media frame",
-      "purpose": "See Alexis during conversation"
+      "purpose": "See Alicia during conversation"
     },
     {
       "id": "talk",
@@ -22,20 +22,20 @@
     },
     {
       "id": "feedback-disclosure",
-      "selector": "#alexis-improve summary",
+      "selector": "#alicia-improve summary",
       "referenceRole": "viewing notes",
       "purpose": "Review a conversational reply"
     },
     {
       "id": "feedback-form",
-      "selector": "#alexis-feedback",
+      "selector": "#alicia-feedback",
       "referenceRole": "viewing notes",
       "purpose": "Capture a specific correction",
       "appearsIn": "feedback-empty"
     },
     {
       "id": "feedback-status",
-      "selector": "#alexis-feedback-status",
+      "selector": "#alicia-feedback-status",
       "referenceRole": "caption",
       "purpose": "Know whether feedback is saved",
       "appearsIn": "feedback-empty"
@@ -55,25 +55,13 @@
     },
     {
       "id": "video-status",
-      "selector": "#alexis-status",
+      "selector": "#alicia-status",
       "referenceRole": "caption",
       "purpose": "Understand video connection and end state"
     },
     {
-      "id": "alexis-look",
-      "selector": "#look-alexis",
-      "referenceRole": "media controls",
-      "purpose": "Choose Alexis portrait"
-    },
-    {
-      "id": "alicia-look",
-      "selector": "#look-alicia",
-      "referenceRole": "media controls",
-      "purpose": "Choose Alicia portrait"
-    },
-    {
       "id": "portrait",
-      "selector": "#alexis-portrait",
+      "selector": "#alicia-portrait",
       "referenceRole": "media frame",
       "purpose": "See the whole selected portrait"
     }
@@ -85,15 +73,15 @@
       "steps": [
         {
           "action": "click",
-          "selector": "#alexis-improve summary"
+          "selector": "#alicia-improve summary"
         },
         {
           "action": "visible",
-          "selector": "#alexis-feedback"
+          "selector": "#alicia-feedback"
         },
         {
           "action": "text",
-          "selector": "#alexis-feedback-status",
+          "selector": "#alicia-feedback-status",
           "value": "An answered turn from the shared brain is needed first."
         },
         {
@@ -125,28 +113,6 @@
         {
           "action": "focused",
           "selector": "#say"
-        }
-      ]
-    },
-    {
-      "id": "portrait-selection",
-      "userJob": "Switch portraits while keeping conversation visible",
-      "steps": [
-        {
-          "action": "click",
-          "selector": "#look-alicia"
-        },
-        {
-          "action": "visible",
-          "selector": "#alexis-portrait"
-        },
-        {
-          "action": "click",
-          "selector": "#look-alexis"
-        },
-        {
-          "action": "visible",
-          "selector": "#conversation"
         }
       ]
     }
