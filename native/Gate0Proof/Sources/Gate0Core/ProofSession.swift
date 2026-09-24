@@ -35,7 +35,7 @@ public final class ProofSession: @unchecked Sendable {
     public private(set) var snapshot = InputSnapshot()
     public private(set) var appPaused = false
     public private(set) var turns: [ProofTurn] = []
-    public private(set) var statusText = "Listening — Voice Control into Brutus draft. App does not use the microphone."
+    public private(set) var statusText = "Listening — Voice Control into Alicia draft. App does not use the microphone."
 
     public var onStatusChange: ((String) -> Void)?
     public var onTurnsChange: (([ProofTurn]) -> Void)?
@@ -92,7 +92,7 @@ public final class ProofSession: @unchecked Sendable {
             log.append(Gate0Event(kind: "app_pause", detail: "", draft: snapshot.text, paused: true))
         } else {
             speech.resume()
-            publishStatus("Listening — Voice Control into Brutus draft.")
+            publishStatus("Listening — Voice Control into Alicia draft.")
             log.append(Gate0Event(kind: "app_resume", detail: "", draft: snapshot.text, paused: false))
         }
     }
@@ -216,7 +216,7 @@ extension ProofSession: SpeechPlaybackDelegate {
         if appPaused {
             publishStatus("Paused.")
         } else {
-            publishStatus("Listening — Voice Control into Brutus draft.")
+            publishStatus("Listening — Voice Control into Alicia draft.")
         }
     }
 }

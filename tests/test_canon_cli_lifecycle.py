@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from brutus import __main__ as brutus_main
-from brutus.canon import (
+from alicia import __main__ as alicia_main
+from alicia.canon import (
     CanonStore,
     Decision,
     Evidence,
@@ -25,8 +25,8 @@ OWNER = "justin.fowler@clearspeed.com"
 
 
 def _invoke(monkeypatch: pytest.MonkeyPatch, args: list[str]) -> None:
-    monkeypatch.setattr(brutus_main.sys, "argv", ["brutus", *args])
-    brutus_main.main()
+    monkeypatch.setattr(alicia_main.sys, "argv", ["alicia", *args])
+    alicia_main.main()
 
 
 def _command(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], args: list[str]) -> str:
@@ -94,7 +94,7 @@ def test_transition_validation_error_has_actionable_guidance(
 
     error = capsys.readouterr().err
     assert "lightweight execution requires a decision_not_required reason" in error
-    assert "Guidance: run 'brutus canon --help'" in error
+    assert "Guidance: run 'alicia canon --help'" in error
 
 
 def test_run_start_persists_a_worker_attempt(

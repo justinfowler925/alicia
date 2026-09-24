@@ -2,23 +2,23 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from brutus.canon.models import InboxItem, WorkItem
-from brutus.canon.store import CanonStore
-from brutus.config import BrutusCfg
-from brutus.server import create_app
+from alicia.canon.models import InboxItem, WorkItem
+from alicia.canon.store import CanonStore
+from alicia.config import AliciaCfg
+from alicia.server import create_app
 
 
 def test_adapter_event_endpoint_is_authenticated_idempotent_and_non_authoritative(tmp_path, monkeypatch):
     db = tmp_path / "canon.sqlite"
-    monkeypatch.setenv("BRUTUS_CANON_DB_PATH", str(db))
-    monkeypatch.setenv("BRUTUS_ADAPTER_TOKEN", "test-adapter-token")
+    monkeypatch.setenv("ALICIA_CANON_DB_PATH", str(db))
+    monkeypatch.setenv("ALICIA_ADAPTER_TOKEN", "test-adapter-token")
     store = CanonStore(db)
     work = WorkItem(title="Atlas handoff")
     store.save(work)
     store.close()
-    with patch("brutus.server.AtlasClient") as cls:
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
-        client = TestClient(create_app(BrutusCfg(watchdog_enabled=False), start_watchdog=False))
+        client = TestClient(create_app(AliciaCfg(watchdog_enabled=False), start_watchdog=False))
         body = {
             "work_item_id": work.id,
             "event_id": "atlas:job:1:completed",
@@ -29,12 +29,12 @@ def test_adapter_event_endpoint_is_authenticated_idempotent_and_non_authoritativ
         assert client.post("/api/workflow/events", json=body).status_code == 401
         first = client.post(
             "/api/workflow/events",
-            headers={"X-Brutus-Adapter-Token": "test-adapter-token"},
+            headers={"X-Alicia-Adapter-Token": "test-adapter-token"},
             json=body,
         )
         second = client.post(
             "/api/workflow/events",
-            headers={"X-Brutus-Adapter-Token": "test-adapter-token"},
+            headers={"X-Alicia-Adapter-Token": "test-adapter-token"},
             json=body,
         )
     assert first.status_code == 200 and first.json()["created"] is True
@@ -45,9 +45,9 @@ def test_adapter_event_endpoint_is_authenticated_idempotent_and_non_authoritativ
 
 
 def test_feedback_endpoint_dispositions_every_report():
-    with patch("brutus.server.AtlasClient") as cls:
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
-        client = TestClient(create_app(BrutusCfg(watchdog_enabled=False), start_watchdog=False))
+        client = TestClient(create_app(AliciaCfg(watchdog_enabled=False), start_watchdog=False))
         response = client.post(
             "/api/workflow/feedback/batch",
             json={
@@ -64,8 +64,8 @@ def test_feedback_endpoint_dispositions_every_report():
 
 def test_feedback_create_requires_owner_and_persists_one_item_per_batch(tmp_path, monkeypatch):
     db = tmp_path / "canon.sqlite"
-    monkeypatch.setenv("BRUTUS_CANON_DB_PATH", str(db))
-    monkeypatch.setenv("BRUTUS_OWNER_TOKEN", "test-owner-token")
+    monkeypatch.setenv("ALICIA_CANON_DB_PATH", str(db))
+    monkeypatch.setenv("ALICIA_OWNER_TOKEN", "test-owner-token")
     body = {
         "reports": [
             {
@@ -90,13 +90,13 @@ def test_feedback_create_requires_owner_and_persists_one_item_per_batch(tmp_path
             },
         ]
     }
-    with patch("brutus.server.AtlasClient") as cls:
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
-        client = TestClient(create_app(BrutusCfg(watchdog_enabled=False), start_watchdog=False))
+        client = TestClient(create_app(AliciaCfg(watchdog_enabled=False), start_watchdog=False))
         assert client.post("/api/workflow/feedback/batch/create", json=body).status_code == 401
         response = client.post(
             "/api/workflow/feedback/batch/create",
-            headers={"X-Brutus-Owner-Token": "test-owner-token"},
+            headers={"X-Alicia-Owner-Token": "test-owner-token"},
             json=body,
         )
     assert response.status_code == 200

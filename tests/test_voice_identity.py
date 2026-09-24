@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from brutus.voice_identity import MATCH_THRESHOLD, MIN_VERIFY_SECONDS, VoiceIdentity
+from alicia.voice_identity import MATCH_THRESHOLD, MIN_VERIFY_SECONDS, VoiceIdentity
 
 
 def test_owner_profile_stores_embedding_not_raw_recordings(tmp_path: Path):
@@ -29,7 +29,7 @@ def test_verification_accepts_short_commands_without_weakening_enrollment(tmp_pa
         seen.append(min_seconds) or np.array([1.0], dtype=np.float32)
     )
     with patch(
-        "brutus.voice_identity.base64.b64decode", return_value=np.array([1.0], dtype=np.float32).tobytes()
+        "alicia.voice_identity.base64.b64decode", return_value=np.array([1.0], dtype=np.float32).tobytes()
     ):
         assert identity.verify(b"short command")["accepted"] is True
     assert seen == [MIN_VERIFY_SECONDS]

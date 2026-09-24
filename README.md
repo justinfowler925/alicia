@@ -1,23 +1,23 @@
-# Brutus
+# Alicia
 
 > **Current replacement direction (2026-09-07):** [Apple accessibility reset plan](docs/APPLE_ACCESSIBILITY_RESET_PLAN.md). Continuous Voice Control input and native Apple output; Siri excluded. **Gate 0 Mac proof:** `native/Gate0Proof/` (`./scripts/run-mac.sh`). Physical samples + iPhone/Xcode still open. Older architecture and completion claims below are historical where they conflict.
 
 **Justin’s standalone MacBook coworker.** Voice is the primary work surface.
-Brutus uses explicit Cursor, Claude, and Codex profiles, reads current work
+Alicia uses explicit Cursor, Claude, and Codex profiles, reads current work
 directly from Linear, and keeps capture, Canon, Zoom, notes, and session state
 local. Atlas is intentionally ignored: no health
 probe, board fallback, chat tool, mutation, UI poll, or tunnel is active.
 
-**Canon model and collaborator runbook:** [`brutus/canon/README.md`](brutus/canon/README.md)
+**Canon model and collaborator runbook:** [`alicia/canon/README.md`](alicia/canon/README.md)
 
 ## Setup
 
 ```bash
-cd ~/Projects/brutus
+cd ~/Projects/alicia
 git switch main && git pull --ff-only
-bash scripts/install-brutus.sh
-# → venv, MCP entry, standalone Brutus service
-brutus health
+bash scripts/install-alicia.sh
+# → venv, MCP entry, standalone Alicia service
+alicia health
 bash scripts/open-operator.sh   # http://127.0.0.1:8768/ — work surface (focus queue + charts + working set)
 ```
 
@@ -39,29 +39,29 @@ approved.
 
 ### Workflow control
 
-The `brutus workflow` surface joins that compiler to Canon, saved Git projects,
+The `alicia workflow` surface joins that compiler to Canon, saved Git projects,
 repository delivery policies, product-feedback batches, and a reproducible
 efficiency scorecard. It does not create a second queue.
 
 ```bash
-brutus workflow route "Fix Brutus delivery" --repo brutus
-brutus workflow route "Fix Brutus delivery" --repo brutus --create
-brutus workflow policy . --bind <canon-work-item-id>
-brutus workflow status <canon-work-item-id>
-brutus workflow delivery <canon-work-item-id>
-brutus workflow feedback --input feedback.json --create
-brutus workflow scorecard --days 7
+alicia workflow route "Fix Alicia delivery" --repo alicia
+alicia workflow route "Fix Alicia delivery" --repo alicia --create
+alicia workflow policy . --bind <canon-work-item-id>
+alicia workflow status <canon-work-item-id>
+alicia workflow delivery <canon-work-item-id>
+alicia workflow feedback --input feedback.json --create
+alicia workflow scorecard --days 7
 
 # Attach a structured owner-verified receipt to the bound policy.
-brutus workflow receipt <work-item-id> --requirement-id tests \
+alicia workflow receipt <work-item-id> --requirement-id tests \
   --type run_output --content-ref 'pytest: 817 passed' --result pass \
   --artifact-digest <git-sha>
 ```
 
-The same operations are available through MCP as `brutus_work_route`,
-`brutus_work_status`, `brutus_work_event`, `brutus_feedback_batch`, and
-`brutus_workflow_scorecard`. Bounded external adapters post idempotent events
-to `POST /api/workflow/events` with `X-Brutus-Adapter-Token`; that token cannot
+The same operations are available through MCP as `alicia_work_route`,
+`alicia_work_status`, `alicia_work_event`, `alicia_feedback_batch`, and
+`alicia_workflow_scorecard`. Bounded external adapters post idempotent events
+to `POST /api/workflow/events` with `X-Alicia-Adapter-Token`; that token cannot
 accept, close, approve, or otherwise change Canon lifecycle state.
 
 Every repository can declare its required tests, lint, visual proof, Git,
@@ -82,7 +82,7 @@ atlas_enabled: false
 cursor_runner:
   enabled: true
   model: "composer-2.5"
-  reasoning_root: "~/.brutus/app"
+  reasoning_root: "~/.alicia/app"
 claude:
   enabled: true
   model: "claude-sonnet-5"
@@ -91,7 +91,7 @@ claude:
 ### Cursor MCP helpers
 
 Legacy Atlas MCP helpers remain tracked under `scripts/cursor-mcp/`, but the
-Brutus runtime neither installs nor calls them in standalone mode.
+Alicia runtime neither installs nor calls them in standalone mode.
 
 ### Canon database durability
 
@@ -120,28 +120,28 @@ allowing a later re-entry to the same state to notify again.
 
 Slack Watch channels use either a direct Slack incoming-webhook URL or
 `slack:<channel>` / `slack://<channel>` together with the
-`BRUTUS_SLACK_WEBHOOK_URL` environment secret. Use `brutus canon watch list`,
-`brutus canon watch show <id>`, and `brutus canon watch test <id>` to inspect
+`ALICIA_SLACK_WEBHOOK_URL` environment secret. Use `alicia canon watch list`,
+`alicia canon watch show <id>`, and `alicia canon watch test <id>` to inspect
 and debug Watch delivery. Canon Watches are Slack-only in v1; unsupported
 channel types are rejected when the Watch is created.
 
-Canon HTTP mutations require the local owner token. Run `brutus owner-token`,
-open Canon, choose **Authenticate owner**, and paste it. Brutus exchanges it for
+Canon HTTP mutations require the local owner token. Run `alicia owner-token`,
+open Canon, choose **Authenticate owner**, and paste it. Alicia exchanges it for
 an HttpOnly, SameSite-strict eight-hour session; only its CSRF value stays in
 that browser tab. Read-only Canon views do not require authentication.
 
 ### Canon backup operations
 
-`com.clearspeed.brutus-canon-backup` runs the SQLite online backup each day at
-03:15 into `~/.brutus/backups/canon`, retains 14 days, and writes a SHA-256
+`com.clearspeed.alicia-canon-backup` runs the SQLite online backup each day at
+03:15 into `~/.alicia/backups/canon`, retains 14 days, and writes a SHA-256
 sidecar. Verify the newest backup with
-`~/.brutus/app/.venv/bin/python ~/.brutus/app/scripts/canon-backup.py verify`;
+`~/.alicia/app/.venv/bin/python ~/.alicia/app/scripts/canon-backup.py verify`;
 verification restores into a temporary directory and never touches live state.
 
 ### GitHub Evidence ingestion
 
-Brutus is loopback-only, so production uses
-`com.clearspeed.brutus-canon-github` to poll the authenticated GitHub API every
+Alicia is loopback-only, so production uses
+`com.clearspeed.alicia-canon-github` to poll the authenticated GitHub API every
 five minutes. PR and workflow ids, repository, SHA, and the derived delivery id
 are persisted on Evidence. The inbound `/webhooks/github` route is retained for
 future use but fails closed without a valid HMAC signature and delivery id.
@@ -149,33 +149,33 @@ future use but fails closed without a valid HMAC signature and delivery id.
 ## Commands
 
 ```bash
-brutus health
-brutus digest
-brutus brief
-brutus reconcile
-brutus ingest-linear
-brutus register "Fix X" --id REV-61
-brutus chat "what's open"
-brutus dispatch --dry-run
-brutus frontier
-brutus cursor
-brutus approve REV-61
-brutus mcp                 # stdio MCP for Cursor
+alicia health
+alicia digest
+alicia brief
+alicia reconcile
+alicia ingest-linear
+alicia register "Fix X" --id REV-61
+alicia chat "what's open"
+alicia dispatch --dry-run
+alicia frontier
+alicia cursor
+alicia approve REV-61
+alicia mcp                 # stdio MCP for Cursor
 ```
 
 ## Design: everything comes from shine
 
-Three screens, one token layer. `/` (the board) is served from `brutus/ui.py` —
+Three screens, one token layer. `/` (the board) is served from `alicia/ui.py` —
 HTML and CSS inside Python string literals — while `/session` and `/mobile` use
-`brutus/static/*.css`. All three read the same vendored tokens.
+`alicia/static/*.css`. All three read the same vendored tokens.
 
 ```bash
-scripts/sync-shine-tokens.sh            # re-vendor brutus/static/shine-tokens.css
+scripts/sync-shine-tokens.sh            # re-vendor alicia/static/shine-tokens.css
 scripts/sync-shine-tokens.sh --check    # exit 1 if the copy is behind shine
-node ~/Projects/shine/hooks/design-lint.mjs brutus/ui.py brutus/static/*.css
+node ~/Projects/shine/hooks/design-lint.mjs alicia/ui.py alicia/static/*.css
 ```
 
-Brutus has no build step, so `brutus/static/shine-tokens.css` is a **copy** of
+Alicia has no build step, so `alicia/static/shine-tokens.css` is a **copy** of
 `shine/tokens/dist/personal/artifact.css`. Never hand-edit it; re-vendor with the
 script. `shine/verify/doctor.mjs` calls the `--check` mode, so a stale copy fails
 shine's own checks rather than going unnoticed.

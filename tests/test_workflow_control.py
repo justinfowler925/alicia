@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from brutus.canon import (
+from alicia.canon import (
     DEFAULT_IDENTITY_REGISTRY,
     CanonError,
     CanonStore,
@@ -14,7 +14,7 @@ from brutus.canon import (
     WorkItemState,
     transition,
 )
-from brutus.workflow_control import (
+from alicia.workflow_control import (
     attach_delivery_receipt,
     batch_feedback,
     bind_delivery_policy,
@@ -82,7 +82,7 @@ def _receipt(work, requirement_id, *, captured_at=None, digest="sha-1", result="
         requirement_id=requirement_id,
         result=result,
         artifact_digest=digest,
-        target="local-brutus" if requirement_id in {"deploy", "production"} else None,
+        target="local-alicia" if requirement_id in {"deploy", "production"} else None,
         captured_at=captured_at or datetime.now(UTC),
     )
 
@@ -151,13 +151,13 @@ def test_router_continues_exact_canon_work_and_does_not_create_duplicate():
     store = CanonStore()
     existing = WorkItem(title="Build workflow control")
     store.save(existing)
-    projects = [{"name": "brutus", "path": "/repo/brutus", "project_id": "github/brutus"}]
+    projects = [{"name": "alicia", "path": "/repo/alicia", "project_id": "github/alicia"}]
 
     result = route_work(
         "Build workflow control",
         store=store,
         projects=projects,
-        repo_hint="brutus",
+        repo_hint="alicia",
         create=True,
     )
 
@@ -170,44 +170,44 @@ def test_router_rejects_broad_root_and_selects_active_worktree():
     store = CanonStore()
     projects = [
         {
-            "name": "brutus",
-            "path": "/repo/brutus",
-            "project_id": "github/brutus",
+            "name": "alicia",
+            "path": "/repo/alicia",
+            "project_id": "github/alicia",
             "is_worktree": False,
             "last_commit_epoch": 10,
         },
         {
-            "name": "brutus-feature",
-            "path": "/repo/brutus-wt/feature",
-            "project_id": "github/brutus",
+            "name": "alicia-feature",
+            "path": "/repo/alicia-wt/feature",
+            "project_id": "github/alicia",
             "is_worktree": True,
             "last_commit_epoch": 20,
         },
     ]
-    sessions = [{"id": "codex:1", "title": "Other", "state": "running", "cwd": "/repo/brutus-wt/feature"}]
+    sessions = [{"id": "codex:1", "title": "Other", "state": "running", "cwd": "/repo/alicia-wt/feature"}]
 
     result = route_work(
-        "Fix Brutus delivery",
+        "Fix Alicia delivery",
         store=store,
         projects=projects,
         sessions=sessions,
-        repo_hint="/repo/brutus",
+        repo_hint="/repo/alicia",
         cwd=str(__import__("pathlib").Path.home() / "Projects"),
     )
 
     assert result.action == "create"
     assert result.broad_root_rejected is True
-    assert result.repository_path == "/repo/brutus"
-    assert result.worktree_path == "/repo/brutus-wt/feature"
+    assert result.repository_path == "/repo/alicia"
+    assert result.worktree_path == "/repo/alicia-wt/feature"
     assert result.needs_worktree is False
 
 
 @pytest.mark.parametrize(
     ("prompt_text", "expected"),
     [
-        ("Fix Brutus delivery", "/repo/brutus"),
-        ("Run tests in Brutus", "/repo/brutus"),
-        ("Deploy Brutus", "/repo/brutus"),
+        ("Fix Alicia delivery", "/repo/alicia"),
+        ("Run tests in Alicia", "/repo/alicia"),
+        ("Deploy Alicia", "/repo/alicia"),
         ("Update Fowler Brain rules", "/repo/fowler-brain"),
         ("Fix the Fowler Brain workflow", "/repo/fowler-brain"),
         ("Commit Fowler Brain changes", "/repo/fowler-brain"),
@@ -232,7 +232,7 @@ def test_router_rejects_broad_root_and_selects_active_worktree():
     ],
 )
 def test_route_guard_routes_labeled_repository_mutations(prompt_text, expected):
-    names = ("brutus", "fowler-brain", "cro-suite", "nucleus", "atlas-direct", "hollywood", "clarity", "shine")
+    names = ("alicia", "fowler-brain", "cro-suite", "nucleus", "atlas-direct", "hollywood", "clarity", "shine")
     projects = [
         {"name": name, "path": f"/repo/{name}", "project_id": f"github/{name}"}
         for name in names
@@ -249,7 +249,7 @@ def test_route_guard_routes_labeled_repository_mutations(prompt_text, expected):
 
 def test_route_guard_blocks_ambiguous_mutation_but_allows_read_only_broad_work():
     broad = str(__import__("pathlib").Path.home() / "Projects")
-    projects = [{"name": "brutus", "path": "/repo/brutus", "project_id": "github/brutus"}]
+    projects = [{"name": "alicia", "path": "/repo/alicia", "project_id": "github/alicia"}]
 
     ambiguous = evaluate_route_guard({"cwd": broad, "prompt": "fix this"}, projects=projects)
     inspection = evaluate_route_guard(
@@ -264,13 +264,13 @@ def test_route_guard_blocks_ambiguous_mutation_but_allows_read_only_broad_work()
 
 def test_router_does_not_treat_unrelated_ticket_as_a_match():
     store = CanonStore()
-    projects = [{"name": "brutus", "path": "/repo/brutus", "project_id": "github/brutus"}]
+    projects = [{"name": "alicia", "path": "/repo/alicia", "project_id": "github/alicia"}]
     result = route_work(
-        "Fix Brutus delivery",
+        "Fix Alicia delivery",
         store=store,
         projects=projects,
         tickets=[{"id": "REV-1", "relationship": "unrelated", "status": "open"}],
-        repo_hint="brutus",
+        repo_hint="alicia",
     )
     assert result.action == "create"
     assert result.ticket_id == ""
@@ -435,8 +435,8 @@ def test_scorecard_exposes_denominators_and_source_gaps():
             "cwd": str(__import__("pathlib").Path.home() / "Projects"),
             "transcript_excerpt": "please continue and finish",
         },
-        {"title": "Build router", "cwd": "/repo/brutus", "transcript_excerpt": "done"},
-        {"title": "Build router", "cwd": "/repo/brutus", "transcript_excerpt": "done"},
+        {"title": "Build router", "cwd": "/repo/alicia", "transcript_excerpt": "done"},
+        {"title": "Build router", "cwd": "/repo/alicia", "transcript_excerpt": "done"},
     ]
     card = build_efficiency_scorecard(
         sessions,

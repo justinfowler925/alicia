@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from brutus.ear import Ear
-from brutus.voice import save_wav
+from alicia.ear import Ear
+from alicia.voice import save_wav
 
 
 def test_status_reports_missing_pynput() -> None:
     ear = Ear(on_utterance=lambda _pcm: None)
-    with patch("brutus.ear._load_keyboard", return_value=False):
+    with patch("alicia.ear._load_keyboard", return_value=False):
         status = ear.start()
     assert status["listening"] is False
     assert "pynput" in (ear.last_error or "")
@@ -18,8 +18,8 @@ def test_status_reports_missing_pynput() -> None:
 
 def test_status_reports_missing_pyaudio() -> None:
     ear = Ear(on_utterance=lambda _pcm: None)
-    with patch("brutus.ear._load_keyboard", return_value=True), patch(
-        "brutus.ear.HAS_PYAUDIO", False
+    with patch("alicia.ear._load_keyboard", return_value=True), patch(
+        "alicia.ear.HAS_PYAUDIO", False
     ):
         status = ear.start()
     assert status["listening"] is False
@@ -61,5 +61,5 @@ def test_stop_record_drops_digital_silence(tmp_path) -> None:
 
 def test_target_key_matches_right_option_only() -> None:
     ear = Ear(on_utterance=lambda _pcm: None, hotkey="alt_r")
-    with patch("brutus.ear.HAS_PYNPUT", False):
+    with patch("alicia.ear.HAS_PYNPUT", False):
         assert ear._target_key(object()) is False

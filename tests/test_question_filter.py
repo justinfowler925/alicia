@@ -1,4 +1,4 @@
-from brutus.client import question_is_real
+from alicia.client import question_is_real
 
 
 def test_question_is_real():

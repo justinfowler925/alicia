@@ -1,4 +1,4 @@
-from brutus.unfog_compiler import (
+from alicia.unfog_compiler import (
     ActiveWork,
     TicketCandidate,
     UnfogContract,
@@ -10,7 +10,7 @@ from brutus.unfog_compiler import (
 def complete_contract(**changes):
     values = {
         "outcome": "Voice reports the one intervention that advances inflight work",
-        "target": "Brutus voice supervisor",
+        "target": "Alicia voice supervisor",
         "premise": "Session lifecycle evidence is available",
         "scope": "All 3 configured agent providers; 3 checked, 3 affected",
         "preservation": "Native sessions, existing tickets, and unrelated work",

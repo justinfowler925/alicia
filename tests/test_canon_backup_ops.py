@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from brutus.canon import CanonStore, WorkItem
+from alicia.canon import CanonStore, WorkItem
 
 
 def _module():
@@ -24,8 +24,8 @@ def _module():
 def test_backup_checksum_and_restore_are_real(tmp_path, monkeypatch):
     live = tmp_path / "state" / "canon.sqlite"
     backups = tmp_path / "backups"
-    monkeypatch.setenv("BRUTUS_CANON_DB_PATH", str(live))
-    monkeypatch.setenv("BRUTUS_CANON_BACKUP_DIR", str(backups))
+    monkeypatch.setenv("ALICIA_CANON_DB_PATH", str(live))
+    monkeypatch.setenv("ALICIA_CANON_BACKUP_DIR", str(backups))
     live.parent.mkdir(parents=True)
     store = CanonStore(live)
     store.save(WorkItem(title="survives restore"))
@@ -44,8 +44,8 @@ def test_backup_checksum_and_restore_are_real(tmp_path, monkeypatch):
 def test_stale_and_tampered_backups_fail_closed(tmp_path, monkeypatch):
     live = tmp_path / "state" / "canon.sqlite"
     backups = tmp_path / "backups"
-    monkeypatch.setenv("BRUTUS_CANON_DB_PATH", str(live))
-    monkeypatch.setenv("BRUTUS_CANON_BACKUP_DIR", str(backups))
+    monkeypatch.setenv("ALICIA_CANON_DB_PATH", str(live))
+    monkeypatch.setenv("ALICIA_CANON_BACKUP_DIR", str(backups))
     live.parent.mkdir(parents=True)
     CanonStore(live).close()
     ops = _module()

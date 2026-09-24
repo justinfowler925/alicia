@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
   const id='ef503ece-22a1-40a8-a507-40e39066af43';
   let mode='running', stopped=false;
   const started=Date.now()/1000-30;
-  await page.addInitScript(id=>localStorage.setItem('brutus.forge.thread',id),id);
+  await page.addInitScript(id=>localStorage.setItem('alicia.forge.thread',id),id);
   await page.route('**/api/forge/request',async route=>{
    const body=route.request().postDataJSON();
    if(mode==='offline') return route.fulfill({status:503,contentType:'application/json',body:'{"detail":"Test Studio connection unavailable"}'});

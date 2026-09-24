@@ -1,6 +1,6 @@
 # Studio runs
 
-Open **Studio** in the Brutus navigation, or `http://127.0.0.1:8768/#/studio`.
+Open **Studio** in the Alicia navigation, or `http://127.0.0.1:8768/#/studio`.
 On mobile, use **More → Studio runs**. Search by job/feed name, filter by state,
 then open **Details** for run evidence and the bounded latest/error log or receipt.
 The default view and summary show **data feeds only** (10 at the September 9 audit).
@@ -13,7 +13,7 @@ New unclassified jobs are visible under **Needs classification**, with a notice 
 The `com.jfstudio.brutus-studio-runs` LaunchAgent runs a read-only collector on
 Studio every minute. It writes a mode-0600 atomic snapshot under
 `~/.local/share/brutus-studio-runs/`. It does not execute or modify monitored
-jobs. Brutus reads that snapshot over SSH, with a 20-second request cache and a
+jobs. Alicia reads that snapshot over SSH, with a 20-second request cache and a
 persistent offline cache. Collection continues while the laptop is asleep.
 
 Sources:
@@ -33,7 +33,7 @@ Sources:
 The September 9 initial inventory checked 48 launchd definitions and returned
 64 jobs/services, including 16 Atlas journals. One malformed launchd plist
 (`com.jfstudio.atlas-dispatch-gc`) is represented with an inspection error.
-User crontab was empty. Brutus Canon inspection covered 211 evidence rows;
+User crontab was empty. Alicia Canon inspection covered 211 evidence rows;
 seven mentioned these workflows, but none carried structured feed job IDs.
 Those records are not treated as run receipts. “Red Ops” is represented by the
 existing revenue intelligence / RevOps jobs; no separate service with that exact
@@ -73,7 +73,7 @@ feed families appear under Data feeds; unfamiliar jobs appear under Needs classi
 Set `"category": "feed"` in its descriptor to include it in the feed summary. Other values:
 `service`, `maintenance`, `sandbox`, `inactive`, `history`, `unclassified`.
 Classification never depends on success/failure; broken feeds remain visible.
-No Brutus release is needed. Descriptive names, source, daily cadence overriding
+No Alicia release is needed. Descriptive names, source, daily cadence overriding
 a polling tick, precise receipts, or non-launchd feeds can be configured on Studio
 in `~/.local/share/brutus-studio-runs/jobs.json`:
 
@@ -118,10 +118,10 @@ receipt and let the observer retain recent evidence and last success.
 
 ## Installation and verification
 
-From the Brutus checkout run `./scripts/install-studio-runs.sh`, then the standard
-Brutus `./scripts/deploy.sh` after landing the change. The installer replaces only
+From the Alicia checkout run `./scripts/install-studio-runs.sh`, then the standard
+Alicia `./scripts/deploy.sh` after landing the change. The installer replaces only
 the observer; feed schedules, commands and payloads are unchanged. Override SSH
-host with `BRUTUS_STUDIO_SSH` in the installer and Brutus service if necessary.
+host with `ALICIA_STUDIO_SSH` in the installer and Alicia service if necessary.
 The current deployment uses the existing Studio account/path conventions.
 
 Read-only endpoints: `GET /api/studio-runs` and
@@ -139,14 +139,14 @@ in Node's normal module search path.
 
 ## UI verification notes
 
-Product precedent: Brutus Nucleus native grid (same token stylesheet and grid
+Product precedent: Alicia Nucleus native grid (same token stylesheet and grid
 classes, shared native row ordering). Catalog reference: `shadcn-queue`.
 The rendered tab was tested at 1440px and 390px with no page JavaScript errors
 or viewport overflow. Independent browser checks exercised search/clear,
 health filter, ascending/descending ordering, pagination, Nevada details,
 loading, empty, error/retry, and stale/offline data. Shine's accessibility pass
 reported zero axe violations and measured text contrast at least 6.93:1.
-Its full aggregate certification is not claimed: the existing Brutus SSE page
+Its full aggregate certification is not claimed: the existing Alicia SSE page
 prevents the tool's network-idle reference capture, and its strict shared-table
 source verifier does not establish the Python-composed native UI's provenance.
 
@@ -184,4 +184,4 @@ Scripts, logs, receipts and historical journals were preserved.
 
 A receipt may include `verification_scope` to disclose omitted steps, such as notifications disabled during an operator-approved data publication check. The scope appears in Details and remains in the receipt.
 
-For a read-only diagnostic that did not execute the feed, register `verification_receipt_path` separately from `receipt_path`. Brutus shows the diagnostic result and timestamp in Details while preserving the actual scheduled-run status and last successful publication. A passing diagnostic must not turn a failed publication green.
+For a read-only diagnostic that did not execute the feed, register `verification_receipt_path` separately from `receipt_path`. Alicia shows the diagnostic result and timestamp in Details while preserving the actual scheduled-run status and last successful publication. A passing diagnostic must not turn a failed publication green.

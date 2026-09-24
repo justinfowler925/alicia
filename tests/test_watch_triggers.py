@@ -5,9 +5,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from brutus.canon import CanonStore, Watch, WorkItem, WorkItemState, transition
-from brutus.canon.cli import _run_watch_command
-from brutus.canon.watches import trigger_state
+from alicia.canon import CanonStore, Watch, WorkItem, WorkItemState, transition
+from alicia.canon.cli import _run_watch_command
+from alicia.canon.watches import trigger_state
 
 
 def _watch(store: CanonStore, work_item: WorkItem, *, condition: str = "blocked") -> Watch:
@@ -28,7 +28,7 @@ def test_matching_transition_dispatches_slack_with_work_item_context() -> None:
         store.save(work_item)
         watch = _watch(store, work_item)
 
-        with patch("brutus.canon.watches.send_slack_message") as send_slack:
+        with patch("alicia.canon.watches.send_slack_message") as send_slack:
             transition(work_item, WorkItemState.BLOCKED, "worker", reason="waiting for API")
             store.save(work_item)
 
@@ -53,7 +53,7 @@ def test_non_matching_transition_does_not_dispatch() -> None:
         store.save(work_item)
         _watch(store, work_item, condition="state == review")
 
-        with patch("brutus.canon.watches.send_slack_message") as send_slack:
+        with patch("alicia.canon.watches.send_slack_message") as send_slack:
             transition(work_item, WorkItemState.BLOCKED, "worker", reason="waiting for API")
             store.save(work_item)
 
@@ -69,7 +69,7 @@ def test_repeat_save_of_same_state_entry_does_not_dispatch_twice() -> None:
         store.save(work_item)
         _watch(store, work_item)
 
-        with patch("brutus.canon.watches.send_slack_message") as send_slack:
+        with patch("alicia.canon.watches.send_slack_message") as send_slack:
             transition(work_item, WorkItemState.BLOCKED, "worker", reason="waiting for API")
             store.save(work_item)
             store.save(work_item)
@@ -93,7 +93,7 @@ def test_watch_cli_lists_shows_and_force_tests_a_watch(capsys) -> None:
         assert '"trigger_condition": "triage"' in capsys.readouterr().out
 
         sender = Mock()
-        with patch("brutus.canon.watches.send_slack_message", sender):
+        with patch("alicia.canon.watches.send_slack_message", sender):
             _run_watch_command(store, SimpleNamespace(watch_command="test", watch_id=watch.id))
         assert "delivered" in capsys.readouterr().out
         sender.assert_called_once()

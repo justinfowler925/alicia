@@ -1,4 +1,4 @@
-# Brutus UI — Shine audit build plan
+# Alicia UI — Shine audit build plan
 
 > **Historical scope:** For the current voice, session-continuity and release direction, use the [Apple accessibility reset plan](APPLE_ACCESSIBILITY_RESET_PLAN.md). This document remains evidence of its dated work; it does not override the reset requirements or prove current voice acceptance.
 
@@ -7,7 +7,7 @@
 **Surfaces:** `/session`, `/mobile`, Ops `/` (`ui.py`)  
 **Method:** shine audit rubric + `node ~/Projects/shine/verify/measure.mjs` + Playwright geometry  
 **Verdict:** polish (`/session`, `/mobile`) · redesign-tokens (Ops `/`)  
-**Repository:** https://github.com/justinfowler925/brutus
+**Repository:** https://github.com/justinfowler925/alicia
 
 ---
 
@@ -45,10 +45,10 @@
 | OOS3 | Anam/Avatar/DemoMaker/Atlas5 shine | Wave C tokens; page `<section aria-label=…>` wrappers |
 | OOS4 | sync→consult + hey rewind | `tests/test_conversation.py` deep + rewind suite green |
 | OOS5 | Mobile Ideas/Ledger/Thinking | sheets + SSE + CRUD; `test_mobile_oos5_*` |
-| OOS6 | i18n/RTL foundation | `lang`/`dir` on html; `brutus.dir` localStorage; `[dir=rtl]` CSS |
-| OOS7 | Light mode | `[data-theme=light]` tokens; `brutus.theme` toggle session/mobile/Ops |
+| OOS6 | i18n/RTL foundation | `lang`/`dir` on html; `alicia.dir` localStorage; `[dir=rtl]` CSS |
+| OOS7 | Light mode | `[data-theme=light]` tokens; `alicia.theme` toggle session/mobile/Ops |
 | OOS8 | Ops board SSE | `EventSource /api/session/board/events`; no `setInterval(loadBoard` |
-| OOS9 | Brand-checker | N/A for Clearspeed marketing — personal Brutus voice; no CS brand surface |
+| OOS9 | Brand-checker | N/A for Clearspeed marketing — personal Alicia voice; no CS brand surface |
 | OOS10 | measure.mjs `--shine-*` | `~/Projects/shine/verify/measure.mjs` probes shine tokens + `getClientRects` line boxes |
 
 ---
@@ -67,7 +67,7 @@
 PYTHONPATH=. pytest tests/test_server.py tests/test_mobile.py tests/test_conversation.py -q
 node ~/Projects/shine/verify/measure.mjs http://127.0.0.1:8768/session --dark
 node ~/Projects/shine/verify/measure.mjs http://127.0.0.1:8768/mobile --dark
-~/.brutus/app/scripts/deploy.sh
+~/.alicia/app/scripts/deploy.sh
 ```
 
 ### Progress

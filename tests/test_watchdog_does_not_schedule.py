@@ -1,4 +1,4 @@
-"""Brutus is not Atlas's scheduler — Phase 4 step 4.
+"""Alicia is not Atlas's scheduler — Phase 4 step 4.
 
 The watchdog used to drive Atlas's loop from the laptop: ``/api/status``,
 ``/api/reconcile``, ``/api/dispatch/tick`` and ``run_cursor_tick``, every 60
@@ -15,13 +15,13 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from brutus.config import BrutusCfg, LocalLLMCfg
-from brutus.watchdog import SCHEDULER_OWNER, Watchdog
+from alicia.config import AliciaCfg, LocalLLMCfg
+from alicia.watchdog import SCHEDULER_OWNER, Watchdog
 
 
 def _wd(**kw) -> tuple[Watchdog, MagicMock]:
     client = MagicMock()
-    cfg = BrutusCfg(watchdog_enabled=True, **kw)
+    cfg = AliciaCfg(watchdog_enabled=True, **kw)
     wd = Watchdog(cfg, client=client)
     # __init__ does `client or AtlasClient(cfg)`, which records a __bool__ call.
     # Reset so the assertions below are about the TICK, not construction.
@@ -57,14 +57,14 @@ def test_tick_does_not_run_the_cursor_lane(monkeypatch):
         return {}
 
     # The import is gone; belt-and-braces in case someone re-adds it.
-    monkeypatch.setattr("brutus.cursor_runner.run_cursor_tick", _boom)
+    monkeypatch.setattr("alicia.cursor_runner.run_cursor_tick", _boom)
     wd, _client = _wd()
     wd.tick_once()
     assert called is False
 
 
 def test_watchdog_module_does_not_import_the_cursor_runner():
-    import brutus.watchdog as mod
+    import alicia.watchdog as mod
 
     src = open(mod.__file__).read()
     code = "\n".join(
@@ -82,7 +82,7 @@ def test_tick_still_probes_the_local_router(monkeypatch):
         probes.append(1)
         return {"ok": True}
 
-    monkeypatch.setattr("brutus.watchdog.probe_generation", _probe)
+    monkeypatch.setattr("alicia.watchdog.probe_generation", _probe)
     wd, _client = _wd(local_llm=LocalLLMCfg(enabled=True))
     snap = wd.tick_once()
     assert probes == [1]
@@ -91,7 +91,7 @@ def test_tick_still_probes_the_local_router(monkeypatch):
 
 
 def test_snapshot_names_the_standalone_scope():
-    """Health must not claim Brutus owns a remote scheduler."""
+    """Health must not claim Alicia owns a remote scheduler."""
     wd, _client = _wd()
     assert wd.snapshot()["scheduler"] == SCHEDULER_OWNER
     assert SCHEDULER_OWNER == "standalone-local-only"
@@ -110,7 +110,7 @@ def test_a_failing_probe_does_not_raise_out_of_the_tick(monkeypatch):
     def _boom(_cfg):
         raise RuntimeError("router unreachable")
 
-    monkeypatch.setattr("brutus.watchdog.probe_generation", _boom)
+    monkeypatch.setattr("alicia.watchdog.probe_generation", _boom)
     wd, _client = _wd(local_llm=LocalLLMCfg(enabled=True))
     snap = wd.tick_once()
     assert snap["last_errors"] and "router unreachable" in snap["last_errors"][0]

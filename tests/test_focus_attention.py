@@ -5,7 +5,7 @@ a third of them synthetic probes, and one dependency fault fanned out into 12
 identical gates.
 """
 
-from brutus.focus import attach_focus, build_board, build_focus, human_reason, is_probe
+from alicia.focus import attach_focus, build_board, build_focus, human_reason, is_probe
 
 
 def _thread(ext: str, *, blocker: str = "", title: str = "Real work") -> dict:
@@ -152,7 +152,7 @@ def test_no_grounding_questions_become_retriage_not_decisions():
 
 def test_studio_down_never_reports_atlas5_healthy():
     """Regression for the original lie: an outage must not look like an empty queue."""
-    from brutus.client import question_is_real, question_needs_retriage
+    from alicia.client import question_is_real, question_needs_retriage
 
     assert question_needs_retriage("The provided research contains no grounding data (x)")
     assert not question_needs_retriage("Which sandbox alias should I use?")
@@ -165,7 +165,7 @@ def test_board_retriage_parked_rows_get_a_visible_steer_group():
     were dropped from needs_you and appeared in NO board section — REV-218/222/
     291/292 sat frozen 15 days. They must land in Stuck as a bot-side group
     whose remedy is steering (they have no atlas6 thread_ids to requeue)."""
-    from brutus.focus import build_board
+    from alicia.focus import build_board
 
     status = {
         "blocked_justin": [],

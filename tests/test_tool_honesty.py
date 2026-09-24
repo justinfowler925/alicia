@@ -1,4 +1,4 @@
-"""Brutus must never report work it did not do.
+"""Alicia must never report work it did not do.
 
 Every test here corresponds to a measured failure against the live 14B, not a
 hypothetical. The headline one: given "approve REV-412" the model answered
@@ -10,9 +10,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brutus.chat_resolve import _lookup_intent, _summarize_tool_result
-from brutus.config import BrutusCfg
-from brutus.tools import Tool, ToolRegistry, build_default_registry, format_tool_catalog
+from alicia.chat_resolve import _lookup_intent, _summarize_tool_result
+from alicia.config import AliciaCfg
+from alicia.tools import Tool, ToolRegistry, build_default_registry, format_tool_catalog
 
 # --- the approve contract -------------------------------------------------
 
@@ -30,19 +30,19 @@ def test_bare_ticket_still_reads():
 
 
 def test_approve_gate_is_absent_even_when_local_writes_are_allowed():
-    reg = build_default_registry(MagicMock(), BrutusCfg(), read_only=False)
+    reg = build_default_registry(MagicMock(), AliciaCfg(), read_only=False)
     assert reg.get("approve_gate") is None
 
 
 def test_approve_gate_is_absent_in_read_only():
-    reg = build_default_registry(MagicMock(), BrutusCfg(), read_only=True)
+    reg = build_default_registry(MagicMock(), AliciaCfg(), read_only=True)
     assert reg.get("approve_gate") is None
 
 
 def test_approve_gate_cannot_reach_the_ledger():
     client = MagicMock()
     client.approve.return_value = {"status": "approved", "id": "REV-412"}
-    reg = build_default_registry(client, BrutusCfg(), read_only=False)
+    reg = build_default_registry(client, AliciaCfg(), read_only=False)
     out = reg.call("approve_gate", {"ticket": "REV-412"})
     assert out["ok"] is False
     client.approve.assert_not_called()
@@ -51,7 +51,7 @@ def test_approve_gate_cannot_reach_the_ledger():
 def test_approve_gate_is_unavailable_without_calling_atlas():
     client = MagicMock()
     client.approve.side_effect = RuntimeError("atlas6 unreachable")
-    reg = build_default_registry(client, BrutusCfg(), read_only=False)
+    reg = build_default_registry(client, AliciaCfg(), read_only=False)
     out = reg.call("approve_gate", {"ticket": "REV-412"})
     assert out["ok"] is False
     client.approve.assert_not_called()
@@ -143,7 +143,7 @@ def test_summarizer_refuses_to_dress_up_a_broken_call():
     a network mock, the short-circuit has regressed.
     """
     out = _summarize_tool_result(
-        BrutusCfg(),
+        AliciaCfg(),
         "approve_gate",
         {"ok": False, "broken": True, "error": "approve_gate requires ticket."},
         "approve REV-412",
@@ -189,7 +189,7 @@ def test_catalog_marks_required_arguments_without_a_question_mark():
 @pytest.mark.parametrize("read_only", [True, False])
 def test_every_real_tool_declares_its_arguments(read_only):
     """A tool with args but an empty schema is one the model must guess at."""
-    reg = build_default_registry(MagicMock(), BrutusCfg(), read_only=read_only)
+    reg = build_default_registry(MagicMock(), AliciaCfg(), read_only=read_only)
     catalog = format_tool_catalog(reg)
     for name in reg._tools:
         assert f"{name}(" in catalog, f"{name} missing from the catalog"
@@ -204,7 +204,7 @@ def test_declared_arguments_are_actually_accepted(read_only):
     to fail against a MagicMock client — that is fine; only an argument-shape
     rejection is a defect.
     """
-    reg = build_default_registry(MagicMock(), BrutusCfg(), read_only=read_only)
+    reg = build_default_registry(MagicMock(), AliciaCfg(), read_only=read_only)
     for name, tool in reg._tools.items():
         props = (tool.parameters or {}).get("properties", {}) or {}
         args = {}

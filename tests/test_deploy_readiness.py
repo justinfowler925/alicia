@@ -106,5 +106,5 @@ def test_release_payload_gate_rejects_cached_wheel_and_missing_modules(tmp_path)
     with pytest.raises(ValueError, match="studio_ui.py"):
         module.verify(source, installed)
     text = DEPLOY.read_text()
-    assert "--reinstall-package brutus" in text
+    assert "--reinstall-package alicia" in text
     assert "scripts/verify-runtime-package.py" in text

@@ -1,10 +1,10 @@
-"""Tests for the REV-513 canonical Work Object model (brutus/canon/)."""
+"""Tests for the REV-513 canonical Work Object model (alicia/canon/)."""
 
 from datetime import datetime, timezone
 
 import pytest
 
-from brutus.canon import (
+from alicia.canon import (
     DEFAULT_IDENTITY_REGISTRY,
     Approval,
     ApprovalStatus,

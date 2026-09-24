@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from brutus.canon import (
+from alicia.canon import (
     CanonError,
     CanonStore,
     Decision,
@@ -23,14 +23,14 @@ from brutus.canon import (
     transition,
 )
 
-# brutus_stack is vendored as a portable package rather than included in the
+# alicia_stack is vendored as a portable package rather than included in the
 # main wheel; the Canon CLI imports the retained Hands/Prove package at runtime.
-_STACK_ROOT = Path(__file__).resolve().parents[1] / "brutus_stack"
+_STACK_ROOT = Path(__file__).resolve().parents[1] / "alicia_stack"
 if str(_STACK_ROOT) not in sys.path:
     sys.path.insert(0, str(_STACK_ROOT))
 
-from brutus_stack.hands import CanonHandsDispatcher, transition_run_to_review
-from brutus_stack.types import HandsResult
+from alicia_stack.hands import CanonHandsDispatcher, transition_run_to_review
+from alicia_stack.types import HandsResult
 
 OWNER = "justin.fowler@clearspeed.com"
 WORKER = "atlas6-worker"
@@ -41,7 +41,7 @@ TEST_SHA = "a" * 40
 def _stub_sha_on_main(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep receipt tests independent of the checkout's remote refs."""
     monkeypatch.setattr(
-        "brutus_stack.prove._sha_on_main",
+        "alicia_stack.prove._sha_on_main",
         lambda sha, root: (True, "controlled test ancestry"),
     )
 
@@ -83,7 +83,7 @@ def _dispatch(store: CanonStore, work_item: WorkItem) -> tuple[HandsResult, Run]
             "sha": TEST_SHA,
             "test_command": "pytest -q",
             "test_exit_code": 0,
-            "pull_request": "https://github.com/justinfowler925/brutus/pull/514",
+            "pull_request": "https://github.com/justinfowler925/alicia/pull/514",
             "test_output": "pytest -q: 4 passed",
         },
         raw={"wired": True, "atlas_job_id": "atlas-job-514"},
@@ -94,14 +94,14 @@ def _dispatch(store: CanonStore, work_item: WorkItem) -> tuple[HandsResult, Run]
         store,
         actor="conversation:unknown",
         work_item_id=work_item.id,
-        target="github:justinfowler925/brutus",
+        target="github:justinfowler925/alicia",
         scope="wire Atlas worker dispatch to canon",
     )
 
     returned = hands.dispatch(
         {
             "template_id": "ship",
-            "fields": {"target": "brutus"},
+            "fields": {"target": "alicia"},
             "utterance": "wire Atlas dispatch to canon",
             # This is the best currently available caller identity. REV-519
             # will replace it with an authenticated identity.
@@ -120,7 +120,7 @@ def _save_verified_evidence(store: CanonStore, evidence: Evidence) -> None:
         store.save(evidence)
         return
 
-    from brutus.canon.identity import DEFAULT_IDENTITY_REGISTRY
+    from alicia.canon.identity import DEFAULT_IDENTITY_REGISTRY
 
     store.save(
         evidence,
@@ -137,7 +137,7 @@ def test_dispatch_creates_run_and_persists_worker_artifacts() -> None:
     assert returned.job_id == "atlas-job-514"
     assert run.actor == WORKER
     assert run.work_item_id == work_item.id
-    assert run.target == "github:justinfowler925/brutus"
+    assert run.target == "github:justinfowler925/alicia"
     assert run.scope == "wire Atlas worker dispatch to canon"
     assert run.started_at <= run.ended_at
     assert run.status == RunStatus.READY_FOR_REVIEW

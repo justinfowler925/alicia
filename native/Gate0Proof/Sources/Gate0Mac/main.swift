@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let logs = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".brutus/gate0-logs", isDirectory: true)
+            .appendingPathComponent(".alicia/gate0-logs", isDirectory: true)
         let log = EventLog(directory: logs)
         let session = ProofSession(log: log)
         let controller = ProofWindowController(session: session)

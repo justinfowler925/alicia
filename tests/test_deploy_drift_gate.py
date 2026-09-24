@@ -49,7 +49,7 @@ def test_deploy_can_target_a_named_ref_but_never_silently():
 
     deploy = (Path(__file__).parents[1] / "scripts/deploy.sh").read_text()
 
-    assert 'TARGET_REF="${BRUTUS_DEPLOY_REF:-origin/main}"' in deploy
+    assert 'TARGET_REF="${ALICIA_DEPLOY_REF:-origin/main}"' in deploy
     assert "--ref)" in deploy
     assert 'git -C "$APP" checkout -q --detach "$TARGET_REF"' in deploy
     # It announces itself, records itself, and reports itself afterwards.
@@ -57,7 +57,7 @@ def test_deploy_can_target_a_named_ref_but_never_silently():
     assert '"ref":"%s"' in deploy
     assert "NOT origin/main — a plain deploy will replace it" in deploy
     # And the default is unchanged.
-    assert deploy.count('BRUTUS_DEPLOY_REF:-origin/main') == 1
+    assert deploy.count('ALICIA_DEPLOY_REF:-origin/main') == 1
 
 
 def test_landing_never_mutates_the_active_gh_account():

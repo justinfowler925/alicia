@@ -142,6 +142,76 @@ wheels = [
 ]
 
 [[package]]
+name = "alicia"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "anthropic" },
+    { name = "cursor-sdk" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "mcp" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
+]
+voice = [
+    { name = "faster-whisper" },
+    { name = "livekit-agents" },
+    { name = "livekit-api" },
+    { name = "livekit-plugins-elevenlabs" },
+    { name = "livekit-plugins-silero" },
+    { name = "numpy" },
+    { name = "pyaudio" },
+    { name = "pynput" },
+    { name = "speechbrain" },
+    { name = "torch" },
+    { name = "torchaudio" },
+]
+voice-stream = [
+    { name = "livekit-agents" },
+    { name = "livekit-api" },
+    { name = "livekit-plugins-elevenlabs" },
+    { name = "livekit-plugins-silero" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anthropic", specifier = ">=0.69" },
+    { name = "cursor-sdk", specifier = ">=1.0.28,<2" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "faster-whisper", marker = "extra == 'voice'", specifier = ">=1.0" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "livekit-agents", marker = "extra == 'voice'", specifier = ">=1.7,<2" },
+    { name = "livekit-agents", marker = "extra == 'voice-stream'", specifier = ">=1.7,<2" },
+    { name = "livekit-api", marker = "extra == 'voice'", specifier = ">=1.2,<2" },
+    { name = "livekit-api", marker = "extra == 'voice-stream'", specifier = ">=1.2,<2" },
+    { name = "livekit-plugins-elevenlabs", marker = "extra == 'voice'", specifier = ">=1.7,<2" },
+    { name = "livekit-plugins-elevenlabs", marker = "extra == 'voice-stream'", specifier = ">=1.7,<2" },
+    { name = "livekit-plugins-silero", marker = "extra == 'voice'", specifier = ">=1.7,<2" },
+    { name = "livekit-plugins-silero", marker = "extra == 'voice-stream'", specifier = ">=1.7,<2" },
+    { name = "mcp", specifier = ">=1.2,<2" },
+    { name = "numpy", marker = "extra == 'voice'", specifier = ">=1.24" },
+    { name = "pyaudio", marker = "extra == 'voice'", specifier = ">=0.2" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "pynput", marker = "extra == 'voice'", specifier = ">=1.7" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
+    { name = "speechbrain", marker = "extra == 'voice'", specifier = ">=1.1,<2" },
+    { name = "torch", marker = "extra == 'voice'", specifier = "==2.11.0" },
+    { name = "torchaudio", marker = "extra == 'voice'", specifier = "==2.11.0" },
+    { name = "uvicorn", specifier = ">=0.32" },
+]
+provides-extras = ["dev", "voice", "voice-stream"]
+
+[[package]]
 name = "annotated-doc"
 version = "0.0.5"
 source = { registry = "https://pypi.org/simple" }
@@ -224,76 +294,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/d6/d6/bc4b95bea9c2353a7e4d62a3fcfad9adcf0f881741c6ce01ee179d539ce3/av-18.1.0-cp314-cp314t-win_amd64.whl", hash = "sha256:e4d48b9f12cad009cc72fe4f4099107de5e819c95f82767f4fd01a01481c0661", size = 28497798, upload-time = "2026-08-12T22:28:13.003Z" },
     { url = "https://files.pythonhosted.org/packages/c1/d2/0c277a46f12647c1833f40496e132fb6001e0d19e6144b5ea30896461feb/av-18.1.0-cp314-cp314t-win_arm64.whl", hash = "sha256:5cd9085028902c9880622bd37a12fd4b33060f06a52311f6f4867ca9f29a2c3b", size = 21421979, upload-time = "2026-08-12T22:28:16.48Z" },
 ]
-
-[[package]]
-name = "brutus"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "anthropic" },
-    { name = "cursor-sdk" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "mcp" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-    { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "ruff" },
-]
-voice = [
-    { name = "faster-whisper" },
-    { name = "livekit-agents" },
-    { name = "livekit-api" },
-    { name = "livekit-plugins-elevenlabs" },
-    { name = "livekit-plugins-silero" },
-    { name = "numpy" },
-    { name = "pyaudio" },
-    { name = "pynput" },
-    { name = "speechbrain" },
-    { name = "torch" },
-    { name = "torchaudio" },
-]
-voice-stream = [
-    { name = "livekit-agents" },
-    { name = "livekit-api" },
-    { name = "livekit-plugins-elevenlabs" },
-    { name = "livekit-plugins-silero" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "anthropic", specifier = ">=0.69" },
-    { name = "cursor-sdk", specifier = ">=1.0.28,<2" },
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "faster-whisper", marker = "extra == 'voice'", specifier = ">=1.0" },
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "livekit-agents", marker = "extra == 'voice'", specifier = ">=1.7,<2" },
-    { name = "livekit-agents", marker = "extra == 'voice-stream'", specifier = ">=1.7,<2" },
-    { name = "livekit-api", marker = "extra == 'voice'", specifier = ">=1.2,<2" },
-    { name = "livekit-api", marker = "extra == 'voice-stream'", specifier = ">=1.2,<2" },
-    { name = "livekit-plugins-elevenlabs", marker = "extra == 'voice'", specifier = ">=1.7,<2" },
-    { name = "livekit-plugins-elevenlabs", marker = "extra == 'voice-stream'", specifier = ">=1.7,<2" },
-    { name = "livekit-plugins-silero", marker = "extra == 'voice'", specifier = ">=1.7,<2" },
-    { name = "livekit-plugins-silero", marker = "extra == 'voice-stream'", specifier = ">=1.7,<2" },
-    { name = "mcp", specifier = ">=1.2,<2" },
-    { name = "numpy", marker = "extra == 'voice'", specifier = ">=1.24" },
-    { name = "pyaudio", marker = "extra == 'voice'", specifier = ">=0.2" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "pynput", marker = "extra == 'voice'", specifier = ">=1.7" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
-    { name = "speechbrain", marker = "extra == 'voice'", specifier = ">=1.1,<2" },
-    { name = "torch", marker = "extra == 'voice'", specifier = "==2.11.0" },
-    { name = "torchaudio", marker = "extra == 'voice'", specifier = "==2.11.0" },
-    { name = "uvicorn", specifier = ">=0.32" },
-]
-provides-extras = ["dev", "voice", "voice-stream"]
 
 [[package]]
 name = "certifi"

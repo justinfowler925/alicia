@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from brutus.linear_surface import TEAM_ID, create_linear_ticket, find_linear_ticket_candidates
-from brutus.tools import _create_linear_ticket_from_unfog
+from alicia.linear_surface import TEAM_ID, create_linear_ticket, find_linear_ticket_candidates
+from alicia.tools import _create_linear_ticket_from_unfog
 
 
 def test_create_linear_ticket_sends_one_exact_issue_mutation():
@@ -21,7 +21,7 @@ def test_create_linear_ticket_sends_one_exact_issue_mutation():
     client.post.return_value = response
     with (
         patch.dict("os.environ", {"LINEAR_API_KEY": "secret"}),
-        patch("brutus.linear_surface.httpx.Client", return_value=client),
+        patch("alicia.linear_surface.httpx.Client", return_value=client),
     ):
         result = create_linear_ticket(" Voice supervisor ", " Complete Unfog contract ")
 
@@ -54,7 +54,7 @@ def test_find_linear_candidates_marks_only_exact_title_as_exact():
     client.post.return_value = response
     with (
         patch.dict("os.environ", {"LINEAR_API_KEY": "secret"}),
-        patch("brutus.linear_surface.httpx.Client", return_value=client),
+        patch("alicia.linear_surface.httpx.Client", return_value=client),
     ):
         rows = find_linear_ticket_candidates("Voice supervisor")
     assert [row["relationship"] for row in rows] == ["exact", "related"]
@@ -64,7 +64,7 @@ def _contract() -> dict:
     return {
         "title": "Voice supervisor",
         "outcome": "Voice supervisor",
-        "target": "Brutus session surface",
+        "target": "Alicia session surface",
         "premise": "No matching ticket or live session exists.",
         "scope": "One production behavior",
         "preservation": "Existing sessions and tickets",
@@ -76,11 +76,11 @@ def _contract() -> dict:
 
 def test_ticket_execution_rechecks_linear_and_blocks_exact_duplicate():
     with (
-        patch("brutus.tools.find_linear_ticket_candidates", return_value=[{
+        patch("alicia.tools.find_linear_ticket_candidates", return_value=[{
             "ticket_id": "REV-1", "title": "Voice supervisor", "relationship": "exact", "status": "started"
         }]),
-        patch("brutus.tools.scan_agent_sessions", return_value=[]),
-        patch("brutus.tools.create_linear_ticket") as create,
+        patch("alicia.tools.scan_agent_sessions", return_value=[]),
+        patch("alicia.tools.create_linear_ticket") as create,
     ):
         result = _create_linear_ticket_from_unfog(**_contract())
     assert result["blocked"] is True
@@ -90,11 +90,11 @@ def test_ticket_execution_rechecks_linear_and_blocks_exact_duplicate():
 
 def test_ticket_execution_rechecks_live_sessions_and_blocks_duplicate_work():
     with (
-        patch("brutus.tools.find_linear_ticket_candidates", return_value=[]),
-        patch("brutus.tools.scan_agent_sessions", return_value=[{
+        patch("alicia.tools.find_linear_ticket_candidates", return_value=[]),
+        patch("alicia.tools.scan_agent_sessions", return_value=[{
             "id": "codex:one", "title": "Voice supervisor", "live": True
         }]),
-        patch("brutus.tools.create_linear_ticket") as create,
+        patch("alicia.tools.create_linear_ticket") as create,
     ):
         result = _create_linear_ticket_from_unfog(**_contract())
     assert result["decision"]["action"] == "continue"
@@ -103,9 +103,9 @@ def test_ticket_execution_rechecks_live_sessions_and_blocks_duplicate_work():
 
 def test_ticket_execution_builds_description_from_contract_after_clear_recheck():
     with (
-        patch("brutus.tools.find_linear_ticket_candidates", return_value=[]),
-        patch("brutus.tools.scan_agent_sessions", return_value=[]),
-        patch("brutus.tools.create_linear_ticket", return_value={"ok": True, "ticket": "REV-9"}) as create,
+        patch("alicia.tools.find_linear_ticket_candidates", return_value=[]),
+        patch("alicia.tools.scan_agent_sessions", return_value=[]),
+        patch("alicia.tools.create_linear_ticket", return_value={"ok": True, "ticket": "REV-9"}) as create,
     ):
         result = _create_linear_ticket_from_unfog(**_contract())
     assert result["ticket"] == "REV-9"

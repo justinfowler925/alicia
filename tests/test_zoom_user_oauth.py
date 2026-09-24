@@ -8,10 +8,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from brutus.config import BrutusCfg
-from brutus.server import create_app
-from brutus.zoom_api import ZoomAPIError
-from brutus.zoom_user_oauth import ZoomMyNotesClient, ZoomRefreshTokenStore
+from alicia.config import AliciaCfg
+from alicia.server import create_app
+from alicia.zoom_api import ZoomAPIError
+from alicia.zoom_user_oauth import ZoomMyNotesClient, ZoomRefreshTokenStore
 
 
 class _Store:
@@ -185,7 +185,7 @@ def test_canvas_search_discovers_notes_across_pages_and_maps_zoom_titles() -> No
 
 
 def test_server_wires_oauth_start_and_callback(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("BRUTUS_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ALICIA_STATE_DIR", str(tmp_path))
 
     class FakeOAuth:
         accepted = None
@@ -200,9 +200,9 @@ def test_server_wires_oauth_start_and_callback(tmp_path, monkeypatch) -> None:
             FakeOAuth.accepted = (code, state, expected_email)
             return {"email": expected_email}
 
-    monkeypatch.setattr("brutus.server.ZoomMyNotesClient", FakeOAuth)
-    cfg = BrutusCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    monkeypatch.setattr("alicia.server.ZoomMyNotesClient", FakeOAuth)
+    cfg = AliciaCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         with TestClient(create_app(cfg, start_watchdog=False)) as client:
             start = client.get("/api/zoom/oauth/start", follow_redirects=False)
@@ -210,12 +210,12 @@ def test_server_wires_oauth_start_and_callback(tmp_path, monkeypatch) -> None:
     assert start.status_code == 307
     assert start.headers["location"].startswith("https://zoom.us/oauth/authorize")
     assert callback.status_code == 200
-    assert "Brutus My Notes is connected" in callback.text
+    assert "Alicia My Notes is connected" in callback.text
     assert FakeOAuth.accepted == ("c", "s", "justin.fowler@clearspeed.com")
 
 
 def test_server_logs_safe_oauth_failure_detail(tmp_path, monkeypatch, caplog) -> None:
-    monkeypatch.setenv("BRUTUS_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ALICIA_STATE_DIR", str(tmp_path))
 
     class FailingOAuth:
         def __init__(self, **_kwargs) -> None:
@@ -224,12 +224,12 @@ def test_server_logs_safe_oauth_failure_detail(tmp_path, monkeypatch, caplog) ->
         def accept_callback(self, *_args, **_kwargs):
             raise ZoomAPIError("Zoom user token request failed: HTTP 400 (Invalid client_id)")
 
-    monkeypatch.setattr("brutus.server.ZoomMyNotesClient", FailingOAuth)
-    cfg = BrutusCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    monkeypatch.setattr("alicia.server.ZoomMyNotesClient", FailingOAuth)
+    cfg = AliciaCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         with TestClient(create_app(cfg, start_watchdog=False)) as client:
-            with caplog.at_level("WARNING", logger="brutus.server"):
+            with caplog.at_level("WARNING", logger="alicia.server"):
                 response = client.get("/api/zoom/oauth/callback?code=c&state=s")
     assert response.status_code == 400
     assert "Invalid client_id" in caplog.text

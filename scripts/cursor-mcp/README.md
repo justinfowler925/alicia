@@ -15,4 +15,4 @@ cp scripts/cursor-mcp/atlas-chat-tunnel.sh ~/.cursor/scripts/
 launchctl kickstart -k "gui/$(id -u)/com.clearspeed.atlas-chat-tunnel"
 ```
 
-Brutus portfolio tunnel is separate: `scripts/brutus-tunnel.sh` → `:8767`.
+Alicia portfolio tunnel is separate: `scripts/alicia-tunnel.sh` → `:8767`.

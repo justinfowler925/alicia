@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real-model regression for accepting Brutus's offered next step."""
+"""Real-model regression for accepting Alicia's offered next step."""
 
 from __future__ import annotations
 
@@ -11,13 +11,13 @@ import tempfile
 import time
 from pathlib import Path
 
-from brutus.client import AtlasClient
-from brutus.config import load_config
-from brutus.conversation import ConversationManager
-from brutus.memory import MemoryStore
-from brutus.session import SessionStore
-from brutus.todos import TodoStore
-from brutus.tools import Tool, ToolRegistry
+from alicia.client import AtlasClient
+from alicia.config import load_config
+from alicia.conversation import ConversationManager
+from alicia.memory import MemoryStore
+from alicia.session import SessionStore
+from alicia.todos import TodoStore
+from alicia.tools import Tool, ToolRegistry
 
 
 class FollowThroughManager(ConversationManager):
@@ -65,7 +65,7 @@ def main() -> None:
     cfg = load_config()
     rows: list[dict] = []
     for number in range(1, args.runs + 1):
-        with tempfile.TemporaryDirectory(prefix="brutus-follow-through-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="alicia-follow-through-") as tmp:
             root = Path(tmp)
             sessions = SessionStore(root / "sessions.sqlite")
             manager = FollowThroughManager(
@@ -84,7 +84,7 @@ def main() -> None:
             )
             sessions.append_turn(
                 sid,
-                "brutus",
+                "alicia",
                 "Top of the pile is REV-507. Want me to pull up REV-507's details so you can decide?",
                 channel="voice",
             )

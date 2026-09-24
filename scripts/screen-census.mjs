@@ -2,7 +2,7 @@
 /**
  * Screen census — the check that would have caught the old session screen.
  *
- * Brutus's previous UI passed every gate it had. Tokens: clean. Contrast: fine.
+ * Alicia's previous UI passed every gate it had. Tokens: clean. Contrast: fine.
  * axe: green. And it still gave 30.8% of a 1920x1080 viewport to an empty
  * transcript and 21.5% to an empty Thinking panel, while the work queue got
  * 12.1% and rendered exactly one of 143 items at a time.
@@ -86,7 +86,7 @@ async function main() {
 
   await page.addInitScript((t) => {
     try {
-      localStorage.setItem("brutus.theme", t);
+      localStorage.setItem("alicia.theme", t);
     } catch {
       /* ignore */
     }

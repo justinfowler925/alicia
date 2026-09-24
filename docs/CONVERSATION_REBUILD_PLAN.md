@@ -6,14 +6,14 @@ Date: 2026-08-19 · Status: **shipped** — Phases 1–3 landed in #80 (with #79
 
 ## Problem
 
-Diagnosed 2026-08-19 from the live session store (`~/.brutus/state/sessions.sqlite`, 395 sessions, 545 replies) and the deployed code. The architecture inverts the division of labor: deterministic code makes every judgment call and the models only phrase results.
+Diagnosed 2026-08-19 from the live session store (`~/.alicia/state/sessions.sqlite`, 395 sessions, 545 replies) and the deployed code. The architecture inverts the division of labor: deterministic code makes every judgment call and the models only phrase results.
 
 - Routing is substring regex (`chat_resolve.py:147-384`) applied before any model reads the message. "What's the status of the Clearspeed pilot" → board template; the question is never read.
 - The deep lane sends Claude Sonnet 5 **one message with zero history** (`conversation.py:810` → `claude.py:63`) under a generic 3-line system prompt. Follow-ups are structurally impossible.
 - All three conversational Qwen calls run **thinking ON** — the configuration `local_llm.py:160-166` itself measured as 13.1s / zero content tokens on the production prompt shape. The health probe runs thinking OFF, so the zombie looks healthy.
 - ~20 post-filters can discard whatever survives: 320-char/3-sentence cap on every fast reply, Claude answers flattened and cut to 8 sentences (~96% of paid output thrown away), `guard_invented_tickets` replacing entire answers with a board question.
 - Memory has never stored a real fact: 54 of 55 `lessons` rows are the literal string "x"; no reply path reads the memory store.
-- Measured outcomes: 60% of all replies are `capture_note` templates; 37 of 89 voice questions took >15s to a substantive answer (15 took 40–120s); 16 of 102 voice turns were Brutus transcribing its own TTS; 8 human turns since Aug 13 — usage has collapsed to machine `capture:` traffic.
+- Measured outcomes: 60% of all replies are `capture_note` templates; 37 of 89 voice questions took >15s to a substantive answer (15 took 40–120s); 16 of 102 voice turns were Alicia transcribing its own TTS; 8 human turns since Aug 13 — usage has collapsed to machine `capture:` traffic.
 
 Twenty-two commits (25% of repo history) re-fixed this path with the same four moves — add a regex, add a post-filter, add a prompt line, swap the model — and each one removed a phrasing from the model's reach while creating a new cliff. HEAD (`614e9e3`) already deletes its own interview machinery as "theatre". This plan finishes that direction deliberately instead of by attrition.
 
@@ -24,7 +24,7 @@ Twenty-two commits (25% of repo history) re-fixed this path with the same four m
 - `claude.py` moves from raw httpx to the `anthropic` SDK. Native tool use (`tools=[...]`, `tool_use`/`tool_result` loop), not `TOOL:`/`ARGS:` text parsing.
 - Every capability becomes a tool the brain calls: `get_work_surface`, `get_digest`, `get_thread`, `list_notes`, `check_email`, `check_slack`, `capture_note`, `draft_gate_action` (approve/dispatch/promote — returns "draft created, awaiting your yes"), `ask_atlas6`, `remember` / `recall`.
 - `spoken_next_decision` survives **as a tool result**, never as a reply that preempts the model. The board template is a great input and a terrible mouth.
-- The gate design stays exactly as is: writes go through draft artifacts and single-use approval (`gate.py`, `session.py:341-357`). That part of Brutus is sound. `read_only` remains a registry property the model cannot talk its way past.
+- The gate design stays exactly as is: writes go through draft artifacts and single-use approval (`gate.py`, `session.py:341-357`). That part of Alicia is sound. `read_only` remains a registry property the model cannot talk its way past.
 - Deterministic handling survives only where determinism is the right tool: the `capture:` machine-intake prefix (agents' carry-forwards never touch a model — 337 of 471 lifetime user turns stay $0), UI barge-in/stop hotwords, and the own-voice echo filter.
 - Deleted: `_lookup_intent` as a router, greeting/scrap/frustration canned replies, the frustration **message rewrite**, `_tighten` caps (TTS length lives in `speechify`, prompt asks for spoken-beat answers), `guard_invented_tickets` full-reply substitution (breach → one retry round with the board attached; still-breaching → annotate, don't replace).
 - History: the full session's turns each call (`history_for_model` without `keep=4`), **no ticket-id redaction**. Long sessions get server-side compaction later if ever needed; at observed turn counts (median session <10 turns) it won't be.
@@ -78,7 +78,7 @@ Cold first turn of a session adds one ~4K cache write ≈ $0.015. Fully uncached
 | Heavy daily-driver | 50 | ~$35/mo |
 | Captures / agent intake | 337 lifetime | $0 — never touch a model |
 
-For calibration: the **current broken** deep lane already spends ~$0.02–0.04 per deep turn on uncached Sonnet 5 calls whose output is 96% discarded by the 8-sentence cap. The rebuild does not meaningfully change what Brutus costs — it changes what the money buys.
+For calibration: the **current broken** deep lane already spends ~$0.02–0.04 per deep turn on uncached Sonnet 5 calls whose output is 96% discarded by the 8-sentence cap. The rebuild does not meaningfully change what Alicia costs — it changes what the money buys.
 
 ## More efficient paths, ranked
 
@@ -93,7 +93,7 @@ For calibration: the **current broken** deep lane already spends ~$0.02–0.04 p
 
 ## Verification discipline (every phase)
 
-- Drive `/api/session/{id}/say` against a scratch `BRUTUS_STATE_DIR` — never the live store (the 64-junk-todos incident).
+- Drive `/api/session/{id}/say` against a scratch `ALICIA_STATE_DIR` — never the live store (the 64-junk-todos incident).
 - Assert wiring, not presence: each new tool needs a test that fails when the call site is deleted.
 - Log per-turn `usage` (input/cached/output tokens, latency, rounds) into turn `meta` so cost and latency claims stay checkable from the session store itself.
 - The liveness probe must exercise the same configuration the chat path uses — no more thinking-off health checks blessing a thinking-on product.

@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from brutus import forge_chat, forge_local
-from brutus.forge_tools import (
+from alicia import forge_chat, forge_local
+from alicia.forge_tools import (
     BROWSER_TOOLS,
     FILE_TOOLS,
     GITHUB_TOOL_NAMES,
@@ -100,7 +100,7 @@ def test_discover_is_files_only_by_default(tmp_path, monkeypatch):
     """Cold turns must not spawn MCP or inject optional schemas."""
     def boom(*args, **kwargs):
         raise AssertionError('StdioMCP must not start on discover')
-    monkeypatch.setattr('brutus.forge_tools.StdioMCP', boom)
+    monkeypatch.setattr('alicia.forge_tools.StdioMCP', boom)
     session = ToolSession(tmp_path, tmp_path)
     names = {t['function']['name'] for t in session.discover()}
     assert names == {t['function']['name'] for t in FILE_TOOLS}
@@ -125,7 +125,7 @@ def test_enable_knowledge_and_browser_allowlist(tmp_path, monkeypatch):
             return {'isError': True, 'content': [{'type': 'text', 'text': 'blocked'}]}
         def close(self):
             self.closed = True
-    monkeypatch.setattr('brutus.forge_tools.StdioMCP', FakeClient)
+    monkeypatch.setattr('alicia.forge_tools.StdioMCP', FakeClient)
     session = ToolSession(tmp_path, tmp_path)
     assert {t['function']['name'] for t in session.discover()} == {t['function']['name'] for t in FILE_TOOLS}
     knowledge = session.enable('knowledge')
@@ -148,7 +148,7 @@ def test_enable_knowledge_and_browser_allowlist(tmp_path, monkeypatch):
 def test_enable_knowledge_unavailable_returns_error(tmp_path, monkeypatch):
     def unavailable(*args, **kwargs):
         raise FileNotFoundError('missing runtime')
-    monkeypatch.setattr('brutus.forge_tools.StdioMCP', unavailable)
+    monkeypatch.setattr('alicia.forge_tools.StdioMCP', unavailable)
     session = ToolSession(tmp_path, tmp_path)
     session.discover()
     with pytest.raises(ValueError, match='unavailable'):
@@ -176,12 +176,12 @@ def test_enable_skill_returns_bounded_text_without_schemas(tmp_path, monkeypatch
 
 
 def test_enable_github_adds_compact_tools_and_rejects_mutations(tmp_path, monkeypatch):
-    monkeypatch.setattr('brutus.forge_tools.gh_binary', lambda: '/bin/true')
+    monkeypatch.setattr('alicia.forge_tools.gh_binary', lambda: '/bin/true')
     calls = []
     def fake_run(argv, timeout=60):
         calls.append(argv)
         return {'ok': True, 'output': 'ok', 'argv': argv}
-    monkeypatch.setattr('brutus.forge_tools.run_gh', fake_run)
+    monkeypatch.setattr('alicia.forge_tools.run_gh', fake_run)
     session = ToolSession(tmp_path, tmp_path)
     session.discover()
     result = session.enable('github')
@@ -194,8 +194,8 @@ def test_enable_github_adds_compact_tools_and_rejects_mutations(tmp_path, monkey
         github_tool('github_api', {'path': 'repos/o/r -X POST'})
     with pytest.raises(ValueError, match='GET-only'):
         github_tool('github_api', {'path': 'repos/o/r --method DELETE'})
-    assert session.call('github_repo', {'repo': 'justinfowler925/brutus'})['ok']
-    assert calls == [['repo', 'view', 'justinfowler925/brutus']]
+    assert session.call('github_repo', {'repo': 'justinfowler925/alicia'})['ok']
+    assert calls == [['repo', 'view', 'justinfowler925/alicia']]
     session.close()
 
 
@@ -259,8 +259,8 @@ def test_worker_file_tools_receipts_and_all_fail_control(tmp_path, monkeypatch):
 
 def test_worker_mid_turn_enable_expands_tools(tmp_path, monkeypatch):
     monkeypatch.setattr(forge_local, 'STATE', tmp_path / 'state')
-    monkeypatch.setattr('brutus.forge_tools.gh_binary', lambda: '/bin/true')
-    monkeypatch.setattr('brutus.forge_tools.run_gh', lambda argv, timeout=60: {'ok': True, 'output': 'repo-ok', 'argv': argv})
+    monkeypatch.setattr('alicia.forge_tools.gh_binary', lambda: '/bin/true')
+    monkeypatch.setattr('alicia.forge_tools.run_gh', lambda argv, timeout=60: {'ok': True, 'output': 'repo-ok', 'argv': argv})
     workspace = tmp_path / 'workspace'
     workspace.mkdir()
     run = forge_local.enqueue('forge', 'use github', cwd=str(workspace), work_item='enable-github')
@@ -276,7 +276,7 @@ def test_worker_mid_turn_enable_expands_tools(tmp_path, monkeypatch):
         if len(seen_tools) == 2:
             assert 'github_repo' in seen_tools[1]
             return {'role': 'assistant', 'tool_calls': [{'id': 'g1', 'function': {
-                'name': 'github_repo', 'arguments': json.dumps({'repo': 'justinfowler925/brutus'})}}]}
+                'name': 'github_repo', 'arguments': json.dumps({'repo': 'justinfowler925/alicia'})}}]}
         return {'role': 'assistant', 'content': 'GitHub ready'}
 
     monkeypatch.setattr(forge_local, 'completion', complete)

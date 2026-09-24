@@ -1,8 +1,8 @@
-"""Tests for Brutus persistent memory."""
+"""Tests for Alicia persistent memory."""
 
 from pathlib import Path
 
-from brutus.memory import Conversation, MemoryStore, WorkingNote
+from alicia.memory import Conversation, MemoryStore, WorkingNote
 
 
 def test_save_and_list_conversations(tmp_path: Path) -> None:
@@ -68,9 +68,9 @@ def test_default_history_from_last_conversation(tmp_path: Path) -> None:
 
 def test_agent_overlay_upsert(tmp_path: Path) -> None:
     store = MemoryStore(path=tmp_path / "memory.sqlite")
-    o = store.upsert_agent_overlay("cursor:abc", pinned=True, labels="brutus")
+    o = store.upsert_agent_overlay("cursor:abc", pinned=True, labels="alicia")
     assert o["pinned"] is True
-    assert o["labels"] == "brutus"
+    assert o["labels"] == "alicia"
     o2 = store.upsert_agent_overlay("cursor:abc", archived=True)
     assert o2["pinned"] is True
     assert o2["archived"] is True

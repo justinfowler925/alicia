@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from brutus.session_supervisor import (
+from alicia.session_supervisor import (
     AssessmentValidationError,
     NormalizedSession,
     SessionAssessment,
@@ -45,7 +45,7 @@ def test_ordinary_progress_stays_silent(status):
     result = assess_session(
         session(status=status),
         "Implemented the parser. Running the focused tests now.",
-        ["edited brutus/parser.py", "pytest still running"],
+        ["edited alicia/parser.py", "pytest still running"],
     )
 
     assert result.should_intervene is False

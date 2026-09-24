@@ -1,8 +1,8 @@
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
-from brutus.conversation import TurnResult
-from brutus.voice_eval import VoiceScenario, VoiceTurn, evaluate_turn, run_scenarios
+from alicia.conversation import TurnResult
+from alicia.voice_eval import VoiceScenario, VoiceTurn, evaluate_turn, run_scenarios
 
 
 def _result(spoken: str, *, tool: str | None = None) -> TurnResult:
@@ -84,7 +84,7 @@ def _media_eval_module():
 
 def test_media_eval_reads_live_session_and_legacy_export_turn_text():
     module = _media_eval_module()
-    assert module._turn_text({"role": "brutus", "text": "Current"}) == "Current"
+    assert module._turn_text({"role": "alicia", "text": "Current"}) == "Current"
     assert module._turn_text({"role": "assistant", "content": "Legacy"}) == "Legacy"
 
 

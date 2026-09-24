@@ -6,11 +6,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from brutus.config import BrutusCfg
-from brutus.server import create_app
-from brutus.todos import TodoStore
-from brutus.zoom_ingest import ZoomIngestStore
-from brutus.zoom_my_notes import (
+from alicia.config import AliciaCfg
+from alicia.server import create_app
+from alicia.todos import TodoStore
+from alicia.zoom_ingest import ZoomIngestStore
+from alicia.zoom_my_notes import (
     note_markdown,
     recap_excerpt,
     render_transcript,
@@ -71,25 +71,25 @@ def test_render_transcript_uses_speaker_names() -> None:
 
 def test_zoom_generated_content_wins_without_calling_brain() -> None:
     content = {**TRANSCRIPT, "generated_note_content": GENERATED}
-    with patch("brutus.zoom_my_notes.complete") as complete:
-        markdown, source = note_markdown(BrutusCfg(), META, content)
+    with patch("alicia.zoom_my_notes.complete") as complete:
+        markdown, source = note_markdown(AliciaCfg(), META, content)
     assert markdown == GENERATED.strip()
     assert source == "zoom"
     complete.assert_not_called()
 
 
 def test_blank_zoom_page_falls_back_to_transcript() -> None:
-    with patch("brutus.zoom_my_notes.complete", return_value=GENERATED) as complete:
-        markdown, source = note_markdown(BrutusCfg(), META, TRANSCRIPT)
+    with patch("alicia.zoom_my_notes.complete", return_value=GENERATED) as complete:
+        markdown, source = note_markdown(AliciaCfg(), META, TRANSCRIPT)
     assert markdown == GENERATED.strip()
-    assert source == "brutus"
+    assert source == "alicia"
     prompt = complete.call_args.args[1][1]["content"]
     assert "Allison: Please send the account list" in prompt
 
 
 def test_empty_unfinished_note_remains_pending(tmp_path: Path) -> None:
     todos, store = _stores(tmp_path)
-    result = sync_my_note(BrutusCfg(), META, {"note_id": "note-1"}, todos, store)
+    result = sync_my_note(AliciaCfg(), META, {"note_id": "note-1"}, todos, store)
     assert result["state"] == "pending"
     assert todos.list(include_done=True) == []
     assert store.my_note("note-1") is None
@@ -97,7 +97,7 @@ def test_empty_unfinished_note_remains_pending(tmp_path: Path) -> None:
 
 def test_manual_note_is_kept_when_no_transcript_exists() -> None:
     content = {"note_id": "note-1", "manual_note_content": "Justin's written note"}
-    markdown, source = note_markdown(BrutusCfg(), META, content)
+    markdown, source = note_markdown(AliciaCfg(), META, content)
     assert markdown == "Justin's written note"
     assert source == "manual"
 
@@ -106,7 +106,7 @@ def test_sync_creates_one_recap_and_only_justins_task(tmp_path: Path) -> None:
     todos, store = _stores(tmp_path)
     content = {**TRANSCRIPT, "generated_note_content": GENERATED}
     result = sync_my_note(
-        BrutusCfg(), META, content, todos, store, owners=["justin"]
+        AliciaCfg(), META, content, todos, store, owners=["justin"]
     )
     rows = todos.list(include_done=True)
     assert result["created"] == 2
@@ -124,9 +124,9 @@ def test_sync_creates_one_recap_and_only_justins_task(tmp_path: Path) -> None:
 def test_sync_is_idempotent_and_updates_one_recap(tmp_path: Path) -> None:
     todos, store = _stores(tmp_path)
     content = {**TRANSCRIPT, "generated_note_content": GENERATED}
-    first = sync_my_note(BrutusCfg(), META, content, todos, store, owners=["justin"])
+    first = sync_my_note(AliciaCfg(), META, content, todos, store, owners=["justin"])
     changed_meta = {**META, "modified_time": "2026-08-27T15:40:00Z"}
-    second = sync_my_note(BrutusCfg(), changed_meta, content, todos, store, owners=["justin"])
+    second = sync_my_note(AliciaCfg(), changed_meta, content, todos, store, owners=["justin"])
     assert first["created"] == 2
     assert second["state"] == "unchanged"
     assert second["created"] == 0
@@ -136,10 +136,10 @@ def test_sync_is_idempotent_and_updates_one_recap(tmp_path: Path) -> None:
 
 def test_transcript_fallback_does_not_resummarize_an_unchanged_source(tmp_path: Path) -> None:
     todos, store = _stores(tmp_path)
-    with patch("brutus.zoom_my_notes.complete", return_value=GENERATED) as complete:
-        first = sync_my_note(BrutusCfg(), META, TRANSCRIPT, todos, store, owners=["justin"])
+    with patch("alicia.zoom_my_notes.complete", return_value=GENERATED) as complete:
+        first = sync_my_note(AliciaCfg(), META, TRANSCRIPT, todos, store, owners=["justin"])
         second = sync_my_note(
-            BrutusCfg(),
+            AliciaCfg(),
             {**META, "modified_time": "2026-08-27T15:40:00Z"},
             TRANSCRIPT,
             todos,
@@ -173,11 +173,11 @@ class _FakeMyNotesZoom:
 
 @pytest.fixture
 def my_notes_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("BRUTUS_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ALICIA_STATE_DIR", str(tmp_path))
     fake = _FakeMyNotesZoom()
-    monkeypatch.setattr("brutus.server.ZoomMyNotesClient", lambda *a, **k: fake)
-    cfg = BrutusCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    monkeypatch.setattr("alicia.server.ZoomMyNotesClient", lambda *a, **k: fake)
+    cfg = AliciaCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         with TestClient(create_app(cfg, start_watchdog=False)) as client:
             yield client, fake
@@ -195,11 +195,11 @@ def test_my_notes_endpoint_processes_one_and_then_skips_unchanged(my_notes_api) 
 
 
 def test_my_notes_endpoint_refuses_the_wrong_principal(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("BRUTUS_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ALICIA_STATE_DIR", str(tmp_path))
     fake = _FakeMyNotesZoom(owner="somebody.else@clearspeed.com")
-    monkeypatch.setattr("brutus.server.ZoomMyNotesClient", lambda *a, **k: fake)
-    cfg = BrutusCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    monkeypatch.setattr("alicia.server.ZoomMyNotesClient", lambda *a, **k: fake)
+    cfg = AliciaCfg(atlas6_url="http://127.0.0.1:8767", watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         with TestClient(create_app(cfg, start_watchdog=False)) as client:
             response = client.post("/api/zoom/my-notes/poll", json={})

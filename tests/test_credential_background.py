@@ -24,8 +24,8 @@ def test_background_credentials_cannot_enable_desktop_prompts(tmp_path, credenti
         env={
             **os.environ,
             "CREDENTIAL_RUN": str(reader),
-            "BRUTUS_SECURITY_BIN": "/nonexistent",
-            "BRUTUS_CREDENTIAL_MAX_ATTEMPTS": "1",
+            "ALICIA_SECURITY_BIN": "/nonexistent",
+            "ALICIA_CREDENTIAL_MAX_ATTEMPTS": "1",
             "OP_BIOMETRIC_UNLOCK_ENABLED": "true",
             "OP_LOAD_DESKTOP_APP_SETTINGS": "true",
         },

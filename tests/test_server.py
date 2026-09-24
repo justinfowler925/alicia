@@ -1,4 +1,4 @@
-"""Brutus laptop HTTP face smoke."""
+"""Alicia laptop HTTP face smoke."""
 
 import re
 import time
@@ -6,37 +6,37 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from brutus import focus
-from brutus.config import BrutusCfg, LocalLLMCfg
-from brutus.memory import MemoryStore
-from brutus.server import create_app
-from brutus.watchdog import Watchdog
+from alicia import focus
+from alicia.config import AliciaCfg, LocalLLMCfg
+from alicia.memory import MemoryStore
+from alicia.server import create_app
+from alicia.watchdog import Watchdog
 
 
 def test_healthz_reports_cursor_credential_from_actor_process(monkeypatch):
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
         client = TestClient(app)
 
         monkeypatch.delenv("CURSOR_API_KEY", raising=False)
         monkeypatch.delenv("CURSOR_APIKEY", raising=False)
-        monkeypatch.setattr("brutus.server.importlib.util.find_spec", lambda _name: None)
+        monkeypatch.setattr("alicia.server.importlib.util.find_spec", lambda _name: None)
         brain = client.get("/api/healthz").json()["brain"]
         assert brain["cursor_credential_loaded"] is False
         assert brain["cursor_sdk_importable"] is False
 
         monkeypatch.setenv("CURSOR_API_KEY", "test-key")
-        monkeypatch.setattr("brutus.server.importlib.util.find_spec", lambda _name: object())
+        monkeypatch.setattr("alicia.server.importlib.util.find_spec", lambda _name: object())
         brain = client.get("/api/healthz").json()["brain"]
         assert brain["cursor_credential_loaded"] is True
         assert brain["cursor_sdk_importable"] is True
 
 
 def test_supervisor_endpoint_forwards_force_and_returns_structured_snapshot():
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
         expected = {"sessions": [], "counts": {"total": 0}, "assessment": None}
@@ -48,9 +48,9 @@ def test_supervisor_endpoint_forwards_force_and_returns_structured_snapshot():
 
 
 def test_focus_endpoint():
-    cfg = BrutusCfg(watchdog_enabled=False, linear_workspace="clearspeed")
+    cfg = AliciaCfg(watchdog_enabled=False, linear_workspace="clearspeed")
     surface = {"headline": "1 in review", "needs_you": [{"ticket": "REV-9", "title": "Gate"}], "working": [], "queued": [], "stuck": [], "counts": {}, "actions": []}
-    with patch("brutus.server.linear_work_surface", return_value=surface), patch("brutus.server.AtlasClient") as cls:
+    with patch("alicia.server.linear_work_surface", return_value=surface), patch("alicia.server.AtlasClient") as cls:
         inst = MagicMock()
         inst.status.return_value = {
             "blocked_justin": [
@@ -80,13 +80,13 @@ def test_focus_endpoint():
 
 
 def test_chat_uses_resolve():
-    cfg = BrutusCfg(local_llm=LocalLLMCfg(enabled=True), watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(local_llm=LocalLLMCfg(enabled=True), watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
         client = TestClient(app)
         with patch(
-            "brutus.server.resolve_chat_reply",
+            "alicia.server.resolve_chat_reply",
             return_value=("hello from laptop", {"atlas5_busy": True}),
         ) as resolve:
             out = client.post(
@@ -100,7 +100,7 @@ def test_chat_uses_resolve():
         assert out.status_code == 200
         body = out.json()
         assert body["reply"] == "hello from laptop"
-        assert body["source"] == "brutus"
+        assert body["source"] == "alicia"
         assert body["conversation_id"] == "abc123"
         assert resolve.call_args.kwargs["history"] == [{"role": "user", "content": "prior"}]
         assert resolve.call_args.kwargs["memory"] is not None
@@ -109,12 +109,12 @@ def test_chat_uses_resolve():
 def test_agents_api_patch_and_promote_notes(tmp_path, monkeypatch):
     import json
 
-    from brutus import agent_sessions as ag
-    from brutus.memory import MemoryStore
+    from alicia import agent_sessions as ag
+    from alicia.memory import MemoryStore
 
     cursor = tmp_path / "cursor"
     sid = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-    d = cursor / "Users-justinfowler-Projects-brutus" / "agent-transcripts" / sid
+    d = cursor / "Users-justinfowler-Projects-alicia" / "agent-transcripts" / sid
     d.mkdir(parents=True)
     (d / f"{sid}.jsonl").write_text(
         json.dumps(
@@ -132,12 +132,12 @@ def test_agents_api_patch_and_promote_notes(tmp_path, monkeypatch):
     ag._CACHE["data"] = []
     ag._CACHE["at"] = 0.0
 
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
-        with patch("brutus.server.MemoryStore", return_value=MemoryStore(tmp_path / "mem.sqlite")):
-            with patch("brutus.server.TodoStore") as ts:
-                from brutus.todos import TodoStore
+        with patch("alicia.server.MemoryStore", return_value=MemoryStore(tmp_path / "mem.sqlite")):
+            with patch("alicia.server.TodoStore") as ts:
+                from alicia.todos import TodoStore
 
                 ts.side_effect = lambda *a, **k: TodoStore(tmp_path / "todos.sqlite")
                 app = create_app(cfg, start_watchdog=False)
@@ -162,8 +162,8 @@ def test_agents_api_preserves_native_runtime_status(tmp_path):
         "session_id": "native-task-id",
         "host_id": "local",
         "title": "Runtime task",
-        "cwd": "/Users/justinfowler/Projects/brutus",
-        "project": "brutus",
+        "cwd": "/Users/justinfowler/Projects/alicia",
+        "project": "alicia",
         "mtime": time.time(),
         "age": "0m ago",
         "live": True,
@@ -173,11 +173,11 @@ def test_agents_api_preserves_native_runtime_status(tmp_path):
         "path": "",
         "pid": None,
     }
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as atlas, patch(
-        "brutus.server.scan_agent_sessions", return_value=[row]
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as atlas, patch(
+        "alicia.server.scan_agent_sessions", return_value=[row]
     ), patch(
-        "brutus.server.MemoryStore",
+        "alicia.server.MemoryStore",
         return_value=MemoryStore(tmp_path / "mem.sqlite"),
     ):
         atlas.return_value = MagicMock()
@@ -193,15 +193,15 @@ def test_agents_api_preserves_native_runtime_status(tmp_path):
 
 
 def test_nucleus_api_and_project_overlay_share_exact_project_id(tmp_path, monkeypatch):
-    monkeypatch.setenv("BRUTUS_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("ALICIA_STATE_DIR", str(tmp_path / "state"))
     snapshot = {
         "summary": {"projects": 1},
         "source_status": {"linear": {"state": "fresh", "count": 1}},
         "projects": [{"id": "github.com/o/r", "name": "r"}],
     }
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls, patch(
-        "brutus.server.build_nucleus_snapshot", return_value=snapshot
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls, patch(
+        "alicia.server.build_nucleus_snapshot", return_value=snapshot
     ):
         cls.return_value = MagicMock()
         with TestClient(create_app(cfg, start_watchdog=False)) as client:
@@ -219,8 +219,8 @@ def test_nucleus_api_and_project_overlay_share_exact_project_id(tmp_path, monkey
 
 def test_session_ideas_build_plan_markers():
     """DoD markers from docs/SESSION_IDEAS_BUILD_PLAN.md (HTML smoke, no JS)."""
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
         html = TestClient(app).get("/session").text
@@ -263,8 +263,8 @@ def test_session_ideas_build_plan_markers():
 
 def test_session_ideas_wave2_markers():
     """DoD markers from docs/SESSION_IDEAS_WAVE2_BUILD_PLAN.md (HTML + JS smoke)."""
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
         client = TestClient(app)
@@ -302,8 +302,8 @@ def test_session_ideas_wave2_markers():
 
 def test_session_shine_audit_markers():
     """DoD markers from docs/SESSION_UI_SHINE_BUILD_PLAN.md Waves A–B + D."""
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
         client = TestClient(app)
@@ -336,7 +336,7 @@ def test_session_shine_audit_markers():
 def test_shine_tokens_include_light_theme():
     css = (
         __import__("pathlib").Path(__file__).resolve().parents[1]
-        / "brutus"
+        / "alicia"
         / "static"
         / "shine-tokens.css"
     ).read_text()
@@ -362,8 +362,8 @@ def test_gate_reason_is_not_silently_truncated():
 
 
 def test_speak_requires_voice_config():
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
         out = TestClient(app).post("/api/speak", json={"text": "hi"})
@@ -371,16 +371,16 @@ def test_speak_requires_voice_config():
 
 
 def test_speak_returns_audio_when_configured():
-    from brutus.config import VoiceCfg
+    from alicia.config import VoiceCfg
 
-    cfg = BrutusCfg(
+    cfg = AliciaCfg(
         watchdog_enabled=False,
         voice=VoiceCfg(enabled=True, elevenlabs_api_key="fake-key"),
     )
-    with patch("brutus.server.AtlasClient") as cls:
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
-        with patch("brutus.server.voice_speak", return_value=b"ID3fakeaudio"):
+        with patch("alicia.server.voice_speak", return_value=b"ID3fakeaudio"):
             out = TestClient(app).post("/api/speak", json={"text": "hello"})
         assert out.status_code == 200
         assert out.headers["content-type"].startswith("audio/mpeg")
@@ -388,16 +388,16 @@ def test_speak_returns_audio_when_configured():
 
 
 def test_speak_refuses_a_uuid_doorbell():
-    from brutus.config import VoiceCfg
+    from alicia.config import VoiceCfg
 
-    cfg = BrutusCfg(
+    cfg = AliciaCfg(
         watchdog_enabled=False,
         voice=VoiceCfg(enabled=True, elevenlabs_api_key="fake-key"),
     )
-    with patch("brutus.server.AtlasClient") as cls:
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
-        with patch("brutus.server.voice_speak", return_value=b"ID3fakeaudio") as speak:
+        with patch("alicia.server.voice_speak", return_value=b"ID3fakeaudio") as speak:
             out = TestClient(app).post(
                 "/api/speak",
                 json={"text": "6d0b8f2a-7e2b-4e4f-b19c-6dc5f6fd80fe needs you."},
@@ -407,14 +407,14 @@ def test_speak_refuses_a_uuid_doorbell():
 
 
 def test_transcribe_returns_text_when_whisper_available():
-    from brutus.config import VoiceCfg
+    from alicia.config import VoiceCfg
 
-    cfg = BrutusCfg(watchdog_enabled=False, voice=VoiceCfg(enabled=True))
-    with patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(watchdog_enabled=False, voice=VoiceCfg(enabled=True))
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         app = create_app(cfg, start_watchdog=False)
-        with patch("brutus.server.HAS_WHISPER", True), patch(
-            "brutus.server.voice_transcribe", return_value="what is next"
+        with patch("alicia.server.HAS_WHISPER", True), patch(
+            "alicia.server.voice_transcribe", return_value="what is next"
         ):
             out = TestClient(app).post(
                 "/api/transcribe",
@@ -425,8 +425,8 @@ def test_transcribe_returns_text_when_whisper_available():
 
 
 def test_status_degraded_when_linear_down_without_atlas_fallback():
-    cfg = BrutusCfg(local_llm=LocalLLMCfg(enabled=False), watchdog_enabled=False)
-    with patch("brutus.server.linear_work_surface", side_effect=ConnectionError("down")), patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(local_llm=LocalLLMCfg(enabled=False), watchdog_enabled=False)
+    with patch("alicia.server.linear_work_surface", side_effect=ConnectionError("down")), patch("alicia.server.AtlasClient") as cls:
         inst = MagicMock()
         inst.status.side_effect = ConnectionError("down")
         cls.return_value = inst
@@ -444,7 +444,7 @@ def test_status_degraded_when_linear_down_without_atlas_fallback():
 
 def test_watchdog_endpoint_reports_the_local_probe():
     """The endpoint reports only the local standalone probe."""
-    cfg = BrutusCfg(watchdog_enabled=True, watchdog_interval_s=60, stale_inflight_minutes=45)
+    cfg = AliciaCfg(watchdog_enabled=True, watchdog_interval_s=60, stale_inflight_minutes=45)
     client = MagicMock()
 
     wd = Watchdog(cfg, client)
@@ -455,7 +455,7 @@ def test_watchdog_endpoint_reports_the_local_probe():
     client.reconcile.assert_not_called()
     client.dispatch_tick.assert_not_called()
 
-    with patch("brutus.server.AtlasClient") as cls:
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = client
         app = create_app(cfg, start_watchdog=False)
         app.state.watchdog = wd
@@ -471,9 +471,9 @@ def test_watchdog_tick_endpoint_drives_no_atlas_work():
     It used to force a reconcile+dispatch from the laptop. It must not any
     more, or the button quietly reinstates the second scheduler.
     """
-    cfg = BrutusCfg(watchdog_enabled=True)
+    cfg = AliciaCfg(watchdog_enabled=True)
     client = MagicMock()
-    with patch("brutus.server.AtlasClient") as cls:
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = client
         app = create_app(cfg, start_watchdog=False)
         c = TestClient(app)
@@ -486,8 +486,8 @@ def test_watchdog_tick_endpoint_drives_no_atlas_work():
 
 
 def test_steer_retriage_steers_each_ticket_and_reports_failures():
-    cfg = BrutusCfg(watchdog_enabled=False, local_llm=LocalLLMCfg(enabled=False))
-    with patch("brutus.server.AtlasClient") as cls:
+    cfg = AliciaCfg(watchdog_enabled=False, local_llm=LocalLLMCfg(enabled=False))
+    with patch("alicia.server.AtlasClient") as cls:
         inst = MagicMock()
 
         def steer(tid, body, **_k):
@@ -517,9 +517,9 @@ def test_version_reads_explicit_deploy_manifest(tmp_path, monkeypatch):
     manifest.write_text(
         '{"sha":"abc123","deployed_at":"2026-09-07T00:00:00Z","config_sha256":"cfg"}'
     )
-    monkeypatch.setenv("BRUTUS_DEPLOY_MANIFEST", str(manifest))
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as atlas:
+    monkeypatch.setenv("ALICIA_DEPLOY_MANIFEST", str(manifest))
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as atlas:
         atlas.return_value = MagicMock()
         payload = TestClient(create_app(cfg, start_watchdog=False)).get("/version").json()
     assert payload["sha"] == "abc123"

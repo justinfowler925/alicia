@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from brutus.canon import (
+from alicia.canon import (
     CanonError,
     CanonStore,
     Decision,
@@ -22,14 +22,14 @@ from brutus.canon import (
     WorkItemType,
     transition,
 )
-from brutus.canon.identity import DEFAULT_IDENTITY_REGISTRY
+from alicia.canon.identity import DEFAULT_IDENTITY_REGISTRY
 
-_STACK_ROOT = Path(__file__).resolve().parents[1] / "brutus_stack"
+_STACK_ROOT = Path(__file__).resolve().parents[1] / "alicia_stack"
 if str(_STACK_ROOT) not in sys.path:
     sys.path.insert(0, str(_STACK_ROOT))
 
-from brutus_stack.hands import CanonHandsDispatcher, transition_run_to_review
-from brutus_stack.types import HandsResult, Verdict
+from alicia_stack.hands import CanonHandsDispatcher, transition_run_to_review
+from alicia_stack.types import HandsResult, Verdict
 
 OWNER = "justin.fowler@clearspeed.com"
 WORKER = "atlas6-worker"
@@ -40,7 +40,7 @@ TEST_SHA = "a" * 40
 def _stub_sha_on_main(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep receipt tests independent of the checkout's remote refs."""
     monkeypatch.setattr(
-        "brutus_stack.prove._sha_on_main",
+        "alicia_stack.prove._sha_on_main",
         lambda sha, root: (True, "controlled test ancestry"),
     )
 

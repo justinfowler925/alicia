@@ -2,7 +2,7 @@
 
 import pytest
 
-from brutus.board_watch import (
+from alicia.board_watch import (
     AGGREGATE_ABOVE,
     BoardSnapshot,
     BoardWatcher,
@@ -110,7 +110,7 @@ def test_no_model_is_involved_in_the_spoken_path():
     """A narrator is the purest unscored surface in the design. Guard it."""
     import inspect
 
-    import brutus.board_watch as mod
+    import alicia.board_watch as mod
 
     src = inspect.getsource(mod)
     for forbidden in ("chat_completion", "httpx", "openai"):
@@ -206,7 +206,7 @@ def test_the_session_page_does_not_speak_board_events():
     """
     from pathlib import Path
 
-    src = (Path(__file__).resolve().parents[1] / "brutus/static/session.js").read_text()
+    src = (Path(__file__).resolve().parents[1] / "alicia/static/session.js").read_text()
     start = src.index("function applyBoardEvent")
     end = src.index("\nfunction ", start + 1)
     body = src[start:end]

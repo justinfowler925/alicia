@@ -9,12 +9,12 @@ from pathlib import Path
 
 import pytest
 
-SOURCE = (Path(__file__).parents[1] / "brutus/static/session.js").read_text()
+SOURCE = (Path(__file__).parents[1] / "alicia/static/session.js").read_text()
 
 
 def test_direct_session_link_opens_the_named_proposal_session():
     assert 'new URLSearchParams(window.location.search).get("session")' in SOURCE
-    assert 'sessionStorage.setItem("brutus.session", requested)' in SOURCE
+    assert 'sessionStorage.setItem("alicia.session", requested)' in SOURCE
     assert "return hydrate(requested)" in SOURCE
 
 
@@ -27,7 +27,7 @@ def test_an_approved_proposal_lands_its_returned_state_without_waiting_for_sse()
 
 
 def test_voice_instructions_live_in_help_and_supervisor_names_providers():
-    html = (Path(__file__).parents[1] / "brutus/static/session.html").read_text()
+    html = (Path(__file__).parents[1] / "alicia/static/session.html").read_text()
     assert 'popovertarget="voice-help"' in html
     assert 'id="voice-help"' in html
     assert "Talk naturally. Pause when you are done." not in SOURCE
@@ -35,7 +35,7 @@ def test_voice_instructions_live_in_help_and_supervisor_names_providers():
 
 
 def test_owner_voice_enrollment_is_a_visible_record_and_consent_flow():
-    html = (Path(__file__).parents[1] / "brutus/static/session.html").read_text()
+    html = (Path(__file__).parents[1] / "alicia/static/session.html").read_text()
     assert 'id="voice-enroll"' in html
     assert 'id="voice-enrollment"' in html
     assert 'id="enrollment-consent"' in html
@@ -44,7 +44,7 @@ def test_owner_voice_enrollment_is_a_visible_record_and_consent_flow():
 
 
 def test_shipped_session_client_is_valid_javascript():
-    source_path = Path(__file__).parents[1] / "brutus/static/session.js"
+    source_path = Path(__file__).parents[1] / "alicia/static/session.js"
     result = subprocess.run(["node", "--check", str(source_path)], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr
 
@@ -52,7 +52,7 @@ def test_shipped_session_client_is_valid_javascript():
 def test_workspace_disclosure_releases_the_fixed_conversation_layout():
     assert '$("#work-tray")?.addEventListener("toggle"' in SOURCE
     assert 'classList.toggle("workspace-open", open)' in SOURCE
-    css = (Path(__file__).parents[1] / "brutus/static/session.css").read_text()
+    css = (Path(__file__).parents[1] / "alicia/static/session.css").read_text()
     assert "body.workspace-open" in css
     assert ".voice-shell.workspace-open" in css
 

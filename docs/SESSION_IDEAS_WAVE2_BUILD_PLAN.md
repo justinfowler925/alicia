@@ -5,7 +5,7 @@
 **Depends on:** PR #28 (`93a82e8`) — Ideas pad + spoken CRUD + Ledger rename  
 **Source audit:** Shine audit 2026-08-08 remaining gaps  
 **Branch:** `feat/session-ideas-wave2`  
-**Target:** `/session` (`brutus/static/session.*`)
+**Target:** `/session` (`alicia/static/session.*`)
 
 ## Problem
 

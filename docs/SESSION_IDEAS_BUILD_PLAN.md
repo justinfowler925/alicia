@@ -2,8 +2,8 @@
 
 > **Historical scope:** For the current voice, session-continuity and release direction, use the [Apple accessibility reset plan](APPLE_ACCESSIBILITY_RESET_PLAN.md). This document remains evidence of its dated work; it does not override the reset requirements or prove current voice acceptance.
 
-**Source audit:** Shine audit 2026-08-08 — canvas `brutus-session-ui-audit`  
-**Target:** `/session` (`brutus/static/session.*`) + note tools / chat recipes  
+**Source audit:** Shine audit 2026-08-08 — canvas `alicia-session-ui-audit`  
+**Target:** `/session` (`alicia/static/session.*`) + note tools / chat recipes  
 **Branch:** `feat/session-ideas-panel`
 
 ## Problem

@@ -4,9 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brutus.config import BrutusCfg, LocalLLMCfg
-from brutus.conversation import ConversationManager
-from brutus.gate import (
+from alicia.config import AliciaCfg, LocalLLMCfg
+from alicia.conversation import ConversationManager
+from alicia.gate import (
     FREE_WRITES,
     GATED,
     VOICE_FORBIDDEN,
@@ -15,11 +15,11 @@ from brutus.gate import (
     dispatch_is_live,
     read_confirmation,
 )
-from brutus.session import SessionStore
+from alicia.session import SessionStore
 
 
 def _cfg():
-    return BrutusCfg(
+    return AliciaCfg(
         local_llm=LocalLLMCfg(enabled=True, model="m", router_url="http://127.0.0.1:7901")
     )
 
@@ -114,7 +114,7 @@ def test_an_incomplete_proposal_never_drafts_an_artifact(mgr, sid):
 
 
 def test_reads_are_not_gated(mgr, sid):
-    with patch("brutus.conversation.brain_reply", return_value=("ok", {})) as r:
+    with patch("alicia.conversation.brain_reply", return_value=("ok", {})) as r:
         mgr.handle(sid, "what needs me")
         mgr.wait_for_brain(sid)
     assert r.called
@@ -159,8 +159,8 @@ def test_legacy_atlas_preview_is_failed_without_execution(mgr, sid):
 def test_no_model_stands_between_the_preview_and_the_run(mgr, sid):
     _propose_approve(mgr, sid)
     with (
-        patch("brutus.conversation.brain_reply") as brain,
-        patch("brutus.brain._create") as api,
+        patch("alicia.conversation.brain_reply") as brain,
+        patch("alicia.brain._create") as api,
     ):
         mgr.client.approve.return_value = {"status": "approved"}
         mgr.handle(sid, "yes")
@@ -179,7 +179,7 @@ def test_saying_no_cancels_and_runs_nothing(mgr, sid):
 def test_anything_that_is_not_clearly_a_yes_is_not_a_yes(mgr, sid):
     """A wrong yes costs the ledger; a wrong no costs you repeating yourself."""
     _propose_approve(mgr, sid)
-    with patch("brutus.conversation.brain_reply", return_value=("ok", {})):
+    with patch("alicia.conversation.brain_reply", return_value=("ok", {})):
         mgr.handle(sid, "hang on, what's it about")
         mgr.wait_for_brain(sid)
     assert not mgr.client.approve.called
@@ -190,7 +190,7 @@ def test_a_re_heard_yes_never_executes_disabled_atlas_action(mgr, sid):
     _propose_approve(mgr, sid)
     mgr.client.approve.return_value = {"status": "approved"}
     mgr.handle(sid, "yes")
-    with patch("brutus.conversation.brain_reply", return_value=("ok", {})):
+    with patch("alicia.conversation.brain_reply", return_value=("ok", {})):
         mgr.handle(sid, "yes")
         mgr.wait_for_brain(sid)
     assert mgr.client.approve.call_count == 0
@@ -208,7 +208,7 @@ def test_a_disabled_execution_says_it_did_not_run(mgr, sid):
 
 
 def test_cursor_is_refused_from_voice(mgr, sid):
-    """Its allowlist includes ~/Projects/brutus — the gate's own source."""
+    """Its allowlist includes ~/Projects/alicia — the gate's own source."""
     assert "ask_cursor" in VOICE_FORBIDDEN
     assert classify_write("ask_cursor") == "gated"
 
@@ -216,7 +216,7 @@ def test_cursor_is_refused_from_voice(mgr, sid):
 def test_a_voice_turn_cannot_propose_a_forbidden_tool(mgr, sid):
     """Enforced in brain._run_tool — the propose_action handler refuses before
     the hook that drafts artifacts is ever reached."""
-    from brutus.brain import _run_tool
+    from alicia.brain import _run_tool
 
     out = _run_tool(
         MagicMock(),
@@ -251,7 +251,7 @@ def test_steering_reads_the_body_back_not_just_the_act():
 def test_describe_uses_no_model():
     import inspect
 
-    import brutus.gate as mod
+    import alicia.gate as mod
 
     src = inspect.getsource(mod)
     for forbidden in ("chat_completion", "httpx", "openai"):
@@ -280,7 +280,7 @@ def test_machine_capture_confirms_the_note_not_the_board(mgr, sid):
     """The `capture:` protocol stays deterministic — the note is saved and the
     reply names the note, never a board summary. (Spoken no-colon captures now
     go to the brain, which calls capture_note as a tool.)"""
-    with patch("brutus.conversation.brain_reply") as brain:
+    with patch("alicia.conversation.brain_reply") as brain:
         out = mgr.handle(sid, "capture: a workstream for the voice project")
     assert not brain.called, "the machine protocol must not go through a model"
     assert out.reply.startswith("On Ideas")
@@ -292,7 +292,7 @@ def test_machine_capture_confirms_the_note_not_the_board(mgr, sid):
 def test_updating_a_note_is_free_and_deleting_is_gated(mgr, sid):
     """The split is enforced by the brain's tool surface: update_note is
     callable directly, delete_note exists only behind propose_action."""
-    from brutus.brain import BRAIN_FREE_WRITES, PROPOSABLE, anthropic_tools
+    from alicia.brain import BRAIN_FREE_WRITES, PROPOSABLE, anthropic_tools
 
     assert "update_note" in FREE_WRITES and "update_note" in BRAIN_FREE_WRITES
     assert "delete_note" in GATED and "delete_note" in PROPOSABLE
@@ -310,7 +310,7 @@ def test_updating_a_note_is_free_and_deleting_is_gated(mgr, sid):
 
 
 def test_a_failed_capture_says_so(mgr, sid):
-    from brutus import conversation as conv
+    from alicia import conversation as conv
 
     class Boom:
         def call(self, *_a, **_k):

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Pull Justin's personal Zoom My Notes transcript into Brutus every five minutes.
+# Pull Justin's personal Zoom My Notes transcript into Alicia every five minutes.
 set -uo pipefail
 
-BRUTUS_URL="${BRUTUS_URL:-http://127.0.0.1:8768}"
+ALICIA_URL="${ALICIA_URL:-http://127.0.0.1:8768}"
 DAYS="${ZOOM_POLL_DAYS:-7}"
 OWNERS="${ZOOM_POLL_OWNERS:-justin}"
 TIMEOUT="${ZOOM_MY_NOTES_TIMEOUT:-180}"
 
-if ! curl -sf --max-time 5 "$BRUTUS_URL/api/todos" >/dev/null; then
-  echo "skip: Brutus down at $BRUTUS_URL"
+if ! curl -sf --max-time 5 "$ALICIA_URL/api/todos" >/dev/null; then
+  echo "skip: Alicia down at $ALICIA_URL"
   exit 0
 fi
 
@@ -24,7 +24,7 @@ body=$(printf '{"days":%s,"owners":[%s]}' "$DAYS" "$owners_json")
 
 response=$(curl -s --max-time "$TIMEOUT" -X POST \
   -H 'content-type: application/json' \
-  -d "$body" "$BRUTUS_URL/api/zoom/my-notes/poll")
+  -d "$body" "$ALICIA_URL/api/zoom/my-notes/poll")
 rc=$?
 if [[ $rc -ne 0 || -z "$response" ]]; then
   echo "warn: My Notes poll did not complete (curl rc=$rc); will retry"

@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import sys
 
-from brutus.workflow_control import evaluate_route_guard
+from alicia.workflow_control import evaluate_route_guard
 
 
 def main() -> int:

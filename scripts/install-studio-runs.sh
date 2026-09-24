@@ -2,9 +2,9 @@
 # Installs only the read-only observer. Does not alter any feed job.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-STUDIO_TARGET=${BRUTUS_STUDIO_SSH:-100.102.92.119}
+STUDIO_TARGET=${ALICIA_STUDIO_SSH:-100.102.92.119}
 ssh -o BatchMode=yes "$STUDIO_TARGET" 'mkdir -p /Users/jfstudio/.local/share/brutus-studio-runs'
-scp -q "$ROOT/brutus/studio_collector.py" "$STUDIO_TARGET:/Users/jfstudio/.local/share/brutus-studio-runs/collector.py.next"
+scp -q "$ROOT/alicia/studio_collector.py" "$STUDIO_TARGET:/Users/jfstudio/.local/share/brutus-studio-runs/collector.py.next"
 ssh -o BatchMode=yes "$STUDIO_TARGET" /usr/bin/python3 - <<'PY'
 import pathlib, plistlib, subprocess
 root = pathlib.Path.home()/'.local/share/brutus-studio-runs'

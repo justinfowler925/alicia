@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-from brutus.agent_sessions import (
+from alicia.agent_sessions import (
     SESSION_STATES,
     active_counts,
     filter_cockpit,
@@ -19,7 +19,7 @@ from brutus.agent_sessions import (
     scan_agent_sessions,
     summarize_transcript,
 )
-from brutus.memory import MemoryStore
+from alicia.memory import MemoryStore
 
 
 def _write_cursor_session(root: Path, project: str, sid: str, query: str) -> Path:
@@ -61,9 +61,9 @@ def _write_claude_session(projects: Path, sessions: Path, project: str, sid: str
             {
                 "pid": pid,
                 "sessionId": sid,
-                "cwd": "/Users/justinfowler/Projects/brutus",
+                "cwd": "/Users/justinfowler/Projects/alicia",
                 "startedAt": 1_700_000_000_000,
-                "name": "brutus-live",
+                "name": "alicia-live",
             }
         ),
         encoding="utf-8",
@@ -77,13 +77,13 @@ def test_scan_cursor_and_claude(tmp_path: Path):
     claude_s = tmp_path / "claude_sessions"
     sid_c = "11111111-1111-1111-1111-111111111111"
     sid_a = "22222222-2222-2222-2222-222222222222"
-    _write_cursor_session(cursor, "Users-justinfowler-Projects-brutus", sid_c, "build the agents tab")
+    _write_cursor_session(cursor, "Users-justinfowler-Projects-alicia", sid_c, "build the agents tab")
     _write_claude_session(
         claude_p,
         claude_s,
-        "-Users-justinfowler-Projects-brutus",
+        "-Users-justinfowler-Projects-alicia",
         sid_a,
-        "Debug Brutus chat",
+        "Debug Alicia chat",
         pid=os.getpid(),  # this process is alive
     )
 
@@ -101,16 +101,16 @@ def test_scan_cursor_and_claude(tmp_path: Path):
     assert "cursor:deadbeef-0000-0000-0000-000000000001" not in by_id
 
     assert f"claude:{sid_a}" in by_id
-    assert by_id[f"claude:{sid_a}"]["title"] == "Debug Brutus chat"
+    assert by_id[f"claude:{sid_a}"]["title"] == "Debug Alicia chat"
     assert by_id[f"claude:{sid_a}"]["live"] is True
-    assert by_id[f"claude:{sid_a}"]["cwd"] == "/Users/justinfowler/Projects/brutus"
+    assert by_id[f"claude:{sid_a}"]["cwd"] == "/Users/justinfowler/Projects/alicia"
 
 
 def test_overlay_filter_and_counts(tmp_path: Path):
     cursor = tmp_path / "cursor"
     sid = "33333333-3333-3333-3333-333333333333"
-    _write_cursor_session(cursor, "Users-justinfowler-Projects-brutus", sid, "old work")
-    with patch("brutus.agent_sessions.subprocess.run") as run:
+    _write_cursor_session(cursor, "Users-justinfowler-Projects-alicia", sid, "old work")
+    with patch("alicia.agent_sessions.subprocess.run") as run:
         rows = scan_agent_sessions(
             cursor_root=cursor,
             claude_projects=tmp_path / "empty_c",
@@ -153,8 +153,8 @@ def test_codex_catalog_is_scanned_with_provider_stable_identity(tmp_path: Path):
             "INSERT INTO local_thread_catalog VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 "local", "abc-123", "Nucleus audit", 100, 200, 200,
-                "/Users/justinfowler/Projects/brutus", "local", "", "openai",
-                "codex/nucleus", 1, 0, "desktop", "brutus", "desktop",
+                "/Users/justinfowler/Projects/alicia", "local", "", "openai",
+                "codex/nucleus", 1, 0, "desktop", "alicia", "desktop",
             ),
         )
 
@@ -291,7 +291,7 @@ def test_runtime_status_fails_stale_and_malformed_records_safe(tmp_path: Path):
 def test_runtime_directory_change_invalidates_agent_cache(tmp_path: Path):
     cursor = tmp_path / "cursor"
     sid = "55555555-5555-5555-5555-555555555555"
-    _write_cursor_session(cursor, "Users-justinfowler-Projects-brutus", sid, "cache status")
+    _write_cursor_session(cursor, "Users-justinfowler-Projects-alicia", sid, "cache status")
     runtime = tmp_path / "runtime"
     rows = scan_agent_sessions(
         cursor_root=cursor,
@@ -336,7 +336,7 @@ def test_transcript_excerpt_and_summarize(tmp_path: Path):
 
 def test_normalized_states_require_explicit_evidence_not_recency(tmp_path: Path):
     cursor = tmp_path / "cursor"
-    project = "Users-justinfowler-Projects-brutus"
+    project = "Users-justinfowler-Projects-alicia"
     cases = {
         "10000000-0000-0000-0000-000000000001": ({"type": "turn_ended", "status": "success"}, "completed"),
         "10000000-0000-0000-0000-000000000002": ({"type": "turn_ended", "status": "error"}, "failed"),
@@ -386,7 +386,7 @@ def test_scan_exposes_observation_cursor_and_fingerprint(tmp_path: Path):
     cursor = tmp_path / "cursor"
     session_ids = [f"20000000-0000-0000-0000-00000000000{i}" for i in range(1, 4)]
     for sid in session_ids:
-        _write_cursor_session(cursor, "Users-justinfowler-Projects-brutus", sid, sid)
+        _write_cursor_session(cursor, "Users-justinfowler-Projects-alicia", sid, sid)
     rows = scan_agent_sessions(
         cursor_root=cursor,
         claude_projects=tmp_path / "claude",
@@ -447,7 +447,7 @@ def test_a_spoken_phrase_finds_a_thread_whose_words_are_not_contiguous():
     returned nothing while a thread named "Company page UI/UX audit and
     redesign" was running. Every word was present; the phrase was not, because
     of one "and" — and the match was `query not in blob`, a single contiguous
-    substring. Brutus then told him the work did not exist.
+    substring. Alicia then told him the work did not exist.
     """
     rows = [
         {

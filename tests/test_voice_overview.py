@@ -2,8 +2,8 @@ from pathlib import Path
 
 from test_supervisor_runtime import _row, _write
 
-from brutus.server import _supervisor_signature
-from brutus.supervisor_runtime import SupervisorRuntime
+from alicia.server import _supervisor_signature
+from alicia.supervisor_runtime import SupervisorRuntime
 
 
 def test_visual_progress_changes_publish_without_a_spoken_intervention():

@@ -1,8 +1,8 @@
-"""The suite never touches the databases Brutus is serving.
+"""The suite never touches the databases Alicia is serving.
 
-`state_path()` resolves to ~/.brutus/state unless BRUTUS_STATE_DIR says otherwise,
+`state_path()` resolves to ~/.alicia/state unless ALICIA_STATE_DIR says otherwise,
 and plenty of code constructs a store with no explicit path — `TodoStore()`,
-`build_default_registry(...)`, anything reached through a default `BrutusCfg`. Run
+`build_default_registry(...)`, anything reached through a default `AliciaCfg`. Run
 the suite and those defaults land on the live notepad. That is not hypothetical:
 firing sample phrases at the running daemon once wrote 64 junk todos into Justin's
 real pad, and separating his rows from the noise afterwards took cross-referencing
@@ -26,12 +26,12 @@ def _isolated_machine_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(scope="session", autouse=True)
 def _isolated_state_dir() -> "os.PathLike[str]":
-    if os.environ.get("BRUTUS_STATE_DIR", "").strip():
-        yield Path(os.environ["BRUTUS_STATE_DIR"])  # an explicit choice wins
+    if os.environ.get("ALICIA_STATE_DIR", "").strip():
+        yield Path(os.environ["ALICIA_STATE_DIR"])  # an explicit choice wins
         return
-    with tempfile.TemporaryDirectory(prefix="brutus-tests-") as tmp:
-        os.environ["BRUTUS_STATE_DIR"] = tmp
+    with tempfile.TemporaryDirectory(prefix="alicia-tests-") as tmp:
+        os.environ["ALICIA_STATE_DIR"] = tmp
         try:
             yield Path(tmp)
         finally:
-            os.environ.pop("BRUTUS_STATE_DIR", None)
+            os.environ.pop("ALICIA_STATE_DIR", None)

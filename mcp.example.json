@@ -1,10 +1,10 @@
 {
   "mcpServers": {
-    "brutus": {
+    "alicia": {
       "command": "/bin/zsh",
       "args": [
         "-lc",
-        "cd /Users/justinfowler/Projects/brutus && source .venv/bin/activate && exec brutus-mcp"
+        "cd /Users/justinfowler/Projects/alicia && source .venv/bin/activate && exec alicia-mcp"
       ]
     }
   }

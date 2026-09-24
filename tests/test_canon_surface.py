@@ -5,16 +5,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from brutus.canon.models import ExecutionCard
-from brutus.canon.surface import (
+from alicia.canon.models import ExecutionCard
+from alicia.canon.surface import (
     capture_inbox,
     dogfood_pipeline,
     open_canon_store,
     promote,
     snapshot,
 )
-from brutus.config import BrutusCfg
-from brutus.server import create_app
+from alicia.config import AliciaCfg
+from alicia.server import create_app
 
 
 def test_dogfood_pipeline_reaches_closure(tmp_path):
@@ -52,15 +52,15 @@ def test_promoted_inbox_lands_on_today(tmp_path):
 
 
 def test_canon_http_capture_and_snapshot(tmp_path, monkeypatch):
-    monkeypatch.setenv("BRUTUS_CANON_DB_PATH", str(tmp_path / "canon.sqlite"))
-    monkeypatch.setenv("BRUTUS_OWNER_TOKEN", "test-owner-token")
-    cfg = BrutusCfg(watchdog_enabled=False)
-    with patch("brutus.server.AtlasClient") as cls:
+    monkeypatch.setenv("ALICIA_CANON_DB_PATH", str(tmp_path / "canon.sqlite"))
+    monkeypatch.setenv("ALICIA_OWNER_TOKEN", "test-owner-token")
+    cfg = AliciaCfg(watchdog_enabled=False)
+    with patch("alicia.server.AtlasClient") as cls:
         cls.return_value = MagicMock()
         client = TestClient(create_app(cfg, start_watchdog=False))
         captured = client.post(
             "/api/canon/inbox",
-            headers={"X-Brutus-Owner-Token": "test-owner-token"},
+            headers={"X-Alicia-Owner-Token": "test-owner-token"},
             json={"raw_capture": "prove the inbox from HTTP", "source": "test"},
         )
         assert captured.status_code == 200

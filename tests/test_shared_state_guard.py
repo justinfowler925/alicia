@@ -1,6 +1,6 @@
 """Only the deployed artifact may reshape the databases the daemon is serving.
 
-2026-08-08: a feature branch run by hand against ~/.brutus/state added seven
+2026-08-08: a feature branch run by hand against ~/.alicia/state added seven
 columns to the live `todos` table. Deployed main raised TypeError on every read
 from that second on — /api/todos 500, the Ideas pad blank, 181 rows intact and
 unreachable. The reader was made forward-compatible the same night; this is the
@@ -13,17 +13,17 @@ from pathlib import Path
 
 import pytest
 
-from brutus import paths
-from brutus.todos import TodoStore
+from alicia import paths
+from alicia.todos import TodoStore
 
 
 def _shared(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Stand in for ~/.brutus/state, so the test never goes near the real one."""
+    """Stand in for ~/.alicia/state, so the test never goes near the real one."""
     shared = tmp_path / "state"
     shared.mkdir()
     monkeypatch.setattr(paths, "SHARED_STATE_DIR", shared)
     monkeypatch.setattr(paths, "DEPLOYED_APP", tmp_path / "app")
-    monkeypatch.delenv("BRUTUS_ALLOW_SCHEMA_MIGRATION", raising=False)
+    monkeypatch.delenv("ALICIA_ALLOW_SCHEMA_MIGRATION", raising=False)
     return shared
 
 
@@ -61,5 +61,5 @@ def test_the_deployed_artifact_still_migrates(tmp_path, monkeypatch):
 
 def test_the_suite_never_resolves_to_the_live_state_dir():
     """conftest's isolation, asserted rather than assumed."""
-    assert os.environ.get("BRUTUS_STATE_DIR"), "conftest must pin a scratch state dir"
-    assert paths.default_state_dir() != Path.home() / ".brutus" / "state"
+    assert os.environ.get("ALICIA_STATE_DIR"), "conftest must pin a scratch state dir"
+    assert paths.default_state_dir() != Path.home() / ".alicia" / "state"

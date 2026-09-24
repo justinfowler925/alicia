@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import httpx
 
-from brutus.client import AtlasClient
-from brutus.config import BrutusCfg
+from alicia.client import AtlasClient
+from alicia.config import AliciaCfg
 
 
 def _resp(status: int, payload: dict | str) -> httpx.Response:
@@ -59,9 +59,9 @@ def test_answer_steering_redrops_when_work_order_missing(monkeypatch):
         kw["transport"] = transport
         return real_client(*a, **kw)
 
-    monkeypatch.setattr("brutus.client.httpx.Client", factory)
+    monkeypatch.setattr("alicia.client.httpx.Client", factory)
     client = AtlasClient(
-        BrutusCfg(atlas_enabled=True, atlas6_url="http://127.0.0.1:8767", atlas5_url="http://atlas5.test")
+        AliciaCfg(atlas_enabled=True, atlas6_url="http://127.0.0.1:8767", atlas5_url="http://atlas5.test")
     )
     out = client.answer_steering("REV-256", "channels are on both objects")
 
@@ -88,8 +88,8 @@ def test_answer_steering_success_passthrough(monkeypatch):
         kw["transport"] = transport
         return real_client(*a, **kw)
 
-    monkeypatch.setattr("brutus.client.httpx.Client", factory)
-    client = AtlasClient(BrutusCfg(atlas_enabled=True, atlas5_url="http://atlas5.test"))
+    monkeypatch.setattr("alicia.client.httpx.Client", factory)
+    client = AtlasClient(AliciaCfg(atlas_enabled=True, atlas5_url="http://atlas5.test"))
     out = client.answer_steering("REV-1", "ok")
     assert out["resumed"] is True
     assert "recovered" not in out

@@ -6,8 +6,8 @@ import sqlite3
 import threading
 from pathlib import Path
 
-from brutus.canon import CanonStore, WorkItem
-from brutus.canon.migrations import migration_files
+from alicia.canon import CanonStore, WorkItem
+from alicia.canon.migrations import migration_files
 
 
 def _migration_rows(db_path: Path) -> list[tuple[int, str]]:

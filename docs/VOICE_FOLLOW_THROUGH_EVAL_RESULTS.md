@@ -6,7 +6,7 @@ Date: 2026-08-25
 
 ## Scenario
 
-The eval seeds the exact failed exchange: Brutus offers to pull up REV-507, then
+The eval seeds the exact failed exchange: Alicia offers to pull up REV-507, then
 Justin says, `Go ahead. I'm listening.` It drives the real
 `ConversationManager` with Claude and a deterministic `get_thread` fixture.
 Every run must call that tool exactly once, return the decision, avoid repeating
@@ -34,5 +34,5 @@ Artifact: `db750829007381068132b85e232d115b9cc6002b`
 - Full automated suite: **661/661 passed**.
 
 These are model-backed scratch-state evals, not synthetic turns written into
-the live Brutus session store. Production verification still requires the
+the live Alicia session store. Production verification still requires the
 merged artifact identity and a live voice turn after deploy.

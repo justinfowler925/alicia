@@ -1,27 +1,27 @@
 #!/bin/zsh
-# Open the standalone laptop Brutus UI (:8768).
+# Open the standalone laptop Alicia UI (:8768).
 set -euo pipefail
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
-ROOT="${BRUTUS_ROOT:-$HOME/Projects/brutus}"
-BRUTUS_PORT="${BRUTUS_SERVE_PORT:-8768}"
-URL="http://127.0.0.1:${BRUTUS_PORT}/"
-LABEL="com.clearspeed.brutus"
-# Ensure Brutus laptop serve is up
-if ! lsof -iTCP:"$BRUTUS_PORT" -sTCP:LISTEN -n -P 2>/dev/null | grep -q ":${BRUTUS_PORT} "; then
+ROOT="${ALICIA_ROOT:-$HOME/Projects/alicia}"
+ALICIA_PORT="${ALICIA_SERVE_PORT:-8768}"
+URL="http://127.0.0.1:${ALICIA_PORT}/"
+LABEL="com.clearspeed.alicia"
+# Ensure Alicia laptop serve is up
+if ! lsof -iTCP:"$ALICIA_PORT" -sTCP:LISTEN -n -P 2>/dev/null | grep -q ":${ALICIA_PORT} "; then
   launchctl kickstart -k "gui/$(id -u)/${LABEL}" 2>/dev/null || true
   for _ in {1..20}; do
-    lsof -iTCP:"$BRUTUS_PORT" -sTCP:LISTEN -n -P 2>/dev/null | grep -q ":${BRUTUS_PORT} " && break
+    lsof -iTCP:"$ALICIA_PORT" -sTCP:LISTEN -n -P 2>/dev/null | grep -q ":${ALICIA_PORT} " && break
     sleep 0.5
   done
 fi
 
 if ! curl -s -o /dev/null --connect-timeout 3 "$URL"; then
-  echo "Brutus not up on ${URL}. Try: cd ${ROOT} && source .venv/bin/activate && brutus serve" >&2
-  echo "Logs: ~/.cursor/logs/brutus-serve.err.log" >&2
+  echo "Alicia not up on ${URL}. Try: cd ${ROOT} && source .venv/bin/activate && alicia serve" >&2
+  echo "Logs: ~/.cursor/logs/alicia-serve.err.log" >&2
   exit 1
 fi
 
-echo "Brutus (laptop): $URL"
+echo "Alicia (laptop): $URL"
 open "$URL" 2>/dev/null || true

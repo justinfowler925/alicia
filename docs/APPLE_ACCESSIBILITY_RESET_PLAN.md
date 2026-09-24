@@ -1,13 +1,13 @@
-# Brutus Apple accessibility reset
+# Alicia Apple accessibility reset
 
 Status: authoritative replacement direction and implementation plan; **Gate 0 Mac proof software landed** under `native/Gate0Proof/` (2026-09-14). Physical Voice Control acceptance samples and iPhone build (needs full Xcode) are still open — not product-accepted.
 Decision date: September 7, 2026.
 
 ## The decision
 
-Rebuild Brutus's conversation surface around **Apple accessibility Voice Control for speech input and native Apple speech output**. Preserve the useful work service and existing data. Replace the competing voice transports and session plumbing as a coherent release.
+Rebuild Alicia's conversation surface around **Apple accessibility Voice Control for speech input and native Apple speech output**. Preserve the useful work service and existing data. Replace the competing voice transports and session plumbing as a coherent release.
 
-The intended experience is continuous back-and-forth conversation after opening Brutus, with automatic turn-taking, interruption, pause/resume, and continuity when returning later or using another supported Apple device. Siri is explicitly excluded. A shortcut or spoken send command required for every turn does not satisfy the requirement. Push-to-talk does not satisfy it either.
+The intended experience is continuous back-and-forth conversation after opening Alicia, with automatic turn-taking, interruption, pause/resume, and continuity when returning later or using another supported Apple device. Siri is explicitly excluded. A shortcut or spoken send command required for every turn does not satisfy the requirement. Push-to-talk does not satisfy it either.
 
 This document is the single implementation plan for that reset. Older plans and evaluation reports are historical evidence. They cannot override these requirements or establish current acceptance. This plan changes direction; it does not claim the existing production runtime has changed.
 
@@ -31,7 +31,7 @@ Apple documents Voice Control as an accessibility interface that dictates into t
 
 Therefore the first implementation deliverable is a small native interaction proof, not a full rewrite:
 
-1. An accessible native text editor receives real Voice Control dictation. The Brutus app does not request or capture microphone audio. Use native text controls and public accessibility labels/actions, not global AX scraping, clipboard polling, private preferences, or simulated clicks in other apps.
+1. An accessible native text editor receives real Voice Control dictation. The Alicia app does not request or capture microphone audio. Use native text controls and public accessibility labels/actions, not global AX scraping, clipboard polling, private preferences, or simulated clicks in other apps.
 2. Instrument text replacement, composition/marked-text state, focus and documented dictation callbacks. On iOS, `UITextInput` offers dictation callbacks, but Apple distinguishes Voice Control from ordinary Dictation. Verify which callbacks actually fire with Voice Control; do not assume a phrase-final event exists on all platforms.
 3. Establish automatic turn boundaries from actual available input signals. Mere text stability is not proof that the user finished speaking. A global three-second timer already caused mid-thought sends in the historical system. A bounded app-local candidate must pass long-pause, correction, partial-result and echo tests before it can be selected.
 4. Speak a controlled reply through `AVSpeechSynthesizer` using an installed Apple voice. Verify speech start/finish/cancel, Voice Control coexistence, audible playback and interruption. Keep the text editor's focus stable and expose named Pause, Resume and Stop speaking controls.
@@ -47,15 +47,15 @@ The older owner-only speaker requirement remains a separate compatibility gate. 
 
 Use a shared Swift client/session package with native macOS and iOS/iPadOS shells. Use AppKit/UIKit text controls where required to receive and inspect actual dictation behavior; SwiftUI can own the surrounding interface. Do not put another web microphone app inside a native wrapper.
 
-The client owns the accessible editor, draft revision, turn boundary adapter, local Apple speech playback, visible listening/pause/reconnect state and device credentials. It sends text and structured commands to Brutus. It never uploads microphone audio, generates provider credentials, or maintains a second work ledger.
+The client owns the accessible editor, draft revision, turn boundary adapter, local Apple speech playback, visible listening/pause/reconnect state and device credentials. It sends text and structured commands to Alicia. It never uploads microphone audio, generates provider credentials, or maintains a second work ledger.
 
-Voice Control is the OS input owner. Brutus's Pause stops accepting/submitting input for its conversation and stops queued playback; it must not claim it disabled the OS microphone. System Voice Control sleep/wake remains controlled by the OS. Test both app pause and system pause independently.
+Voice Control is the OS input owner. Alicia's Pause stops accepting/submitting input for its conversation and stops queued playback; it must not claim it disabled the OS microphone. System Voice Control sleep/wake remains controlled by the OS. Test both app pause and system pause independently.
 
 Use Apple's installed voices through `AVSpeechSynthesizer`, with one saved voice preference and an explicit per-device availability check. Do not promise an identical voice identifier exists on every device. Personal Voice is optional, requires Apple's authorization, and is an output feature, not speaker authentication. Ensure OS screen-reader speech and app speech do not create duplicate playback.
 
 ### One conversation service
 
-Retain the tested native-tool conversation brain and the useful Canon/tool adapters. Consolidate every Brutus entry surface onto a versioned conversation API. Keep one explicitly configured conversation model; retain the current native Claude loop initially so the reset does not also become an unmeasured model migration. Derive health and UI provider names from the actual running path.
+Retain the tested native-tool conversation brain and the useful Canon/tool adapters. Consolidate every Alicia entry surface onto a versioned conversation API. Keep one explicitly configured conversation model; retain the current native Claude loop initially so the reset does not also become an unmeasured model migration. Derive health and UI provider names from the actual running path.
 
 Give each authenticated owner a stable conversation list and explicit current conversation pointer. A device, browser tab, CLI invocation, MCP invocation, and network connection are not conversation identities. Opening another client resumes the selected server conversation rather than creating a blank one or pasting a summary as a new user message.
 
@@ -75,9 +75,9 @@ Reuse the existing stores initially with explicit migrations, constraints and on
 
 A phone must reach the same service while the laptop is shut. The present loopback-only laptop daemon cannot meet that requirement.
 
-Preferred deployment target: a dedicated Brutus service on the existing always-on Mac Studio, independent of Atlas. The audit established an online Studio peer, not its readiness for this migration. Inventory its ownership, power/network behavior, disk/backups and service dependencies before selecting the exact host. Keep local agent-session observers on their native machines; they publish bounded facts to the service rather than copying whole private transcripts or requiring the Studio to read nonexistent laptop paths.
+Preferred deployment target: a dedicated Alicia service on the existing always-on Mac Studio, independent of Atlas. The audit established an online Studio peer, not its readiness for this migration. Inventory its ownership, power/network behavior, disk/backups and service dependencies before selecting the exact host. Keep local agent-session observers on their native machines; they publish bounded facts to the service rather than copying whole private transcripts or requiring the Studio to read nonexistent laptop paths.
 
-Use authenticated TLS over the existing private network for device access. Brutus's current conversation, enrollment and session-artifact routes assume loopback and lack the owner dependency used by the Canon router. Never make those old routes remotely reachable unchanged. New conversation reads, writes, events, cancellation and approvals all need device/owner authorization, revocation and scoped credentials. Store device credentials in Keychain; provider secrets stay in the service credential profile.
+Use authenticated TLS over the existing private network for device access. Alicia's current conversation, enrollment and session-artifact routes assume loopback and lack the owner dependency used by the Canon router. Never make those old routes remotely reachable unchanged. New conversation reads, writes, events, cancellation and approvals all need device/owner authorization, revocation and scoped credentials. Store device credentials in Keychain; provider secrets stay in the service credential profile.
 
 Keep the Canon evidence/approval model, Linear source authority, Zoom ingestion and relevant work tools. Observe deployed state, work state and model/provider state separately. No dashboard flag can certify a successful spoken reply.
 
@@ -85,9 +85,9 @@ Keep the Canon evidence/approval model, Linear source authority, Zoom ingestion 
 
 Mac, iPhone and iPad are the primary Voice Control targets. A release claim requires a recorded hardware/OS/locale matrix and physical-device tests for each claimed platform. The audited Mac runs macOS 26.6.2; other device versions and native build/signing readiness were not established. Command Line Tools are installed; a full selected Xcode installation was not found.
 
-Apple documents Voice Control on Vision Pro; add it only after its client and device interaction tests pass. AirPods are an input/output route through a supported host, not an independent Brutus client. Apple Watch's documented Voice Control route is via iPhone mirroring; this is not a verified standalone continuous Watch experience. No independent HomePod, Apple TV or CarPlay accessibility conversation path was established here. Do not label the release “every Apple device” or silently introduce Siri to fill those gaps.
+Apple documents Voice Control on Vision Pro; add it only after its client and device interaction tests pass. AirPods are an input/output route through a supported host, not an independent Alicia client. Apple Watch's documented Voice Control route is via iPhone mirroring; this is not a verified standalone continuous Watch experience. No independent HomePod, Apple TV or CarPlay accessibility conversation path was established here. Do not label the release “every Apple device” or silently introduce Siri to fill those gaps.
 
-Within a device, app switching must preserve conversation state and drafts. Voice Control dictates into the focused surface; Brutus must not capture text intended for another app or steal focus back. Continuity with other agent products requires an explicit adapter/reference, not an assumption that their private task stores become the Brutus transcript.
+Within a device, app switching must preserve conversation state and drafts. Voice Control dictates into the focused surface; Alicia must not capture text intended for another app or steal focus back. Continuity with other agent products requires an explicit adapter/reference, not an assumption that their private task stores become the Alicia transcript.
 
 Lock, sleep, foreground/background transitions, phone/audio interruptions and output-route changes must have tested outcomes. A visible paused state with reliable resume is honest; claiming uninterrupted background listening without proof is not. Record any resulting mismatch with the desired usage before accepting the platform.
 
@@ -112,11 +112,11 @@ Lock, sleep, foreground/background transitions, phone/audio interruptions and ou
 ### Retire after replacement acceptance
 
 - `livekit_agent.py`, the LiveKit server and worker launchd jobs, their scripts, room tokens, browser SDK import and media transport.
-- ElevenLabs STT and TTS from Brutus, `/api/speak` audio-proxy behavior, browser SpeechRecognition fallback, Whisper/PyAudio/pynput Ear path, and raw-audio enrollment UI.
+- ElevenLabs STT and TTS from Alicia, `/api/speak` audio-proxy behavior, browser SpeechRecognition fallback, Whisper/PyAudio/pynput Ear path, and raw-audio enrollment UI.
 - SpeechBrain/Torch/torchaudio speaker machinery, after the owner/background-speech compatibility gate is explicitly resolved. Never claim deleting this subsystem preserves biometric speaker verification automatically.
-- Brutus voice dependencies and credential fields that no retained consumer uses. Remove imports, routes, tests, installers and health fields together; “disabled” must not remain the permanent architecture.
+- Alicia voice dependencies and credential fields that no retained consumer uses. Remove imports, routes, tests, installers and health fields together; “disabled” must not remain the permanent architecture.
 - Local-LLM/Atlas voice/factory compatibility paths after call-site and external-consumer checks. `client.py` still participates in retained code; do not delete it wholesale because of its historical name.
-- The external `TalkToBert.app`/`~/.brutus/voice/bert_listen.py` bridge after checking command consumers. Its accessibility command launches a recorder/transcriber; it is not a native Voice Control transcript bridge. Preserve working general Voice Control commands such as Cmd+Return.
+- The external `TalkToBert.app`/`~/.alicia/voice/bert_listen.py` bridge after checking command consumers. Its accessibility command launches a recorder/transcriber; it is not a native Voice Control transcript bridge. Preserve working general Voice Control commands such as Cmd+Return.
 
 Avatar, Demo Maker, sites and other unrelated tools are outside the conversation reset. Keep or separately extract them after identifying consumers. Do not delete projects or their data to make the repository look smaller. Preserve rescue branches as historical material; the existing orphan audit found no reason to merge its five files unchanged.
 
@@ -161,7 +161,7 @@ Rollback preserves data. Keep the pre-cutover artifact and verified online backu
 
 ## Plan reconciliation
 
-- `README.md` and `BRUTUS.md`: this document controls the new direction; their older provider/Atlas/voice claims are not current acceptance.
+- `README.md` and `ALICIA.md`: this document controls the new direction; their older provider/Atlas/voice claims are not current acceptance.
 - `CONVERSATION_REBUILD_PLAN.md`: preserve the native-tool brain/gated-action lessons; supersede browser/Whisper/Ear voice architecture and “shipped” as overall product acceptance.
 - `NUCLEUS_COMMAND_CENTER.md`: retain work graph/read tools; its queue-first default is not the new conversation-first home.
 - `SESSION_UI_SHINE_BUILD_PLAN.md`, `SESSION_IDEAS_BUILD_PLAN.md`, `SESSION_IDEAS_WAVE2_BUILD_PLAN.md`, `FOCUS_SURFACE_BUILD_PLAN.md`, `UI_BUILD_PLAN.md`, `UI_UX_AUDIT.md`: historical interface specifications; retain useful note/review behaviors, replace old voice and resume contracts.

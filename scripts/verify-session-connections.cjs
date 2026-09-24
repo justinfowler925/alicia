@@ -1,9 +1,9 @@
 /* Real HTTP/1 browser regression: multiple pages must leave room for API calls.
- * Run against a running Brutus server; creates and closes one empty test session.
+ * Run against a running Alicia server; creates and closes one empty test session.
  */
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
-const base = process.env.BRUTUS_URL || 'http://127.0.0.1:8768';
+const base = process.env.ALICIA_URL || 'http://127.0.0.1:8768';
 (async () => {
   const response = await fetch(`${base}/api/session/open`, {
     method: 'POST', headers: {'content-type': 'application/json'},

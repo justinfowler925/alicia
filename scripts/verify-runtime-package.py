@@ -26,14 +26,14 @@ def verify(source, installed):
         ):
             mismatches.append(str(relative))
     if mismatches:
-        raise ValueError("Installed Brutus package differs from release: " + ", ".join(mismatches))
+        raise ValueError("Installed Alicia package differs from release: " + ", ".join(mismatches))
     return len(files)
 
 
 if __name__ == "__main__":
     try:
         count = verify(Path(sys.argv[1]), Path(sys.argv[2]))
-        print(f"    installed Brutus payload matches {count} release files")
+        print(f"    installed Alicia payload matches {count} release files")
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         sys.exit(1)

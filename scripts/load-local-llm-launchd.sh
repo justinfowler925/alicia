@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ensure com.clearspeed.brutus-local-llm is loaded AND actually serving.
+# Ensure com.clearspeed.alicia-local-llm is loaded AND actually serving.
 #
 # The old version printed "kickstarted" and exited 0 without checking anything.
 # Meanwhile the job crash-looped 1,346 times with `last exit code = 1`, because a
@@ -9,13 +9,13 @@
 # losing the model entirely.
 set -euo pipefail
 
-LABEL="com.clearspeed.brutus-local-llm"
+LABEL="com.clearspeed.alicia-local-llm"
 PLIST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
-PORT="${BRUTUS_LOCAL_LLM_PORT:-7901}"
+PORT="${ALICIA_LOCAL_LLM_PORT:-7901}"
 TAKEOVER="${1:-}"
 
 if [[ ! -f "$PLIST" ]]; then
-  echo "missing $PLIST — run scripts/install-brutus.sh first" >&2
+  echo "missing $PLIST — run scripts/install-alicia.sh first" >&2
   exit 1
 fi
 uid="$(id -u)"
@@ -82,5 +82,5 @@ done
 echo
 echo "ERROR: ${LABEL} is loaded but :${PORT} never answered." >&2
 launchctl print "gui/${uid}/${LABEL}" 2>/dev/null | grep -E 'state|last exit code|path' | head -5 >&2
-echo "log: ~/.cursor/logs/brutus-mlx-server.log (or the plist's StandardErrorPath)" >&2
+echo "log: ~/.cursor/logs/alicia-mlx-server.log (or the plist's StandardErrorPath)" >&2
 exit 1

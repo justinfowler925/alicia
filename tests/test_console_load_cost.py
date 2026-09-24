@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brutus import avatars
-from brutus.nucleus import build_nucleus_snapshot, slim_nucleus_snapshot
+from alicia import avatars
+from alicia.nucleus import build_nucleus_snapshot, slim_nucleus_snapshot
 
 
 @pytest.fixture(autouse=True)
@@ -35,7 +35,7 @@ def _unreachable():
 
 
 def test_an_unreachable_studio_is_answered_instantly_after_the_first_attempt():
-    with patch("brutus.avatars.subprocess.run", return_value=_unreachable()) as run:
+    with patch("alicia.avatars.subprocess.run", return_value=_unreachable()) as run:
         for attempt in (1, 2):
             with pytest.raises(avatars.StudioUnreachable):
                 avatars._ssh("echo hi")
@@ -50,7 +50,7 @@ def test_an_unreachable_studio_is_answered_instantly_after_the_first_attempt():
 def test_a_command_that_merely_fails_is_not_a_verdict_on_the_host():
     """A nonzero exit from a command that ran means the host is up."""
     failed = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="no such file")
-    with patch("brutus.avatars.subprocess.run", return_value=failed):
+    with patch("alicia.avatars.subprocess.run", return_value=failed):
         proc = avatars._ssh("cat /nope")
     assert proc.returncode == 1
     assert avatars.studio_reachability()["reachable"] is True
@@ -58,7 +58,7 @@ def test_a_command_that_merely_fails_is_not_a_verdict_on_the_host():
 
 def test_the_connect_timeout_is_short_enough_for_a_page_load():
     with (
-        patch("brutus.avatars.subprocess.run", return_value=_unreachable()) as run,
+        patch("alicia.avatars.subprocess.run", return_value=_unreachable()) as run,
         pytest.raises(avatars.StudioUnreachable),
     ):
         avatars._ssh("echo hi")
@@ -74,8 +74,8 @@ def test_the_summary_projection_drops_the_thread_bodies_and_keeps_the_counts():
         "generated_at": "now",
         "projects": [
             {
-                "id": "brutus",
-                "name": "brutus",
+                "id": "alicia",
+                "name": "alicia",
                 "thread_count": 453,
                 "thread_counts": {"codex": 400, "cursor": 53},
                 "threads": [{"id": i, "body": "x" * 800} for i in range(453)],
@@ -102,17 +102,17 @@ def test_the_screen_is_served_the_last_snapshot_while_a_new_one_builds():
     memory = MagicMock()
     memory.list_project_overlays.return_value = {}
     memory.list_agent_overlays.return_value = {}
-    graph = {"projects": [{"id": "brutus"}], "summary": {}}
+    graph = {"projects": [{"id": "alicia"}], "summary": {}}
 
-    with patch("brutus.nucleus.scan_projects", return_value=[]), \
-         patch("brutus.nucleus.scan_agent_sessions", return_value=[]), \
-         patch("brutus.nucleus.merge_overlays", return_value=[]), \
-         patch("brutus.nucleus.linear_portfolio", side_effect=RuntimeError("offline")), \
-         patch("brutus.nucleus.build_operating_graph", return_value=graph):
+    with patch("alicia.nucleus.scan_projects", return_value=[]), \
+         patch("alicia.nucleus.scan_agent_sessions", return_value=[]), \
+         patch("alicia.nucleus.merge_overlays", return_value=[]), \
+         patch("alicia.nucleus.linear_portfolio", side_effect=RuntimeError("offline")), \
+         patch("alicia.nucleus.build_operating_graph", return_value=graph):
         build_nucleus_snapshot(MagicMock(), memory, force=True)
 
         # Age the cache past its TTL, the state the page nearly always finds.
-        import brutus.nucleus as nuc
+        import alicia.nucleus as nuc
 
         nuc._SNAPSHOT_CACHE["at"] = time.time() - nuc._SNAPSHOT_TTL_S - 1
 
@@ -120,7 +120,7 @@ def test_the_screen_is_served_the_last_snapshot_while_a_new_one_builds():
         served = build_nucleus_snapshot(MagicMock(), memory, allow_stale=True)
         elapsed = time.monotonic() - started
 
-    assert served["projects"] == [{"id": "brutus"}]
+    assert served["projects"] == [{"id": "alicia"}]
     assert served["stale"] is True and served["refreshing"] is True
     assert elapsed < 0.5, f"a stale read waited {elapsed:.2f}s on a rebuild"
 
@@ -143,8 +143,8 @@ def test_an_organization_write_is_visible_before_the_rebuild_lands():
     persisted: the next read found an empty cache, fell back to the copy on
     disk — written before the write — and served the row unchanged.
     """
-    from brutus.nucleus import apply_project_overlay, slim_nucleus_snapshot
-    import brutus.nucleus as nuc
+    from alicia.nucleus import apply_project_overlay, slim_nucleus_snapshot
+    import alicia.nucleus as nuc
 
     snapshot = {"projects": [{"id": "sfdc", "name": "sfdc", "pinned": False, "archived": False}]}
     with patch.object(nuc, "_write_snapshot_to_disk"):
@@ -160,8 +160,8 @@ def test_an_organization_write_is_visible_before_the_rebuild_lands():
 
 
 def test_an_overlay_write_cannot_set_fields_it_does_not_own():
-    from brutus.nucleus import apply_project_overlay
-    import brutus.nucleus as nuc
+    from alicia.nucleus import apply_project_overlay
+    import alicia.nucleus as nuc
 
     with patch.object(nuc, "_write_snapshot_to_disk"):
         nuc._SNAPSHOT_CACHE["data"] = {"projects": [{"id": "sfdc", "attention_score": 1698}]}

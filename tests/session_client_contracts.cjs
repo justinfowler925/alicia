@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const name = process.argv[2];
-let source = fs.readFileSync(path.join(__dirname, '../brutus/static/session.js'), 'utf8');
+let source = fs.readFileSync(path.join(__dirname, '../alicia/static/session.js'), 'utf8');
 if (process.argv[3] === 'mutant') {
   const mutations = {
     providers: ['session?.surface === "codex"', 'false'],

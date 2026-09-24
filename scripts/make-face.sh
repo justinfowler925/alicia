@@ -55,7 +55,7 @@ PY="$ROOT/.venv/bin/python"
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 STUDIO_HOST="jfstudio@100.93.125.5"
-BRUTUS_URL="${BRUTUS_URL:-http://127.0.0.1:8768}"
+ALICIA_URL="${ALICIA_URL:-http://127.0.0.1:8768}"
 ANAM_MIN_PX=1152
 SIZE=1152          # square at the floor, so any crop Anam applies still clears
 STEPS=25           # dev wants real steps; schnell's 4 is for drafts, not faces
@@ -92,8 +92,8 @@ export MAKE_FACE_FORCE="$FORCE_MFLUX"
 
 PLAN=$("$PY" - <<'PY'
 import json, os, sys
-from brutus.avatars import decide_studio_pass
-from brutus.image_passes import seed_for_pass
+from alicia.avatars import decide_studio_pass
+from alicia.image_passes import seed_for_pass
 d = decide_studio_pass(
     os.environ["MAKE_FACE_NAME"],
     os.environ["MAKE_FACE_PROMPT"],
@@ -112,9 +112,9 @@ if [ "$ACTION" = "cursor" ]; then
   echo "==> pass ${PASS_N}: two mflux renders already. Handing to Cursor (not another seed)."
   echo "    force_mflux to re-roll locally."
   BODY=$("$PY" -c 'import json,os,sys; d=json.loads(sys.argv[1]); print(json.dumps({"prompt": os.environ["MAKE_FACE_PROMPT"], "name": os.environ["MAKE_FACE_NAME"], "prior": d.get("prior")}))' "$PLAN")
-  curl -sS -m 120 -X POST "$BRUTUS_URL/api/avatar/cursor-pass" \
+  curl -sS -m 120 -X POST "$ALICIA_URL/api/avatar/cursor-pass" \
     -H 'content-type: application/json' \
-    -d "$BODY" || { echo "FAIL: Brutus cursor-pass unreachable at $BRUTUS_URL" >&2; exit 1; }
+    -d "$BODY" || { echo "FAIL: Alicia cursor-pass unreachable at $ALICIA_URL" >&2; exit 1; }
   echo
   exit 0
 fi
@@ -191,7 +191,7 @@ if [ "$RC" -eq 0 ]; then
   export MAKE_FACE_PATH="/Users/jfstudio/mflux-out/faces/$BASE.png"
   "$PY" - <<'PY' || echo "    warn: ledger record failed — image exists"
 import os
-from brutus.avatars import record_studio_pass
+from alicia.avatars import record_studio_pass
 record_studio_pass(
     os.environ["MAKE_FACE_NAME"],
     os.environ["MAKE_FACE_PROMPT"],
@@ -202,7 +202,7 @@ record_studio_pass(
 )
 PY
   echo "==> done. Draft: $STUDIO_HOST:\$HOME/mflux-out/faces/$BASE.png"
-  echo "    On the Brutus Avatar page: Stage (into faces/looks) or Stage & apply"
+  echo "    On the Alicia Avatar page: Stage (into faces/looks) or Stage & apply"
   echo "    (Anam holds only 3 — apply is delete-to-swap)."
 else
   echo "==> FAILED (log on the Studio: ~/mflux-out/faces/$BASE.log)"

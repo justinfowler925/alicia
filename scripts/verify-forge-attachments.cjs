@@ -48,7 +48,7 @@ const fs = require('fs');
  await page.reload();
  await page.getByText('Reply received.',{exact:true}).waitFor({timeout:40000});
  if(!(await page.locator('#forge-transcript').innerText()).includes('picker-note.txt'))throw Error('Attachment history missing');
- const thread=await page.evaluate(()=>localStorage.getItem('brutus.forge.thread'));
+ const thread=await page.evaluate(()=>localStorage.getItem('alicia.forge.thread'));
  fs.writeFileSync('/tmp/forge-attachments-browser-result.json',JSON.stringify({passed:true,thread,log},null,2));
  console.log('PASS: picker, drop, remove, reload, narrow layout and Forge file read; thread '+thread);
  }finally{await browser.close();}

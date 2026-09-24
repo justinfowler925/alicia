@@ -1,7 +1,7 @@
 [project]
-name = "brutus"
+name = "alicia"
 version = "0.1.0"
-description = "Brutus — MacBook client for Studio Atlas (ledger lives on Atlas6)"
+description = "Alicia — MacBook client for Studio Atlas (ledger lives on Atlas6)"
 requires-python = ">=3.12"
 authors = [{ name = "jfstudio" }]
 license = { text = "MIT" }
@@ -10,7 +10,7 @@ dependencies = [
     "httpx>=0.28",
     "anthropic>=0.69",
     "pyyaml>=6.0",
-    "mcp>=1.2,<2",  # 2.0 removed mcp.server.fastmcp; stay on 1.x until Brutus migrates
+    "mcp>=1.2,<2",  # 2.0 removed mcp.server.fastmcp; stay on 1.x until Alicia migrates
     "fastapi>=0.115",
     "uvicorn>=0.32",
     "pydantic>=2.0",
@@ -46,15 +46,18 @@ voice-stream = [
 ]
 
 [project.scripts]
-brutus = "brutus.__main__:main"
-brutus-mcp = "brutus.mcp_server:main"
+alicia = "alicia.__main__:main"
+alicia-mcp = "alicia.mcp_server:main"
+# Deprecated aliases from the Brutus name; print a notice and forward.
+brutus = "alicia.legacy:brutus_main"
+brutus-mcp = "alicia.legacy:brutus_mcp_main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["brutus", "brutus_stack/brutus_stack"]
+packages = ["alicia", "alicia_stack/alicia_stack"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

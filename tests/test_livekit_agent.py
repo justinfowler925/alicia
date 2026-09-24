@@ -1,4 +1,4 @@
-"""LiveKit transport keeps the configured Brutus voice identity."""
+"""LiveKit transport keeps the configured Alicia voice identity."""
 
 import asyncio
 from pathlib import Path
@@ -6,11 +6,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brutus.livekit_agent import BrutusVoiceAgent, OwnerVoiceGate
+from alicia.livekit_agent import AliciaVoiceAgent, OwnerVoiceGate
 
 
 def test_livekit_uses_the_same_configured_voice_as_browser_tts():
-    source = (Path(__file__).parents[1] / "brutus/livekit_agent.py").read_text()
+    source = (Path(__file__).parents[1] / "alicia/livekit_agent.py").read_text()
     assert "from .config import load_config" in source
     assert "load_config().voice.elevenlabs_voice_id.strip()" in source
 
@@ -43,7 +43,7 @@ def test_owner_gate_consumes_audio_after_each_decision():
 
 def test_disconnecting_cancels_the_active_canonical_turn():
     async def scenario() -> None:
-        agent = BrutusVoiceAgent("123456abcdef", OwnerVoiceGate())
+        agent = AliciaVoiceAgent("123456abcdef", OwnerVoiceGate())
         active = asyncio.create_task(asyncio.Event().wait())
         agent._active_turn = active
         agent.close()
@@ -55,7 +55,7 @@ def test_disconnecting_cancels_the_active_canonical_turn():
 
 
 def test_livekit_verifies_the_speaker_and_forwards_the_verdict_with_the_turn():
-    source = (Path(__file__).parents[1] / "brutus/livekit_agent.py").read_text()
+    source = (Path(__file__).parents[1] / "alicia/livekit_agent.py").read_text()
     handler = source[source.index("async def on_user_turn_completed") : source.index("async def llm_node")]
     assert "await self.gate.verify_current_speaker()" in handler
     assert "owner_verified=verdict.accepted" in handler
@@ -63,7 +63,7 @@ def test_livekit_verifies_the_speaker_and_forwards_the_verdict_with_the_turn():
 
 
 def test_remote_track_callback_never_uses_a_nonexistent_is_local_flag():
-    source = (Path(__file__).parents[1] / "brutus/livekit_agent.py").read_text()
+    source = (Path(__file__).parents[1] / "alicia/livekit_agent.py").read_text()
     callback = source[
         source.index("def _on_track") : source.index("@session.on", source.index("def _on_track"))
     ]

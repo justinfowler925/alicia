@@ -1,5 +1,5 @@
 schema_version: 2
-repository: github.com/justinfowler925/brutus
+repository: github.com/justinfowler925/alicia
 requirements:
 - id: lint
   kind: lint
@@ -19,12 +19,12 @@ profiles:
     - id: deploy
       kind: deploy
       command: ./scripts/deploy.sh
-      target: local-brutus
+      target: local-alicia
       freshness_hours: 4
     - id: production
       kind: readback
       probe: /version reports the delivered SHA and workflow endpoints answer from 127.0.0.1:8768
-      target: local-brutus
+      target: local-alicia
       freshness_hours: 4
   workflow_control:
     requirements:
@@ -38,12 +38,12 @@ profiles:
       probe: The reviewed workflow CLI, policy evaluator and Canon model patch is applied to the actual
         imported runtime package; record resulting module hashes and any preserved pre-existing runtime
         differences; unrelated source, package files and configuration are preserved
-      target: local-brutus
+      target: local-alicia
       freshness_hours: 4
     - id: workflow_readback
       kind: readback
       probe: The restarted local service returns the bound profile and policy digest via /api/workflow/status;
         cross-profile evidence fails; existing health endpoint passes. Record original application version
         separately; scoped module installation never relabels the whole application SHA
-      target: local-brutus
+      target: local-alicia
       freshness_hours: 4

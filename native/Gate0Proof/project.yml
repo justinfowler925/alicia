@@ -1,6 +1,6 @@
 name: Gate0Proof
 options:
-  bundleIdPrefix: com.clearspeed.brutus
+  bundleIdPrefix: com.clearspeed.alicia
   deploymentTarget:
     iOS: "17.0"
     macOS: "14.0"
@@ -23,9 +23,9 @@ targets:
         product: Gate0Core
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.clearspeed.brutus.gate0
+        PRODUCT_BUNDLE_IDENTIFIER: com.clearspeed.alicia.gate0
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Brutus Gate0
+        INFOPLIST_KEY_CFBundleDisplayName: Alicia Gate0
         # No microphone usage description — app must not capture mic audio.
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic

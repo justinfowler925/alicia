@@ -1,13 +1,13 @@
-# UI/UX Audit: Brutus operator SPA
+# UI/UX Audit: Alicia operator SPA
 
 > **Historical scope:** For the current voice, session-continuity and release direction, use the [Apple accessibility reset plan](APPLE_ACCESSIBILITY_RESET_PLAN.md). This document remains evidence of its dated work; it does not override the reset requirements or prove current voice acceptance.
 
 **Date:** 2026-08-02  
 **Recheck:** 2026-08-02 evening — after Waves 2–5  
-**Remediation:** 2026-08-02 — Phases A–C shipped in `brutus/ui.py` (see [`UI_BUILD_PLAN.md`](UI_BUILD_PLAN.md))  
-**Surface:** Product / app — FastAPI SPA in `brutus/ui.py` (`http://127.0.0.1:8768/`)  
+**Remediation:** 2026-08-02 — Phases A–C shipped in `alicia/ui.py` (see [`UI_BUILD_PLAN.md`](UI_BUILD_PLAN.md))  
+**Surface:** Product / app — FastAPI SPA in `alicia/ui.py` (`http://127.0.0.1:8768/`)  
 **Rubric:** ui-ux skill (MUST + SHOULD for app shells)  
-**Live canvas:** Cursor project canvases → `brutus-ui-audit.canvas.tsx`
+**Live canvas:** Cursor project canvases → `alicia-ui-audit.canvas.tsx`
 
 > **Status:** Original Critical/Major gaps below are addressed by the build plan ship (mobile shell, semantic nav, confirms, triad, list toolbars). Audit text retained as historical record.
 

@@ -2,19 +2,19 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from brutus.config import BrutusCfg
-from brutus.memory import MemoryStore
-from brutus.nucleus import build_operating_graph, invalidate_nucleus_cache, nucleus_view
-from brutus.tools import build_default_registry
+from alicia.config import AliciaCfg
+from alicia.memory import MemoryStore
+from alicia.nucleus import build_operating_graph, invalidate_nucleus_cache, nucleus_view
+from alicia.tools import build_default_registry
 
 
 def test_operating_graph_joins_native_projects_threads_and_tickets():
     projects = [
         {
-            "project_id": "github.com/clearspeedrevops/brutus",
-            "name": "brutus",
-            "path": "/Users/justinfowler/Projects/brutus",
-            "workspace": "brutus",
+            "project_id": "github.com/clearspeedrevops/alicia",
+            "name": "alicia",
+            "path": "/Users/justinfowler/Projects/alicia",
+            "workspace": "alicia",
             "dirty": 2,
             "unpushed": 1,
             "last_commit_epoch": 100,
@@ -26,7 +26,7 @@ def test_operating_graph_joins_native_projects_threads_and_tickets():
             "id": "codex:local:abc",
             "surface": "codex",
             "title": "build nucleus",
-            "cwd": "/Users/justinfowler/Projects/brutus",
+            "cwd": "/Users/justinfowler/Projects/alicia",
             "mtime": 200,
             "state": "waiting",
             "live": False,
@@ -36,8 +36,8 @@ def test_operating_graph_joins_native_projects_threads_and_tickets():
         {
             "id": "linear-1",
             "ticket": "REV-900",
-            "title": "Optimize brutus",
-            "description": "Brutus Nucleus command center",
+            "title": "Optimize alicia",
+            "description": "Alicia Nucleus command center",
             "state": "In Review",
             "state_type": "started",
             "assignee_email": "justin.fowler@clearspeed.com",
@@ -48,7 +48,7 @@ def test_operating_graph_joins_native_projects_threads_and_tickets():
     ]
 
     graph = build_operating_graph(projects, agents, issues)
-    project = next(row for row in graph["projects"] if row["id"].endswith("/brutus"))
+    project = next(row for row in graph["projects"] if row["id"].endswith("/alicia"))
 
     assert project["ticket_count"] == 1
     assert project["thread_counts"] == {"codex": 1, "cursor": 0, "claude": 0}
@@ -101,7 +101,7 @@ def test_explicit_linear_project_mapping_sets_the_operating_name():
     }
 
     with patch(
-        "brutus.nucleus._links",
+        "alicia.nucleus._links",
         return_value={"linear_project_to_git": {"linear-native-id": "github.com/o/runtime"}},
     ):
         graph = build_operating_graph(projects, [], [issue])
@@ -114,30 +114,30 @@ def test_explicit_linear_project_mapping_sets_the_operating_name():
 
 def test_nucleus_view_preserves_exact_ids_while_filtering():
     snapshot = build_operating_graph(
-        [{"project_id": "github.com/o/brutus", "name": "brutus", "path": "/tmp/brutus", "workspace": "brutus"}],
-        [{"id": "cursor:xyz", "surface": "cursor", "title": "fix ui", "cwd": "/tmp/brutus", "mtime": 1}],
+        [{"project_id": "github.com/o/alicia", "name": "alicia", "path": "/tmp/alicia", "workspace": "alicia"}],
+        [{"id": "cursor:xyz", "surface": "cursor", "title": "fix ui", "cwd": "/tmp/alicia", "mtime": 1}],
         [],
     )
 
     view = nucleus_view(snapshot, surface="cursor", limit=1)
 
     assert view["count"] == 1
-    assert view["projects"][0]["id"] == "github.com/o/brutus"
+    assert view["projects"][0]["id"] == "github.com/o/alicia"
     assert view["projects"][0]["threads"][0]["id"] == "cursor:xyz"
 
 
 def test_read_only_brain_tool_reads_the_same_snapshot_shape(tmp_path):
     snapshot = build_operating_graph(
-        [{"project_id": "github.com/o/brutus", "name": "brutus", "path": "/tmp/brutus", "workspace": "brutus"}],
+        [{"project_id": "github.com/o/alicia", "name": "alicia", "path": "/tmp/alicia", "workspace": "alicia"}],
         [],
         [],
     )
     memory = MemoryStore(tmp_path / "memory.sqlite")
-    registry = build_default_registry(MagicMock(), BrutusCfg(), memory=memory, read_only=True)
+    registry = build_default_registry(MagicMock(), AliciaCfg(), memory=memory, read_only=True)
 
-    with patch("brutus.tools.build_nucleus_snapshot", return_value=snapshot):
-        receipt = registry.call("get_nucleus", {"q": "brutus"})
+    with patch("alicia.tools.build_nucleus_snapshot", return_value=snapshot):
+        receipt = registry.call("get_nucleus", {"q": "alicia"})
 
     assert receipt["ok"] is True
-    assert receipt["result"]["projects"][0]["id"] == "github.com/o/brutus"
+    assert receipt["result"]["projects"][0]["id"] == "github.com/o/alicia"
     invalidate_nucleus_cache()

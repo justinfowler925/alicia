@@ -9,14 +9,14 @@ import tempfile
 import statistics
 from pathlib import Path
 
-from brutus.client import AtlasClient
-from brutus.config import load_config
-from brutus.conversation import ConversationManager
-from brutus.memory import MemoryStore
-from brutus.session import SessionStore
-from brutus.todos import TodoStore
-from brutus.tools import Tool, ToolRegistry
-from brutus.voice_eval import run_scenarios
+from alicia.client import AtlasClient
+from alicia.config import load_config
+from alicia.conversation import ConversationManager
+from alicia.memory import MemoryStore
+from alicia.session import SessionStore
+from alicia.todos import TodoStore
+from alicia.tools import Tool, ToolRegistry
+from alicia.voice_eval import run_scenarios
 
 
 def synthetic_registry() -> ToolRegistry:
@@ -42,7 +42,7 @@ def synthetic_registry() -> ToolRegistry:
         },
         lambda ticket="", thread_id="": {
             "ticket": ticket or thread_id or "REV-490",
-            "title": "Brutus conversational voice acceptance",
+            "title": "Alicia conversational voice acceptance",
             "status": "in progress",
             "remaining": "autonomous voice evaluation and turn-taking replacement",
         },
@@ -69,7 +69,7 @@ def main() -> None:
     cfg = load_config()
     reports = []
     for run_number in range(1, args.runs + 1):
-        with tempfile.TemporaryDirectory(prefix="brutus-voice-eval-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="alicia-voice-eval-") as tmp:
             root = Path(tmp)
             sessions = SessionStore(root / "sessions.sqlite")
             manager = SyntheticEvalManager(
