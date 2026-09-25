@@ -84,13 +84,8 @@ def _meeting_note_ledger() -> Path:
 
 def _apply_meeting_note(rec: dict[str, Any], todos: Any) -> list[str]:
     """Salesforce Meeting_Notes__c → Inbox notes; ledger-compatible with the old feeder."""
-    from importlib import util
+    from . import meeting_notes as feeder
 
-    feeder_path = Path(__file__).resolve().parent.parent / "scripts" / "feed_zoom_to_alicia_notes.py"
-    spec = util.spec_from_file_location("_zoom_feeder", feeder_path)
-    feeder = util.module_from_spec(spec)
-    assert spec.loader
-    spec.loader.exec_module(feeder)
     ledger = _meeting_note_ledger()
     seen = feeder.load_ledger(ledger)
     host = (rec.get("Host_Email__c") or "").lower()
