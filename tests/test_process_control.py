@@ -54,7 +54,7 @@ def test_launchctl_noise_about_a_no_op_is_not_a_failure():
     """Booting out something already gone is the end state that was asked for."""
     gone = _completed(returncode=3, stderr="Boot-out failed: 3: No such process")
     with patch("alicia.process_control.subprocess.run", return_value=gone):
-        assert pc.service_action("com.clearspeed.alicia-my-notes", "stop")["ok"] is True
+        assert pc.service_action("com.clearspeed.alicia-livekit-agent", "stop")["ok"] is True
 
 
 def test_restarting_the_core_waits_for_its_own_response_to_land():

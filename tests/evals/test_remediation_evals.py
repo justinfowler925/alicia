@@ -132,4 +132,6 @@ def test_operations_are_shipped_not_documented_only():
     assert "dirty deployed checkout" in deploy
     assert "check-deploy-drift.sh" in deploy
     assert (root / "scripts" / "canon-backup.py").is_file()
-    assert (root / "launchd" / "com.clearspeed.alicia-canon-backup.plist").is_file()
+    # Backups run through Scout (alicia/scout_import.py hands one over daily); no laptop timer.
+    assert "canon-backup" in (root / "alicia" / "scout_import.py").read_text(encoding="utf-8")
+    assert not (root / "launchd" / "com.clearspeed.alicia-canon-backup.plist").exists()

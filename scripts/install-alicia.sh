@@ -63,17 +63,8 @@ if [[ -f "$SERVE_SRC" ]]; then
   echo "loaded com.clearspeed.alicia (localhost:8768 laptop face)"
 fi
 
-# Zoom → Alicia Notes feeder (Justin action items → Inbox for Promote)
-ZOOM_SRC="${ROOT}/launchd/com.clearspeed.alicia-zoom-notes.plist"
-ZOOM_DST="${HOME}/Library/LaunchAgents/com.clearspeed.alicia-zoom-notes.plist"
-chmod +x "${ROOT}/scripts/feed_zoom_to_alicia_notes.py" \
-         "${ROOT}/scripts/schedule-zoom-alicia-notes.sh"
-if [[ -f "$ZOOM_SRC" ]]; then
-  cp "$ZOOM_SRC" "$ZOOM_DST"
-  launchctl bootout "gui/$(id -u)/com.clearspeed.alicia-zoom-notes" 2>/dev/null || true
-  launchctl bootstrap "gui/$(id -u)" "$ZOOM_DST" 2>/dev/null || launchctl load "$ZOOM_DST" 2>/dev/null || true
-  echo "loaded com.clearspeed.alicia-zoom-notes (Zoom actions → Notes Inbox every 5m)"
-fi
+# Zoom, Salesforce meeting notes and GitHub facts are ingested by Scout on
+# Studio; Alicia imports them when it runs (alicia/scout_import.py). No laptop timer.
 
 echo "==> OK. Try: alicia health"
 echo "    Alicia UI:    bash scripts/open-operator.sh  → http://127.0.0.1:8768/"

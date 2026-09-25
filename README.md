@@ -132,17 +132,18 @@ that browser tab. Read-only Canon views do not require authentication.
 
 ### Canon backup operations
 
-`com.clearspeed.alicia-canon-backup` runs the SQLite online backup each day at
-03:15 into `~/.alicia/backups/canon`, retains 14 days, and writes a SHA-256
-sidecar. Verify the newest backup with
-`~/.alicia/app/.venv/bin/python ~/.alicia/app/scripts/canon-backup.py verify`;
-verification restores into a temporary directory and never touches live state.
+Nothing is scheduled on the laptop (2026-09-25). When Alicia runs, the Scout
+import pass (`alicia/scout_import.py`) takes a SQLite online backup at most once
+every 20 hours and hands it to Scout on Studio
+(`PUT /v1/routines/canon-backup`), which checks the SHA-256, keeps 14 days and
+records them under `~/.local/share/scout-routines/canon-backups`. A manual local
+backup and restore check is still `scripts/canon-backup.py backup|verify`.
 
 ### GitHub Evidence ingestion
 
-Alicia is loopback-only, so production uses
-`com.clearspeed.alicia-canon-github` to poll the authenticated GitHub API every
-five minutes. PR and workflow ids, repository, SHA, and the derived delivery id
+Alicia is loopback-only, so Scout on Studio polls the authenticated GitHub API
+every five minutes (fowler-brain `scripts/scout-routines`, job `github-canon`)
+and Alicia imports those facts through the same receiver when it runs. PR and workflow ids, repository, SHA, and the derived delivery id
 are persisted on Evidence. The inbound `/webhooks/github` route is retained for
 future use but fails closed without a valid HMAC signature and delivery id.
 

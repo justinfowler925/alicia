@@ -155,7 +155,7 @@ New lane, additive, nothing removed:
   (markdown `## Action Items` / `## Next steps`).
 * `POST /api/zoom/poll` — fetch + ingest, inside the daemon. `GET|POST
   /api/zoom/ingest` for status and for pushing already-fetched payloads.
-* `scripts/zoom-poll.sh` + `com.clearspeed.alicia-zoom-summaries` — hourly.
+* ~~`scripts/zoom-poll.sh` + `com.clearspeed.alicia-zoom-summaries` — hourly.~~ Retired 2026-09-25: Scout on Studio fetches summaries hourly and Alicia imports them (see "Scout ingestion" below).
 
 Items land at stage **Captured** with `source="zoom"`, so the refine sweeper
 drafts titles for them like any other capture. `raw` keeps the verbatim
@@ -208,10 +208,26 @@ Markdown when it exists. When the generated page is blank but the transcript is
 present, Alicia's normal one-shot brain creates the recap. A note with neither
 content nor transcript remains pending and is retried; it is never recorded as a
 successful empty note. Each completed note produces one dated recap in Ideas and
-separate owned action items. `com.clearspeed.alicia-my-notes` polls every five
-minutes; unchanged notes do not refetch their transcripts.
+separate owned action items. Scout on Studio polls My Notes every five minutes (it now holds the rotating
+refresh token); unchanged notes are not refetched, and Alicia imports new ones.
 
 The Server-to-Server Zoom app needs three owner-scoped read permissions:
 `my_notes:read:note`, `my_notes:read:content`, and `user:read:user:admin`. The last is
 the principal check; without it Alicia cannot prove whose private notes the
 owner-scoped endpoint is returning.
+
+
+## Scout ingestion (2026-09-25)
+
+Justin: nothing is scheduled on the laptop or the Claude account; Scout handles
+all scraping and ingestion. Scout on Studio (fowler-brain
+`scripts/scout-routines`) fetches Zoom meeting summaries (hourly), Zoom My Notes
+(every 5 minutes, token held on Studio), Salesforce `Meeting_Notes__c` action
+items (hourly) and GitHub Canon facts (every 5 minutes), and serves them from its
+private service (`http://100.102.92.119:8973/v1/routines/records`, owner bearer
+token in `~/.alicia/state/scout-service-token`). Alicia imports them through the
+same ingestion code at startup and, throttled to once every five minutes, when
+the board loads; `GET|POST /api/scout/import` shows or forces a pass. The five
+laptop LaunchAgents (`alicia-zoom-summaries`, `alicia-my-notes`,
+`alicia-zoom-notes`, `alicia-canon-github`, `alicia-canon-backup`) are retired
+and `deploy.sh` removes any that reappear.
