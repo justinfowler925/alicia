@@ -351,10 +351,17 @@ echo "==> syncing the launchd plist"
 # reported the tunnel "updated but FAILED TO RELOAD — it is now DOWN", and the
 # identical bootstrap succeeded by hand seconds later. Wait for the service to
 # actually be gone, the same way the readiness poll below does.
-# Canon's durability and authenticated GitHub ingestion are required parts of
-# the work surface, not optional operator add-ons. Install them on first deploy;
+# LiveKit is a required part of the work surface. Install it on first deploy;
 # the generic sibling loop below continues to avoid starting unrelated jobs.
-for REQUIRED in com.clearspeed.alicia-canon-backup.plist com.clearspeed.alicia-canon-github.plist com.clearspeed.alicia-livekit.plist com.clearspeed.alicia-livekit-agent.plist com.clearspeed.alicia-my-notes.plist; do
+# Zoom, Salesforce meeting-note and GitHub ingestion, and the Canon backup
+# schedule, moved to Scout on Studio (2026-09-25): nothing is scheduled on the
+# laptop. Alicia imports from Scout when it runs (alicia/scout_import.py). Any
+# leftover laptop timers are retired here so a deploy can never bring them back.
+for RETIRED in com.clearspeed.alicia-canon-backup com.clearspeed.alicia-canon-github com.clearspeed.alicia-my-notes com.clearspeed.alicia-zoom-notes com.clearspeed.alicia-zoom-summaries; do
+  launchctl bootout "gui/$(id -u)/$RETIRED" >/dev/null 2>&1 || true
+  [ -f "$HOME/Library/LaunchAgents/$RETIRED.plist" ] && mv "$HOME/Library/LaunchAgents/$RETIRED.plist" "$HOME/Library/LaunchAgents/$RETIRED.plist.retired-scout"
+done
+for REQUIRED in com.clearspeed.alicia-livekit.plist com.clearspeed.alicia-livekit-agent.plist; do
   SRC="$APP/launchd/$REQUIRED"; DEST="$HOME/Library/LaunchAgents/$REQUIRED"
   if [ ! -f "$DEST" ]; then
     cp "$SRC" "$DEST" || { echo "    ${REQUIRED%.plist}: COULD NOT INSTALL"; FAIL=1; continue; }

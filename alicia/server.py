@@ -33,6 +33,7 @@ from .agent_sessions import (
 )
 from .board_watch import BoardWatcher
 from .canon import CanonStore
+from . import scout_import
 from .canon.http import router as canon_router
 from .canon.surface import slack_capture_tick
 from .chat_resolve import resolve_chat_reply
@@ -318,6 +319,8 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         # the API, the Zoom feeder, agent promotion. Hooking each entry point
         # instead would mean a new capture route silently arriving unrefined.
         refiner = asyncio.create_task(_refine_backlog_loop(app)) if start_watchdog else None
+        if start_watchdog:
+            scout_import.maybe_import_in_background(cfg=cfg, todos=app.state.todos, zoom_store=app.state.zoom_store)
         supervisor_task = (
             asyncio.create_task(_supervisor_loop(app)) if start_watchdog else None
         )
@@ -748,6 +751,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
     app.state.todos = todos
     # Same sqlite file, its own two tables — never a column on `todos`.
     zoom_store = ZoomIngestStore(todos.path)
+    app.state.zoom_store = zoom_store
 
     def _publish_idea_on(
         app_: FastAPI,
@@ -786,6 +790,9 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         every column — including the empty ones — without inferring the pipeline
         from whichever stages happen to have rows today.
         """
+        # Scout ingests Zoom/Salesforce/GitHub on Studio; loading the board pulls
+        # anything new (throttled, in the background). No laptop timer does this.
+        scout_import.maybe_import_in_background(cfg=cfg, todos=todos, zoom_store=zoom_store)
         rows = todos.list(include_done=include_done)
         grouped = todos.by_stage(include_done=include_done)
         return {
@@ -795,6 +802,15 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             "counts": todos.counts(),
             "unrefined": len(todos.needing_refinement(limit=500)),
         }
+
+    @app.get("/api/scout/import")
+    async def scout_import_status() -> dict[str, Any]:
+        return scout_import.status()
+
+    @app.post("/api/scout/import")
+    async def scout_import_now() -> dict[str, Any]:
+        """Pull from Scout now (the same pass the board triggers), and wait for it."""
+        return await asyncio.to_thread(scout_import.import_once, cfg=cfg, todos=todos, zoom_store=zoom_store)
 
     @app.post("/api/todos")
     async def todos_add(body: dict, request: Request) -> dict[str, Any]:
