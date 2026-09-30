@@ -17,6 +17,12 @@ job={'Label':'com.jfstudio.alicia','ProgramArguments':['/bin/bash',str(root/'app
  'StandardOutPath':str(root/'logs/service.log'),'StandardErrorPath':str(root/'logs/service.err.log')}
 p.write_bytes(plistlib.dumps(job));target='gui/'+str(os.getuid())
 subprocess.run(['launchctl','bootout',target+'/com.jfstudio.alicia'],capture_output=True)
-subprocess.run(['launchctl','bootstrap',target,str(p)],check=True)
+for attempt in range(20):
+    result=subprocess.run(['launchctl','bootstrap',target,str(p)],capture_output=True)
+    if result.returncode == 0:
+        break
+    time.sleep(2)
+else:
+    raise RuntimeError('Studio service could not be registered after the previous service stopped')
 PY
 ssh "$host" /opt/homebrew/bin/tailscale serve --bg --https=8768 http://127.0.0.1:8768
