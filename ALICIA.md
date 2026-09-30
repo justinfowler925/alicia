@@ -1,5 +1,7 @@
 # Alicia
 
+> **Current deployment (2026-09-30):** Mac Studio owns the service and durable state. Private URL: https://justins-mac-studio-1.tailbaa084.ts.net:8768/. GPT-Live handles voice, Cursor Pro handles conversation tools and work. Anthropic is not selected in Studio mode. Deploy committed source with `scripts/deploy-studio.sh`; source lives at `~/.alicia/app`, state at `~/.alicia/state`, config at `~/.alicia/config.yaml` on Studio. Laptop localhost redirects to Studio and its CLI forwards there. Earlier laptop/Claude descriptions below are historical. Spoken Cursor handoffs produce an on-screen approval; the work checkout is separate from the service.
+
 > **Current replacement direction (2026-09-07):** [Apple accessibility reset plan](docs/APPLE_ACCESSIBILITY_RESET_PLAN.md). Continuous Voice Control input and native Apple output; Siri excluded. **Gate 0 Mac proof app:** `native/Gate0Proof/` — run `./scripts/run-mac.sh`. Physical VC samples + iPhone (needs Xcode) still open. Older architecture and completion claims below are historical where they conflict.
 
 Justin's right hand, running on the laptop. End state: reads email/Slack, tracks

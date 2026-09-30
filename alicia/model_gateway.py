@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -16,6 +17,10 @@ from .model_profiles import ModelCandidate, ModelProfile, select_model_profile
 
 def default_profile(name: str, cfg: AliciaCfg) -> ModelProfile:
     """Return the explicit provider order for a workload, never a hidden fallback."""
+    if os.environ.get("ALICIA_CONVERSATION_PROVIDER") == "cursor":
+        from .model_profiles import PROFILE_REQUIREMENTS
+        return ModelProfile(name, (ModelCandidate("cursor", os.environ.get("ALICIA_CURSOR_MODEL", "gpt-5.6-luna-low"),
+            PROFILE_REQUIREMENTS[name], priority=10),))
     candidates = {
         "conversation": (
             ModelCandidate("cursor", cfg.cursor_runner.model, {"conversation", "low_latency"}, priority=10),
@@ -46,7 +51,13 @@ def run_profile(
 ) -> dict[str, Any]:
     candidate = select_model_profile(default_profile(profile_name, cfg))
     root = Path(cwd or cfg.cursor_runner.reasoning_root).expanduser().resolve()
-    if candidate.provider == "cursor":
+    if candidate.provider == "cursor" and os.environ.get("ALICIA_CONVERSATION_PROVIDER") == "cursor":
+        from .cursor_cli import complete
+        try:
+            result = {"ok": True, "reply": complete(_system(profile_name) + "\n\n" + prompt)}
+        except RuntimeError as exc:
+            result = {"ok": False, "error": str(exc)}
+    elif candidate.provider == "cursor":
         result = run_cursor_chat(cfg, prompt, repo_hint=str(root), mutate=False)
     elif candidate.provider == "claude":
         claude = ClaudeCfg(

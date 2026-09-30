@@ -497,6 +497,11 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
     app.include_router(workflow_router)
     app.include_router(forge_chat_router)
     app.include_router(studio_runs_router)
+    from .live_voice import router as live_voice_router
+    from .studio_access import install as install_studio_access
+    app.state.live_voice_jobs = set()
+    app.include_router(live_voice_router)
+    install_studio_access(app)
 
     @app.exception_handler(AtlasDisabled)
     async def atlas_disabled_handler(_request: Request, exc: AtlasDisabled) -> Response:
@@ -589,11 +594,11 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             "atlas": {"enabled": False, "ignored": True},
             "local_llm": llm,
             "brain": {
-                "primary": "claude_cli",
+                "primary": "cursor" if os.environ.get("ALICIA_CONVERSATION_PROVIDER") == "cursor" else "claude_cli",
                 "profiles": {
-                    "conversation": "claude_cli",
-                    "supervisor": "claude",
-                    "frontier": "codex",
+                    "conversation": "cursor" if os.environ.get("ALICIA_CONVERSATION_PROVIDER") == "cursor" else "claude_cli",
+                    "supervisor": "cursor" if os.environ.get("ALICIA_CONVERSATION_PROVIDER") == "cursor" else "claude",
+                    "frontier": "cursor" if os.environ.get("ALICIA_CONVERSATION_PROVIDER") == "cursor" else "codex",
                 },
                 "api_enabled": bool(cfg.claude and getattr(cfg.claude, "api_enabled", False)),
                 "transport": str(getattr(cfg.claude, "transport", "cli") if cfg.claude else "cli"),
@@ -1556,6 +1561,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             "session.css": "text/css",
             "overview.css": "text/css",
             "session.js": "application/javascript",
+            "live-voice.js": "application/javascript",
             "operations.js": "application/javascript",
             "shine-tokens.css": "text/css",
         }

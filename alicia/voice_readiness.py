@@ -1,5 +1,6 @@
 """Bounded, process-local proof that the selected conversation engine answers."""
 
+import os
 import threading
 import time
 from typing import Any
@@ -25,6 +26,17 @@ class VoiceReadiness:
         # Coalesce simultaneous tabs; polling must not spawn parallel CLI turns.
         with self._lock:
             if time.monotonic() - self._checked < 30:
+                return dict(self._result)
+            if os.environ.get("ALICIA_CONVERSATION_PROVIDER") == "cursor":
+                from .cursor_cli import complete
+                try:
+                    reply = complete("Reply with exactly: pong", timeout=25)
+                    ready = reply.strip().lower().rstrip(".") == "pong"
+                except RuntimeError:
+                    ready = False
+                self._result = {"ready": ready, "provider": "openai_live",
+                    "scope": "cursor_conversation_engine", "reason": "" if ready else "Studio's Cursor connection needs attention."}
+                self._checked = time.monotonic()
                 return dict(self._result)
             if self.cfg.claude.transport != "cli":
                 return {"ready": None, "reason": "CLI readiness does not verify the selected API transport."}

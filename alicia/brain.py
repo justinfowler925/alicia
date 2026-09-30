@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from collections.abc import Callable
@@ -100,7 +101,7 @@ class BrainError(Exception):
 
 
 BRAIN_SYSTEM = """You are Alicia — Justin's right hand for Clearspeed RevOps, \
-running 24/7 on his laptop. You are the front door: he talks to you by voice \
+running 24/7 on his Mac Studio. You are the front door: he talks to you by voice \
 and text. Use the configured profile tools explicitly; never hide a provider \
 fallback. Atlas is intentionally ignored.
 
@@ -459,7 +460,8 @@ def brain_reply(
     started = time.monotonic()
     meta: dict[str, Any] = {"brain": True, "backend": "claude_cli", "rounds": 0, "tools": []}
     claude = cfg.claude
-    if claude is None or not claude.enabled:
+    cursor_selected = os.environ.get("ALICIA_CONVERSATION_PROVIDER") == "cursor"
+    if not cursor_selected and (claude is None or not claude.enabled):
         return (
             "The conversational brain is offline. Check ~/.alicia/config.yaml claude.enabled.",
             {**meta, "error": "brain_disabled", "backend": "none"},
@@ -507,8 +509,8 @@ def brain_reply(
         "no TOOL: line.\n"
     )
     cli_system = system_text + protocol
-    transport = str(claude.transport or "cli").strip().lower()
-    meta["backend"] = f"claude_{transport}"
+    transport = "cli" if cursor_selected else str(claude.transport or "cli").strip().lower()
+    meta["backend"] = "cursor" if cursor_selected else f"claude_{transport}"
     if transport == "api" and not (
         claude.api_enabled and not resilience.api_killed() and claude.api_key.strip()
     ):
@@ -575,10 +577,22 @@ def _create_cli(cfg: AliciaCfg, **kwargs: Any) -> Any:
                     parts.append(str(_attr(block, "text")))
             content = "\n".join(parts)
         turns.append(f"{message['role']}: {content}")
-    result = ask_claude(
-        cfg, "\n\n".join(turns), system=kwargs["cli_system"],
-        timeout_s=timeouts()["brain_cli_s"],
-    )
+    if os.environ.get("ALICIA_CONVERSATION_PROVIDER") == "cursor":
+        from .cursor_cli import complete as cursor_complete
+        prompt = ("You are the protocol controller for Alicia, an external application. "
+            "Do not use Cursor workspace tools. Your job in Ask mode is to output text: "
+            "either TOOL/ARGS for Alicia's external tools below or a final answer. "
+            "Alicia executes requests after validating them; you do not edit files yourself. "
+            "Saving a note means emit TOOL: capture_note with ARGS, not writing a file here. "
+            "Do not ask to change Cursor modes. Tool result messages are the actual execution evidence.\n\n"
+            + kwargs["cli_system"] + "\n\nExternal tool schemas:\n" + json.dumps(kwargs.get("tools", [])))
+        body = cursor_complete(prompt + "\n\n" + "\n\n".join(turns))
+        result = {"ok": True, "reply": body}
+    else:
+        result = ask_claude(
+            cfg, "\n\n".join(turns), system=kwargs["cli_system"],
+            timeout_s=timeouts()["brain_cli_s"],
+        )
     body = str(result.get("reply") or "").strip()
     if not result.get("ok") or not body:
         raise BrainError(str(result.get("error") or "Claude CLI returned no reply"))

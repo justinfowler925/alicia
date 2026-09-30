@@ -43,10 +43,12 @@ async function refreshResilienceChip() {
     const bill = data.billing || {};
     const conv = bill.conversation || {};
     const can = data.canaries || {};
-    const plane = conv.plane === "claude_subscription_cli" ? "CLI" : "API";
+    const studio = conv.plane === "cursor_pro";
+    const plane = studio ? "Cursor Pro" : (conv.plane === "claude_subscription_cli" ? "CLI" : "API");
     const cli = can.cli && can.cli.ok ? "ok" : (can.cli && can.cli.skipped ? "—" : "down");
     const convai = can.convai && can.convai.ok ? "ok" : (can.convai && can.convai.skipped ? "—" : "down");
-    el.textContent = `brain:${plane} cli:${cli} convai:${convai}`;
+    el.textContent = studio ? `Cursor Pro · ${cli} · GPT Live voice` : `brain:${plane} cli:${cli} convai:${convai}`;
+    if (studio && $("#voice-enroll")) $("#voice-enroll").hidden = true;
     el.dataset.ok = data.ok ? "true" : "false";
     el.title = JSON.stringify({
       billing: {
@@ -312,7 +314,8 @@ function voiceOwnsPlayback() {
   // ConvAI agent and speak only through /api/speak — allow that path.
   if (state.productBrainSpeak) return false;
   return (
-    state.voiceTransport === "livekit"
+    state.voiceTransport === "openai_live"
+    || state.voiceTransport === "livekit"
     || state.voiceTransport === "convai"
     || Boolean(state.livekitRoom)
     || Boolean(state.convai)
@@ -342,7 +345,7 @@ function handle(event) {
       break;
     case "thinking":
       renderThinking(event);
-      if (state.listening || state.voiceTransport === "livekit" || state.voiceTransport === "convai") {
+      if (state.listening || state.voiceTransport === "openai_live" || state.voiceTransport === "livekit" || state.voiceTransport === "convai") {
         setVoicePhase("thinking");
       }
       break;
@@ -836,6 +839,21 @@ async function startVoice() {
     }
     const readiness = await readinessResponse.json();
     if (readiness.ready === false) return setVoicePhase("error", readiness.reason);
+    if (readiness.provider === "openai_live") {
+      const {LiveVoice} = await import("/static/live-voice.js");
+      state.liveVoice = new LiveVoice(state.sessionId, setVoicePhase, (_role, text) => {
+        const detail = document.querySelector("#voice-state-detail");
+        if (detail && text) detail.textContent = text;
+      });
+      state.voiceTransport = "openai_live";
+      state.liveVoice.mute(state.muted);
+      try { await state.liveVoice.start(controller.signal); }
+      catch (error) {
+        state.liveVoice.stop();state.voiceTransport=null;
+        setVoicePhase("error", error.name === "NotAllowedError" ? "Allow microphone access, then tap Start voice." : (error.message || "Voice could not connect. Tap Start voice to retry."));
+      }
+      return;
+    }
     const convaiOk = await startConvAI(controller.signal);
     if (convaiOk) return;
     if (controller.signal.aborted) return;
@@ -1329,6 +1347,8 @@ async function teardownLiveKit() {
 }
 
 function teardownVoice() {
+  state.liveVoice?.stop();
+  state.liveVoice = null;
   state.voiceStartAbort?.abort();
   state.sayAbort?.abort();
   state.speechAbort?.abort();
@@ -1342,6 +1362,7 @@ function teardownVoice() {
 }
 
 function bargeIn() {
+  if (state.voiceTransport === "openai_live") return teardownVoice();
   state.sayAbort?.abort();
   stopSpeaking();
   if (state.voiceTransport === "livekit") {
@@ -1889,6 +1910,7 @@ function init() {
 
   $("#mute").addEventListener("click", (e) => {
     state.muted = !state.muted;
+    state.liveVoice?.mute(state.muted);
     if (state.muted) stopSpeaking();
     for (const element of state.livekitAudio) {
       element.muted = state.muted;

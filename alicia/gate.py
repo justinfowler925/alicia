@@ -29,6 +29,7 @@ path entirely — see FREE_WRITES and VOICE_FORBIDDEN below.
 from __future__ import annotations
 
 import re
+import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -89,6 +90,11 @@ def classify_write(tool: str) -> str:
 
 
 def is_voice_forbidden(tool: str) -> bool:
+    # Studio may draft a Cursor handoff for its separate work checkout.
+    # Speech still cannot approve it: Live passes owner_verified=False and
+    # the exact stored artifact must be approved on the authenticated screen.
+    if tool == "ask_cursor" and os.environ.get("ALICIA_VOICE_CURSOR_PROPOSALS") == "1":
+        return False
     return tool in VOICE_FORBIDDEN
 
 

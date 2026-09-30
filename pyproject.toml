@@ -7,6 +7,7 @@ authors = [{ name = "jfstudio" }]
 license = { text = "MIT" }
 
 dependencies = [
+    "numpy>=1.24",  # voice identity is imported by the web server
     "httpx>=0.28",
     "anthropic>=0.69",
     "pyyaml>=6.0",

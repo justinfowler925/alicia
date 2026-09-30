@@ -164,7 +164,7 @@ def billing_planes(cfg: Any) -> dict[str, Any]:
     api_enabled = bool(getattr(claude, "api_enabled", False)) and not api_killed()
     return {
         "conversation": {
-            "plane": "claude_subscription_cli" if transport == "cli" else "anthropic_api",
+            "plane": "cursor_pro" if os.environ.get("ALICIA_CONVERSATION_PROVIDER") == "cursor" else ("claude_subscription_cli" if transport == "cli" else "anthropic_api"),
             "transport": transport,
             "api_enabled": api_enabled,
             "api_killed": api_killed(),

@@ -222,6 +222,21 @@ class SessionStore:
             turn_id = int(cur.lastrowid or 0)
         return Turn(turn_id, session_id, role, text, channel, at, meta or {})
 
+    def append_live_turn(self, session_id: str, role: Role, text: str, event_id: str) -> Turn:
+        """Persist a voice transcript exactly once, without executing it as a request."""
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT * FROM turns WHERE session_id=? AND json_extract(meta, '$.live_id')=?",
+                (session_id, event_id),
+            ).fetchone()
+            if row:
+                return Turn(row["id"], session_id, row["role"], row["text"], row["channel"], row["at"], json.loads(row["meta"]))
+            at, meta = _now(), {"live_id": event_id}
+            cur = conn.execute("INSERT INTO turns (session_id,role,text,channel,at,meta) VALUES (?,?,?,?,?,?)",
+                (session_id, role, text, "voice", at, json.dumps(meta)))
+            return Turn(int(cur.lastrowid), session_id, role, text, "voice", at, meta)
+
     def transcript(self, session_id: str, *, limit: int | None = None) -> list[Turn]:
         sql = "SELECT * FROM turns WHERE session_id=? ORDER BY id"
         args: tuple[Any, ...] = (session_id,)
