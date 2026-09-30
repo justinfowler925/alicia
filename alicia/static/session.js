@@ -312,7 +312,8 @@ function voiceOwnsPlayback() {
   // ConvAI agent and speak only through /api/speak — allow that path.
   if (state.productBrainSpeak) return false;
   return (
-    state.voiceTransport === "livekit"
+    state.voiceTransport === "openai_live"
+    || state.voiceTransport === "livekit"
     || state.voiceTransport === "convai"
     || Boolean(state.livekitRoom)
     || Boolean(state.convai)
@@ -342,7 +343,7 @@ function handle(event) {
       break;
     case "thinking":
       renderThinking(event);
-      if (state.listening || state.voiceTransport === "livekit" || state.voiceTransport === "convai") {
+      if (state.listening || state.voiceTransport === "openai_live" || state.voiceTransport === "livekit" || state.voiceTransport === "convai") {
         setVoicePhase("thinking");
       }
       break;
@@ -836,6 +837,17 @@ async function startVoice() {
     }
     const readiness = await readinessResponse.json();
     if (readiness.ready === false) return setVoicePhase("error", readiness.reason);
+    if (readiness.provider === "openai_live") {
+      const {LiveVoice} = await import("/static/live-voice.js");
+      state.liveVoice = new LiveVoice(state.sessionId, setVoicePhase, (_role, text) => {
+        const detail = document.querySelector("#voice-state-detail");
+        if (detail && text) detail.textContent = text;
+      });
+      state.voiceTransport = "openai_live";
+      try { await state.liveVoice.start(controller.signal); }
+      catch (error) {state.liveVoice.stop();throw error;}
+      return;
+    }
     const convaiOk = await startConvAI(controller.signal);
     if (convaiOk) return;
     if (controller.signal.aborted) return;
@@ -1329,6 +1341,8 @@ async function teardownLiveKit() {
 }
 
 function teardownVoice() {
+  state.liveVoice?.stop();
+  state.liveVoice = null;
   state.voiceStartAbort?.abort();
   state.sayAbort?.abort();
   state.speechAbort?.abort();
@@ -1342,6 +1356,7 @@ function teardownVoice() {
 }
 
 function bargeIn() {
+  if (state.voiceTransport === "openai_live") return teardownVoice();
   state.sayAbort?.abort();
   stopSpeaking();
   if (state.voiceTransport === "livekit") {
@@ -1889,6 +1904,7 @@ function init() {
 
   $("#mute").addEventListener("click", (e) => {
     state.muted = !state.muted;
+    state.liveVoice?.mute(state.muted);
     if (state.muted) stopSpeaking();
     for (const element of state.livekitAudio) {
       element.muted = state.muted;

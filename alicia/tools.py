@@ -920,7 +920,7 @@ def build_default_registry(
             Tool(
                 name="ask_cursor",
                 description=(
-                    "Run a one-shot Cursor SDK agent on an allowlisted laptop repo "
+                    "Run a one-shot Cursor agent on an allowlisted work repository "
                     "(default repo_hint=alicia; atlas6 also allowed). Use for coding "
                     "investigations Atlas6 cannot do. Never invents a cwd outside the allowlist."
                 ),

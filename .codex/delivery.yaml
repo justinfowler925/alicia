@@ -23,7 +23,8 @@ profiles:
       freshness_hours: 4
     - id: production
       kind: readback
-      probe: /version reports the delivered SHA and workflow endpoints answer from 127.0.0.1:8768
+      probe: /version reports the delivered SHA and workflow endpoints answer from
+        127.0.0.1:8768
       target: local-alicia
       freshness_hours: 4
   workflow_control:
@@ -35,15 +36,36 @@ profiles:
       freshness_hours: 4
     - id: workflow_install
       kind: deploy
-      probe: The reviewed workflow CLI, policy evaluator and Canon model patch is applied to the actual
-        imported runtime package; record resulting module hashes and any preserved pre-existing runtime
-        differences; unrelated source, package files and configuration are preserved
+      probe: The reviewed workflow CLI, policy evaluator and Canon model patch is
+        applied to the actual imported runtime package; record resulting module hashes
+        and any preserved pre-existing runtime differences; unrelated source, package
+        files and configuration are preserved
       target: local-alicia
       freshness_hours: 4
     - id: workflow_readback
       kind: readback
-      probe: The restarted local service returns the bound profile and policy digest via /api/workflow/status;
-        cross-profile evidence fails; existing health endpoint passes. Record original application version
-        separately; scoped module installation never relabels the whole application SHA
+      probe: The restarted local service returns the bound profile and policy digest
+        via /api/workflow/status; cross-profile evidence fails; existing health endpoint
+        passes. Record original application version separately; scoped module installation
+        never relabels the whole application SHA
       target: local-alicia
+      freshness_hours: 4
+  studio:
+    requirements:
+    - id: tests
+      kind: test
+      command: .venv/bin/python -m pytest -q
+      freshness_hours: 4
+    - id: deploy
+      kind: deploy
+      command: ./scripts/deploy-studio.sh
+      target: studio-alicia
+      freshness_hours: 4
+    - id: production
+      kind: readback
+      probe: Private Studio HTTPS version matches delivered SHA; migrated SQLite integrity
+        and row counts match; real WebRTC speech saves a note and produces audible
+        reply; Cursor worker creates a verified file; service survives restart independently
+        of laptop daemon.
+      target: studio-alicia
       freshness_hours: 4

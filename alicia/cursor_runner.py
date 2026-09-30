@@ -262,14 +262,14 @@ def build_chat_prompt(message: str, *, mutate: bool = True) -> str:
     body = (message or "").strip()
     if not mutate:
         return (
-            "You are helping Justin via Alicia on his MacBook.\n"
+            "You are helping Justin via Alicia on his Mac Studio.\n"
             "Answer the request. Do not create, edit, delete, commit, or run "
             "mutating git commands. Read-only inspection is fine.\n\n"
             f"Request:\n{body}\n\n"
             "Reply with a concise plain-English answer. No CURSOR_VERDICT line needed."
         )
     return (
-        "You are helping Justin via Alicia on his MacBook.\n"
+        "You are helping Justin via Alicia on his Mac Studio.\n"
         "Do the requested work in the current working directory.\n"
         "Do not commit, push, merge, or deploy anything.\n\n"
         f"Request:\n{body}\n\n"

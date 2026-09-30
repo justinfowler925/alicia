@@ -37,6 +37,10 @@ def _resolve_thread_id(client: AtlasClient, target: str) -> str:
 
 
 def main() -> None:
+    from .remote_cli import forward
+    remote_status = forward(sys.argv[1:])
+    if remote_status is not None:
+        raise SystemExit(remote_status)
     parser = argparse.ArgumentParser(
         prog="alicia",
         description="Alicia — MacBook client for Studio Atlas (ledger stays on Studio)",
