@@ -74,6 +74,7 @@ export class LiveVoice {
     } catch {this.send({type:"session.commentary.append",delegation_id:id,content:"The work connection dropped. Studio may still be working; check the conversation before repeating the action."});}
   }
   record(role,text) {
+    this.onPhase(role === "assistant" ? "speaking" : "listening");
     if (this.caption?.role !== role) this.flushCaption();
     if (!this.caption) this.caption={id:crypto.randomUUID(),role,text:""};
     this.caption.text+=text;

@@ -43,10 +43,12 @@ async function refreshResilienceChip() {
     const bill = data.billing || {};
     const conv = bill.conversation || {};
     const can = data.canaries || {};
-    const plane = conv.plane === "claude_subscription_cli" ? "CLI" : "API";
+    const studio = conv.plane === "cursor_pro";
+    const plane = studio ? "Cursor Pro" : (conv.plane === "claude_subscription_cli" ? "CLI" : "API");
     const cli = can.cli && can.cli.ok ? "ok" : (can.cli && can.cli.skipped ? "—" : "down");
     const convai = can.convai && can.convai.ok ? "ok" : (can.convai && can.convai.skipped ? "—" : "down");
-    el.textContent = `brain:${plane} cli:${cli} convai:${convai}`;
+    el.textContent = studio ? `Cursor Pro · ${cli} · GPT Live voice` : `brain:${plane} cli:${cli} convai:${convai}`;
+    if (studio && $("#voice-enroll")) $("#voice-enroll").hidden = true;
     el.dataset.ok = data.ok ? "true" : "false";
     el.title = JSON.stringify({
       billing: {
@@ -844,8 +846,12 @@ async function startVoice() {
         if (detail && text) detail.textContent = text;
       });
       state.voiceTransport = "openai_live";
+      state.liveVoice.mute(state.muted);
       try { await state.liveVoice.start(controller.signal); }
-      catch (error) {state.liveVoice.stop();throw error;}
+      catch (error) {
+        state.liveVoice.stop();state.voiceTransport=null;
+        setVoicePhase("error", error.name === "NotAllowedError" ? "Allow microphone access, then tap Start voice." : (error.message || "Voice could not connect. Tap Start voice to retry."));
+      }
       return;
     }
     const convaiOk = await startConvAI(controller.signal);
