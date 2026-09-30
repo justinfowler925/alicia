@@ -2292,4 +2292,4 @@ def serve(cfg: AliciaCfg | None = None) -> None:
     cfg = cfg or load_config()
     app = create_app(cfg, start_watchdog=True)
     log.info("Alicia listening on http://%s:%s", cfg.serve_host, cfg.serve_port)
-    uvicorn.run(app, host=cfg.serve_host, port=cfg.serve_port, log_level="info")
+    uvicorn.run(app, host=cfg.serve_host, port=cfg.serve_port, log_level="info", timeout_graceful_shutdown=10)
