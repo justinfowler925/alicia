@@ -196,7 +196,7 @@ def test_every_real_tool_declares_its_arguments(read_only):
 
 
 @pytest.mark.parametrize("read_only", [True, False])
-def test_declared_arguments_are_actually_accepted(read_only):
+def test_declared_arguments_are_actually_accepted(read_only, monkeypatch):
     """Schema and implementation must agree, or the catalog teaches a lie.
 
     Calls each tool with every declared argument set to a placeholder and
@@ -204,6 +204,8 @@ def test_declared_arguments_are_actually_accepted(read_only):
     to fail against a MagicMock client — that is fine; only an argument-shape
     rejection is a defect.
     """
+    # Validate the tool adapter, not a real paid model run with placeholder data.
+    monkeypatch.setattr("alicia.tools.run_profile", lambda *args, **kwargs: {"ok": False, "error": "offline fixture"})
     reg = build_default_registry(MagicMock(), AliciaCfg(), read_only=read_only)
     for name, tool in reg._tools.items():
         props = (tool.parameters or {}).get("properties", {}) or {}

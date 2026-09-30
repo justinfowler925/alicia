@@ -84,6 +84,16 @@ def test_an_empty_message_does_nothing(mgr):
     assert mgr.store.transcript(sid) == []
 
 
+def test_nonretryable_brain_failure_reaches_http_response(mgr):
+    sid = mgr.store.open_session()
+    with _brain("My sign-in needs attention.", {
+        "error": "OAuth expired", "error_code": "brain_auth_unavailable", "retryable": False
+    }):
+        result = mgr.handle(sid, "Explain gravity", channel="voice", wait=True)
+    assert result.as_dict()["retryable"] is False
+    assert result.as_dict()["error_code"] == "brain_auth_unavailable"
+
+
 @pytest.mark.parametrize(
     "message",
     ["Give me a second to think.", "let me think", "hold on please", "pause"],

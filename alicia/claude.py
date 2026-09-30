@@ -86,13 +86,18 @@ def ask_claude(
         return {"ok": False, "error": "Claude CLI timed out."}
     except OSError as exc:
         return {"ok": False, "error": f"Claude CLI failed to start: {exc}"}
-    if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout or "unknown failure").strip()[:300]
-        return {"ok": False, "error": f"Claude CLI exited {proc.returncode}: {detail}"}
     try:
         data = json.loads(proc.stdout or "{}")
     except json.JSONDecodeError:
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "unknown failure").strip()[:300]
+            return {"ok": False, "error": f"Claude CLI exited {proc.returncode}: {detail}"}
         return {"ok": False, "error": "Claude CLI returned invalid JSON."}
+    if proc.returncode != 0:
+        # The result follows a large usage object. Truncating raw JSON first
+        # discarded the actual OAuth failure and made it look transient.
+        detail = str(data.get("result") or proc.stderr or "unknown failure").strip()[:300]
+        return {"ok": False, "error": f"Claude CLI exited {proc.returncode}: {detail}"}
     reply = str(data.get("result") or "").strip()
     if data.get("is_error") or not reply:
         return {

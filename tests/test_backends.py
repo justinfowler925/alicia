@@ -146,6 +146,17 @@ def test_ask_claude_cli_failure(monkeypatch):
     assert "subscription exhausted" in out["error"]
 
 
+def test_cli_oauth_error_survives_large_json_usage_metadata(monkeypatch):
+    monkeypatch.setattr("alicia.claude.shutil.which", lambda _: "/bin/claude")
+    payload = {"usage": {"padding": "x" * 800}, "is_error": True,
+               "result": "Failed to authenticate: OAuth session expired and could not be refreshed"}
+    proc = subprocess.CompletedProcess([], 1, stdout=json.dumps(payload), stderr="")
+    with patch("alicia.claude.subprocess.run", return_value=proc):
+        result = ask_claude(AliciaCfg(claude=ClaudeCfg(enabled=True)), "Hello")
+    assert "OAuth session expired" in result["error"]
+    assert "padding" not in result["error"]
+
+
 def test_registry_wires_backends(tmp_path):
     from alicia.memory import MemoryStore
     from alicia.todos import TodoStore

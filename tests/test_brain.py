@@ -775,6 +775,19 @@ def test_selected_conversation_transport_never_changes_provider(transport, failu
     assert ("couldn't finish" in reply) if failure else reply == "Selected answer."
 
 
+def test_expired_cli_auth_gives_recovery_instead_of_retry():
+    cfg = _cfg()
+    cfg.claude.transport = "cli"
+    with patch("alicia.claude.ask_claude", return_value={
+        "ok": False, "error": "Failed to authenticate: OAuth session expired and could not be refreshed"
+    }) as cli:
+        reply, meta = brain_reply(cfg, ToolRegistry(), history=_history(("user", "Explain gravity")), channel="voice")
+    assert cli.call_count == 1
+    assert "claude auth login" in reply
+    assert meta["error_code"] == "brain_auth_unavailable"
+    assert meta["retryable"] is False
+
+
 @pytest.mark.parametrize("gate", ["disabled", "kill_file", "missing_key", "unknown_transport"])
 def test_selected_api_refuses_missing_opt_in_without_running_another_transport(gate, tmp_path):
     from alicia import resilience

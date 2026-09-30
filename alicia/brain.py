@@ -536,6 +536,19 @@ def brain_reply(
         det = _deterministic_reply(registry, messages, meta)
         if det is not None:
             return det
+    if meta.get("cli_error") == "brain_auth_unavailable":
+        return (
+            "My Claude sign-in needs attention. Run claude auth login on this Mac, "
+            "then start voice again. Your request is saved.",
+            {**meta, "error_code": "brain_auth_unavailable", "retryable": False},
+        )
+    if meta.get("cli_error") == "brain_credits_exhausted" or meta.get("api_error") in {
+        "brain_auth_unavailable", "brain_credits_exhausted"
+    }:
+        return (
+            "I couldn't finish that turn. My answer service needs account attention. Your request is saved.",
+            {**meta, "error_code": meta.get("cli_error") or meta.get("api_error"), "retryable": False},
+        )
     return (
         "I couldn't finish that turn. Your request is safe; please try again.",
         meta,
@@ -901,4 +914,3 @@ def _run_tool(
         except Exception:  # noqa: BLE001, S110 — a mirror must never break the turn
             pass
     return result
-

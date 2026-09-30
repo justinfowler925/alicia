@@ -83,5 +83,38 @@ if (name === 'providers') {
     handle({kind: 'answer', spoken: 'legacy answer'});
     handle({kind: 'reply', spoken: ''});`);
   assert.deepEqual(Array.from(run('spoken')), ['legacy reply', 'legacy answer'], 'legacy positive path reached');
+} else if (name === 'voice_auth') {
+  context.AbortController = AbortController;
+  context.setTimeout = setTimeout;
+  context.clearTimeout = clearTimeout;
+  run(`globalThis.requests = 0;
+    setVoicePhase = () => {};
+    fetch = async () => { requests++; return {ok: true, json: async () => ({
+      error: 'OAuth expired', error_code: 'brain_auth_unavailable', retryable: false,
+      spoken: 'Run claude auth login on this Mac.'
+    })}; };`);
+  run(`runProductBrain('Explain gravity')`).then(
+    () => { throw new Error('authentication failure must not be accepted as an answer'); },
+    error => {
+      assert.equal(error.retryable, false);
+      assert.match(error.message, /claude auth login/);
+      assert.equal(run('requests'), 1, 'failed authentication must not duplicate the user turn');
+      assert.equal(run('state.brainPending'), false);
+    }
+  ).catch(error => { console.error(error); process.exitCode = 1; });
+} else if (name === 'voice_preflight') {
+  context.AbortController = AbortController;
+  run(`globalThis.transportStarts = 0; globalThis.phase = '';
+    setVoicePhase = (value, detail) => { phase = value + ': ' + detail; };
+    startConvAI = async () => { transportStarts++; return true; };
+    fetch = async () => ({ok: true, json: async () => ({ready: false, reason: 'Run claude auth login'})});`);
+  run('startVoice()').then(() => {
+    assert.equal(run('transportStarts'), 0, 'do not open the microphone when the brain is down');
+    assert.match(run('phase'), /error: Run claude auth login/);
+    run(`fetch = async () => ({ok: true, json: async () => ({ready: true})});`);
+    return run('startVoice()');
+  }).then(() => {
+    assert.equal(run('transportStarts'), 1, 'recovered brain permits voice startup');
+  }).catch(error => { console.error(error); process.exitCode = 1; });
 } else { throw new Error('unknown case'); }
 console.log(`PASS ${name}`);

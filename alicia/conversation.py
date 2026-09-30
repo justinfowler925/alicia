@@ -95,6 +95,8 @@ class TurnResult:
     tool: str | None = None
     thinking: bool = False
     error: str | None = None
+    error_code: str | None = None
+    retryable: bool = True
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -106,6 +108,8 @@ class TurnResult:
             "tool": self.tool,
             "thinking": self.thinking,
             "error": self.error,
+            "error_code": self.error_code,
+            "retryable": self.retryable,
         }
 
 
@@ -610,6 +614,8 @@ class ConversationManager:
             turn_id=landed.id,
             tool=(meta.get("tools") or [None])[-1] if meta.get("tools") else None,
             error=meta.get("error"),
+            error_code=meta.get("error_code"),
+            retryable=meta.get("retryable", True),
         )
 
     def wait_for_brain(self, session_id: str, timeout: float = 60.0) -> bool:

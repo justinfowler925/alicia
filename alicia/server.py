@@ -460,6 +460,8 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
 
     app = FastAPI(title="Alicia", version="0.3.0", lifespan=lifespan)
     app.state.voice_identity = voice_identity
+    from .voice_readiness import VoiceReadiness
+    app.state.voice_readiness = VoiceReadiness(cfg)
     app.state.cfg = cfg
     app.state.client = client
     app.state.watchdog = watchdog
@@ -605,6 +607,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
                 "claude_enabled": bool(cfg.claude and cfg.claude.enabled),
                 "claude_executable": bool(shutil.which("claude")),
                 "codex_executable": bool(shutil.which("codex")),
+                "readiness": request.app.state.voice_readiness.snapshot(),
             },
             "watchdog": wd.snapshot(),
             "voice": {
@@ -1613,21 +1616,14 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         # CLI/network probes are blocking. FastAPI runs this synchronous route
         # in its thread pool so opening Alicia cannot freeze Forge or healthz.
         from . import resilience
-        from .claude import ask_claude
 
         resilience.ensure_state_dirs()
         resilience.ensure_api_killed_by_default()
         voice_cfg = cfg.voice
 
         def cli_probe() -> dict[str, Any]:
-            result = ask_claude(
-                cfg,
-                "Reply with exactly: pong",
-                system="You are a canary. Reply with exactly one word: pong",
-                timeout_s=resilience.timeouts()["canary_s"],
-            )
-            ok = bool(result.get("ok") and "pong" in str(result.get("reply") or "").casefold())
-            return {"ok": ok, "error": result.get("error"), "transport": result.get("transport")}
+            result = request.app.state.voice_readiness.check()
+            return {"ok": result["ready"] is True, "error": result.get("reason"), **result}
 
         def supervisor_probe() -> dict[str, Any]:
             try:
@@ -1673,6 +1669,10 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
                 r for r in resilience.pending_outbox(10) if r.get("status") in {"pending", "running"}
             ],
         }
+
+    @app.get("/api/voice-ready")
+    def voice_ready(request: Request) -> dict[str, Any]:
+        return request.app.state.voice_readiness.check()
 
     @app.post("/api/session/{session_id}/convai-token")
     async def session_convai_token(session_id: str, request: Request) -> dict[str, Any]:

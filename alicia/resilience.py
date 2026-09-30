@@ -236,7 +236,6 @@ def run_canaries(
     else:
         _run("anthropic_api", api_probe)
     results["ms"] = int((time.time() - started) * 1000)
-    results["overall_ok"] = bool(
-        results.get("cli", {}).get("ok") or results.get("supervisor", {}).get("ok")
-    )
+    # A working supervisor cannot answer a conversation on behalf of a dead CLI.
+    results["overall_ok"] = bool(results.get("cli", {}).get("ok"))
     return results

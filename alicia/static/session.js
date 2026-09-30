@@ -830,6 +830,12 @@ async function startVoice() {
   state.voiceStartAbort = controller;
   setVoicePhase("buffering", "Connecting voice…");
   try {
+    const readinessResponse = await fetch("/api/voice-ready", { signal: controller.signal });
+    if (!readinessResponse.ok) {
+      return setVoicePhase("error", "Could not check the answer engine. Try starting voice again.");
+    }
+    const readiness = await readinessResponse.json();
+    if (readiness.ready === false) return setVoicePhase("error", readiness.reason);
     const convaiOk = await startConvAI(controller.signal);
     if (convaiOk) return;
     if (controller.signal.aborted) return;
@@ -1111,6 +1117,11 @@ async function runProductBrain(text) {
         const spoken = String(data.spoken || data.reply || "").trim();
         const err = String(data.error || "").trim();
         last = spoken || err;
+        if (data.retryable === false) {
+          const failure = new Error(spoken || "The answer service needs account attention.");
+          failure.retryable = false;
+          throw failure;
+        }
         if (isWeakBrainReply(spoken, err)) {
           console.warn("product brain weak reply, retrying", { attempt: i, err, spoken: spoken.slice(0, 120) });
           continue;
@@ -1118,6 +1129,7 @@ async function runProductBrain(text) {
         state.lastBrainSpoken = spoken.slice(0, 1500);
         return spoken.slice(0, 1500);
       } catch (err) {
+        if (err.retryable === false) throw err;
         last = err && err.name === "AbortError"
           ? "That turn took too long."
           : `Alicia brain failed: ${(err && err.message) || "unknown"}`;
@@ -1200,7 +1212,7 @@ async function startConvAI(signal) {
                 await speak(spoken, { productOwned: true });
               } catch (err) {
                 console.warn("product-owned turn failed", err);
-                setVoicePhase("error", "Couldn’t finish that turn. Tap Talk to retry.");
+                setVoicePhase("error", err.retryable === false ? err.message : "Couldn’t finish that turn. Tap Talk to retry.");
               }
             })();
           }

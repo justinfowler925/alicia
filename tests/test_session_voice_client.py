@@ -149,3 +149,8 @@ def _client_contract(case, *, mutant=False):
 @pytest.mark.parametrize("case", ["providers", "lifecycle", "playback"])
 def test_client_contract_rejects_seeded_regression(case):
     _client_contract(case, mutant=True)
+
+
+@pytest.mark.parametrize("case", ["voice_auth", "voice_preflight"])
+def test_voice_auth_failure_and_recovery(case):
+    _client_contract(case)
