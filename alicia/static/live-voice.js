@@ -27,7 +27,17 @@ export class LiveVoice {
         this.stop(); this.onPhase("error", "Connection lost. Tap Talk to reconnect; your work stays on Studio.");
       }
     };
-    this.microphone = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    this.onPhase("buffering", "Allow microphone access if your browser asks.");
+    let micTimeout;
+    const permission = navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).then(stream => {
+      if(this.closed || signal.aborted) stream.getTracks().forEach(track=>track.stop());
+      return stream;
+    });
+    try {
+      this.microphone = await Promise.race([permission,new Promise((_,reject)=>{
+        micTimeout=setTimeout(()=>{this.stop();reject(new Error("Microphone permission is still pending. Allow it in your browser, then retry."));},25000);
+      })]);
+    } finally {clearTimeout(micTimeout);}
     if (signal.aborted || this.closed) { this.stop(); return; }
     for (const track of this.microphone.getAudioTracks()) this.peer.addTrack(track,this.microphone);
     this.events = this.peer.createDataChannel("oai-events");
