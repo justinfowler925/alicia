@@ -130,3 +130,13 @@ def test_system_prompt_cannot_reset_continuation_budget(tmp_path):
     with store.db() as c:assert c.execute('SELECT continuations FROM sessions').fetchone()[0]==1
     event(store,'UserPromptSubmit','owner','USER: Now fix the renderer.')
     with store.db() as c:assert c.execute('SELECT continuations FROM sessions').fetchone()[0]==0
+
+
+def test_direct_claude_reply_is_mirrored_without_echo(tmp_path):
+    store=WatchStore(tmp_path/'watch.sqlite');d=decision(store)
+    store.event(dict(host='laptop',session_id=SID,event_id='owner',event='UserPromptSubmit',owner_text='Keep the old format.'))
+    answered=store.state()['decisions'][0]
+    assert answered['status']=='answered' and answered['source']=='Claude'
+    assert answered['reply']=='Keep the old format.'
+    assert not store.reply(d['id'],'Use the new format','Slack')['ok']
+    assert store.poll('laptop:'+SID)['command'] is None

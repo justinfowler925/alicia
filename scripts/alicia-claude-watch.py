@@ -57,9 +57,12 @@ def context(path,prompt=''):
             if r.get('promptSource')=='system' or (r.get('origin') or {}).get('kind')=='task-notification' or system_prompt(content):
                 role='system observation (not owner authorization)'
             messages.append((role,content[:3500]))
-    chosen=messages[:1]+messages[-7:]
+    # Preserve actual owner instructions even when tool/system chatter fills the tail.
+    owner_indices=[i for i,(role,_) in enumerate(messages) if role=='user']
+    indices=sorted(set(owner_indices[:1]+owner_indices[-3:]+list(range(max(0,len(messages)-5),len(messages)))))
+    chosen=[(messages[i][0],messages[i][1][:2000]) for i in indices]
     latest_label='SYSTEM OBSERVATION' if system_prompt(prompt) else 'LATEST USER'
-    return redact('\n'.join(role.upper()+': '+text for role,text in chosen)+('\n'+latest_label+': '+prompt if prompt else ''))[-20000:]
+    return redact('\n'.join(role.upper()+': '+text for role,text in chosen)+('\n'+latest_label+': '+prompt[:4000] if prompt else ''))[:23000]
 
 
 def run(event):
@@ -82,7 +85,8 @@ def run(event):
         ctx += '\nLAST ASSISTANT: '+redact(str(event['last_assistant_message']))[:3000]
     api('/events',{'host':config['host'],'session_id':sid,'event_id':str(uuid.uuid4()),'event':name,
         'cwd':event.get('cwd',''),'title':Path(event.get('cwd','')).name,
-        'context':ctx[-23000:],'notification_type':event.get('notification_type',''),'observed_at':observed_at})
+        'context':ctx[-23000:],'notification_type':event.get('notification_type',''),'observed_at':observed_at,
+        'owner_text':redact(str(event.get('prompt','')))[:4000] if name=='UserPromptSubmit' else ''})
     if name=='SessionEnd':return
     # asyncRewake attaches this listener to the existing Claude session. Never start a competing --resume process.
     lock=(ROOT/(sid+'.listener.lock')).open('a')

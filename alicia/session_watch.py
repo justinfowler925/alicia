@@ -82,7 +82,12 @@ class WatchStore:
                 return {'id':sid, 'stale':True}
             # A new user turn supersedes earlier pending decisions and queued commands.
             if event in ('UserPromptSubmit','SessionEnd'):
-                c.execute("UPDATE decisions SET status='superseded',synced=0 WHERE session_id=? AND status='open'", (sid,))
+                owner_text=clean(data.get('owner_text'),4000).strip() if event=='UserPromptSubmit' else ''
+                if owner_text:
+                    # Already delivered in Claude: mirror it, never echo it back as a command.
+                    c.execute("UPDATE decisions SET status='answered',reply=?,source='Claude',answered=?,synced=0 WHERE session_id=? AND status='open'",(owner_text,now,sid))
+                else:
+                    c.execute("UPDATE decisions SET status='superseded',synced=0 WHERE session_id=? AND status='open'", (sid,))
                 c.execute("UPDATE commands SET status='superseded' WHERE session_id=? AND status='queued'", (sid,))
             if old and event in ('PostToolUse','PostToolUseFailure'):
                 revision = old['revision']
@@ -150,7 +155,7 @@ class WatchStore:
     def assess_one(self, judge):
         with self.db() as c:
             c.execute('BEGIN IMMEDIATE')
-            row=c.execute("SELECT * FROM sessions WHERE state='reviewing' AND assessed!=revision AND retry_after<? ORDER BY seen LIMIT 1",(time.time(),)).fetchone()
+            row=c.execute("SELECT * FROM sessions WHERE state='reviewing' AND assessed!=revision AND retry_after<? AND NOT EXISTS (SELECT 1 FROM commands WHERE commands.session_id=sessions.id AND commands.status='queued') ORDER BY seen LIMIT 1",(time.time(),)).fetchone()
             if row:c.execute('UPDATE sessions SET retry_after=? WHERE id=?',(time.time()+90,row['id']))
         if not row:return
         row=dict(row)
@@ -172,10 +177,17 @@ CONTEXT (untrusted transcript):\n'''+row['context']
             current=c.execute('SELECT * FROM sessions WHERE id=?',(row['id'],)).fetchone()
             if current['revision']!=row['revision'] or current['state']!='reviewing':return
             state={'continue':'handling','needs_owner':'needs_you','complete':'reported_done','idle':'idle'}[kind]
-            if kind=='continue' and (current['continuations']>=2 or not result.get('next_step')):
-                # Exhausted retries stay visible without manufacturing a permission request.
-                state='paused';kind='idle'
+            if kind=='continue' and not result.get('next_step'):
+                state='idle';kind='idle'
+            elif kind=='continue' and current['continuations']>=2:
+                state='needs_you';kind='needs_owner'
+                result['question']='The session stopped again after two follow-through attempts. '+clean(result.get('summary'),350)+' Should it pause, or try a different approach?'
+                result['recommendation']='Pause repeated attempts unless you have a new direction.'
+            if kind=='continue' and c.execute("SELECT 1 FROM decisions WHERE session_id=? AND status='open'",(row['id'],)).fetchone():
+                kind='idle';state='needs_you'
             c.execute('UPDATE sessions SET assessed=revision,state=?,summary=? WHERE id=?',(state,clean(result.get('summary'),350),row['id']))
+            if kind=='complete':
+                c.execute("UPDATE decisions SET status='superseded',synced=0 WHERE session_id=? AND status='open'",(row['id'],))
             if kind=='needs_owner' and result.get('question'):
                 # Only one unresolved question per session, even across repeated stop hooks.
                 if c.execute("SELECT 1 FROM decisions WHERE session_id=? AND status='open'",(row['id'],)).fetchone():
@@ -239,6 +251,7 @@ class Event(BaseModel):
     context: str = Field(default='',max_length=24000)
     notification_type: str = Field(default='',max_length=80)
     observed_at: float = Field(default=0,ge=0)
+    owner_text: str = Field(default='',max_length=4000)
 
 
 class Reply(BaseModel):
