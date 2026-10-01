@@ -96,16 +96,15 @@
       }
       if (!data.turns.length) {
         const empty = document.createElement('div'); empty.className = 'conversation-empty';
-        const title = document.createElement('h3'); title.textContent = 'What would you like to work on?';
-        const text = document.createElement('p'); text.textContent = 'Ask Forge a question or give it a task. Your conversation and work stay on Studio.';
-        empty.append(title, text); log.append(empty);
+        const title = document.createElement('h3'); title.textContent = 'New conversation';
+        empty.append(title); log.append(empty);
       }
       if (nearBottom) log.scrollTop = log.scrollHeight;
       rendered = key;
     }
     working = data.turns.some(t => !terminal.has(t.status));
     const last = data.turns.at(-1);
-    status(working ? (last.status === 'queued' ? 'Queued on Studio. You can close this page and return later.' : 'Forge is working on Studio…') : last ? (last.status === 'succeeded' ? 'Reply received.' : `Forge ${last.status}. ${last.reason || 'You can send a follow-up.'}`) : 'Ready when you are.');
+    status(working ? (last.status === 'queued' ? 'Queued on Studio. You can close this page and return later.' : 'Forge is working on Studio…') : last ? (last.status === 'succeeded' ? 'Reply received.' : `Forge ${last.status}. ${last.reason || 'You can send a follow-up.'}`) : 'Ready.');
     $('forge-reconnect').hidden = true; controls();
   }
   function schedule() {

@@ -16,7 +16,7 @@
      supervisor is the attention policy, and the queue is supporting detail. -->
 <a class="skip-workspace" href="#workspace-main">Skip to workspace</a>
 <aside class="workspace-nav" aria-label="Workspace navigation" data-product-pattern="workspace-navigation">
-  <a class="workspace-brand" href="#overview"><span class="brand-mark" aria-hidden="true">a.</span><span>Alicia<small>YOUR PRIVATE WORKSPACE</small></span></a>
+  <a class="workspace-brand" href="#overview"><span class="brand-mark" aria-hidden="true">a.</span><span>Alicia</span></a>
   <button type="button" id="workspace-menu" aria-expanded="false" aria-controls="workspace-nav-links">Menu</button>
   <div id="workspace-nav-links">
     <p class="nav-label">WORKSPACE</p>
@@ -27,10 +27,10 @@
       <a href="#projects" data-page="projects">All projects</a>
     </nav>
     <p class="nav-label">AGENTS</p>
-    <nav aria-label="Agents"><a href="#forge" data-page="forge">Forge <small>Build &amp; execute</small></a><a href="#scout" data-page="scout">Scout <small>Watch &amp; gather</small></a></nav>
+    <nav aria-label="Agents"><a href="#forge" data-page="forge">Forge </a><a href="#scout" data-page="scout">Scout </a></nav>
     <p class="nav-label">STUDIO</p>
     <nav aria-label="Applications"><a href="#demo-maker" data-page="demo-maker">Demo Maker</a><a href="#clearspeed-demos" data-page="clearspeed-demos">Clearspeed Demos</a><a href="#hollywood" data-page="hollywood">Hollywood</a></nav>
-    <div class="nav-footer"><span class="status-dot" aria-hidden="true"></span> Hosted on Mac Studio<small>Private · connected through Tailscale</small></div>
+    <div class="nav-footer"><span class="status-dot" aria-hidden="true"></span> Mac Studio</div>
   </div>
 </aside>
 <main class="shell voice-shell" id="workspace-main" tabindex="-1" data-cite="flowbite-dashboard">
@@ -38,7 +38,7 @@
   <header class="topbar">
     <div class="title">
       <h1>Alicia</h1>
-      <p class="tagline">Your AI work, at a glance</p>
+
     </div>
     <span id="live" class="live" data-connected="false" role="status" aria-live="polite">offline</span>
     <span id="resilience-chip" class="resilience-chip" data-ok="false" role="status" title="Billing and canary status">brain:…</span>
@@ -65,7 +65,7 @@
       <select id="forge-threads"><option value="">New conversation</option></select>
     </div>
     <div class="scroll" id="forge-transcript" role="log" tabindex="0" aria-label="Forge conversation" aria-live="polite">
-      <div class="conversation-empty"><h3>What would you like to work on?</h3><p>Ask Forge a question or give it a task. Your conversation and work stay on Studio.</p></div>
+      <div class="conversation-empty"><h3>New conversation</h3></div>
     </div>
     <div class="forge-activity" id="forge-activity" data-state="idle" aria-label="Forge turn activity">
       <div class="forge-activity-heading">
@@ -75,7 +75,7 @@
       <p id="forge-activity-detail">No turn running.</p>
     </div>
     <div class="forge-status-row">
-      <p id="forge-status" role="status">Ready when you are.</p>
+      <p id="forge-status" role="status">Ready.</p>
       <button type="button" id="forge-reconnect" hidden>Reconnect</button>
       <button type="button" id="forge-stop" hidden>Stop</button>
     </div>
@@ -90,7 +90,7 @@
       <textarea id="forge-message" rows="2" maxlength="16000" placeholder="Message Forge…" aria-describedby="forge-hint"></textarea>
       <button type="submit" class="primary" id="forge-send">Send</button>
     </form>
-    <p class="forge-hint" id="forge-hint">Enter to send · Shift + Enter for a new line. Forge can perform tasks you request.</p>
+    <p class="forge-hint" id="forge-hint">Enter to send · Shift + Enter for a new line.</p>
   </section>
 
   <section class="panel voice-stage" data-testid="voice-stage" aria-label="Live conversation">
@@ -99,7 +99,7 @@
         <span class="voice-presence-ring" aria-hidden="true"></span>
         <div>
           <p class="voice-kicker">Alicia is with you</p>
-          <h2 id="voice-state-label">Ready when you are</h2>
+          <h2 id="voice-state-label">Ready</h2>
           <p id="voice-state-detail">Voice is off.</p>
         </div>
       </div>
@@ -157,7 +157,7 @@
           <button type="button" id="sessions-mode" aria-pressed="false">Show all sessions</button>
         </div>
       </header>
-      <p class="attention-lead">Sessions that need a decision. Everything else stays quiet.</p>
+      <p class="attention-lead">Sessions awaiting a decision.</p>
       <p class="supervisor-state" id="supervisor-state" hidden></p>
       <p class="supervisor-next" id="supervisor-next" hidden></p>
       <p class="supervisor-evidence" id="supervisor-evidence" hidden></p>
@@ -233,7 +233,7 @@
   <details class="panel queue work-tray" data-testid="work-tray" aria-label="Workspace tools">
     <summary class="work-tray-summary">
       <span>Projects &amp; work</span>
-      <span class="work-tray-hint">What is running, and the work you have captured</span>
+      <span class="work-tray-hint"></span>
       <span class="count" id="ideas-count"></span>
     </summary>
 

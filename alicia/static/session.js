@@ -261,7 +261,7 @@ async function hydrate(sessionId) {
   const snap = await fetch(`/api/session/${sessionId}`).then((r) => r.json());
   $("#conversation").innerHTML = "";
   state.seenTurns.clear();
-  $("#intent-readback").textContent = "Start voice or give Alicia a direction.";
+  $("#intent-readback").textContent = "Start voice or type a message.";
   $("#readback-label").textContent = "Alicia · ready";
   state.fields.clear();
   (snap.turns || []).forEach((t) => renderTurn(t, { animate: false }));
@@ -1428,7 +1428,7 @@ function setVoicePhase(phase, detail = "") {
     label.textContent = "Start voice";
     btn.setAttribute("aria-label", "Start voice conversation");
     btn.setAttribute("aria-pressed", "false");
-    if (stateLabel) stateLabel.textContent = "Ready when you are";
+    if (stateLabel) stateLabel.textContent = "Ready";
     if (stateDetail) stateDetail.textContent = "Voice is off.";
     setStatus("");
   }
@@ -1549,7 +1549,7 @@ function buildGlanceModel(sessions, counts, focus) {
   } else if (intervene.length > 1) {
     claimText = `${intervene.length} agent sessions need you. Start with ${intervene[0].title || "the first one"}.`;
   } else if (sessions.length) {
-    claimText = "Nothing in agents needs you right now.";
+    claimText = "No decisions pending.";
   } else {
     claimText = "No agent sessions observed yet.";
   }
@@ -1713,7 +1713,7 @@ function renderAttentionSessions(sessions, counts, model) {
   } else if (!page.length) {
     const empty = document.createElement("li");
     empty.className = "attention-empty";
-    empty.textContent = "No agent sessions need you. Residue above holds Linear reviews and unverified work.";
+    empty.textContent = "No sessions awaiting a decision.";
     host.append(empty);
   }
 
