@@ -11,6 +11,7 @@ import shlex
 import subprocess
 import threading
 import time
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
@@ -30,8 +31,7 @@ def remote(*args):
     host = os.environ.get("ALICIA_STUDIO_SSH", "100.102.92.119")
     if not re.fullmatch(r"[a-zA-Z0-9_.@-]+", host) or host.startswith("-"):
         raise ValueError("Invalid Studio SSH target")
-    result = subprocess.run(
-        [
+    command = list(args) if Path.home() == Path("/Users/jfstudio") else [
             "/usr/bin/ssh",
             "-o",
             "BatchMode=yes",
@@ -39,7 +39,9 @@ def remote(*args):
             "ConnectTimeout=5",
             host,
             " ".join(shlex.quote(a) for a in args),
-        ],
+        ]
+    result = subprocess.run(
+        command,
         capture_output=True,
         text=True,
         timeout=12,

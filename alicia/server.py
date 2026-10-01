@@ -511,6 +511,9 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             media_type="application/json",
         )
 
+    from .workspace import router as workspace_router
+    app.include_router(workspace_router)
+
     _STATIC = Path(__file__).resolve().parent / "static"
 
     # No-store on every surface: a cached page served Justin a stale UI twice —
@@ -1556,6 +1559,9 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         # Explicit allowlist rather than StaticFiles — small assets, and a name
         # that never reaches the filesystem unchecked.
         types = {
+            "workspace-observatory.png": "image/png",
+            "workspace.css": "text/css",
+            "workspace.js": "application/javascript",
             "forge.css": "text/css",
             "forge.js": "application/javascript",
             "session.css": "text/css",
@@ -1568,7 +1574,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         if name not in types:
             raise HTTPException(status_code=404, detail="not found")
         return Response(
-            (_STATIC / name).read_text(),
+            (_STATIC / name).read_bytes(),
             media_type=types[name],
             headers={"Cache-Control": "no-store"},
         )
