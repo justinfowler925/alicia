@@ -279,15 +279,10 @@ function renderConversationEmpty() {
   empty.className = "conversation-empty";
   empty.id = "conversation-empty";
   const title = document.createElement("h2");
-  title.textContent = "Your voice is the work surface";
+  title.textContent = "Alicia";
   const body = document.createElement("p");
-  body.textContent = "Talk naturally. Alicia will judge the work and answer with one useful next move.";
-  const action = document.createElement("button");
-  action.type = "button";
-  action.dataset.startVoice = "";
-  action.textContent = "Start talking";
-  action.addEventListener("click", () => $("#mic").click());
-  empty.append(title, body, action);
+  body.textContent = "Start voice or type a message.";
+  empty.append(title, body);
   $("#conversation").append(empty);
 }
 
