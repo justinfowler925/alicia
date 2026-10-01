@@ -33,3 +33,6 @@ body[data-page="alicia"] .voice-stage{max-width:56rem}.voice-stage-head{flex-dir
 #status-line:empty{display:none}body[data-page="alicia"] .work-tray{max-width:56rem;margin-top:var(--shine-space-4)}
 
 .voice-settings-panel .help-balloon-trigger{width:auto;height:auto;border-radius:var(--shine-radius-md)}
+
+/* The assistant is the entry point; the legacy backlog stays out of navigation. */
+.work-tray{display:none!important}
