@@ -10,6 +10,22 @@ requirements:
   probe: origin/main contains the delivered commit and the checkout is clean
   freshness_hours: 4
 profiles:
+  session_watch:
+    requirements:
+    - id: tests
+      kind: test
+      command: .venv/bin/python -m pytest -q
+      freshness_hours: 4
+    - id: deploy
+      kind: deploy
+      command: ./scripts/deploy-studio.sh
+      target: studio-alicia
+      freshness_hours: 4
+    - id: production
+      kind: readback
+      probe: Studio HTTPS version matches delivered SHA; Slack posts and synchronizes replies with the real Alicia page; Claude hook delivery is qualified in an existing-process test; disconnected sessions are not reported connected. Record actual coverage separately from installed hooks.
+      target: studio-alicia
+      freshness_hours: 4
   application:
     requirements:
     - id: tests

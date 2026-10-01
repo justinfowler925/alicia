@@ -324,6 +324,8 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         supervisor_task = (
             asyncio.create_task(_supervisor_loop(app)) if start_watchdog else None
         )
+        from .session_watch import watch_loop
+        watch_task = asyncio.create_task(watch_loop(app.state.session_watch)) if os.environ.get("ALICIA_WATCH_ENABLED") == "1" else None
         slack_capturer = (
             asyncio.create_task(_slack_capture_loop())
             if start_watchdog and cfg.atlas_enabled
@@ -381,7 +383,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         finally:
             if ear is not None:
                 ear.stop()
-            for task in (poller, refiner, supervisor_task, slack_capturer):
+            for task in (poller, refiner, supervisor_task, slack_capturer, watch_task):
                 if task:
                     task.cancel()
             app.state.watchdog.stop()
@@ -511,6 +513,9 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             media_type="application/json",
         )
 
+    from .session_watch import router as watch_router, WatchStore
+    app.state.session_watch = WatchStore()
+    app.include_router(watch_router)
     from .workspace import router as workspace_router
     app.include_router(workspace_router)
 
@@ -1562,6 +1567,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             "workspace-observatory.png": "image/png",
             "workspace.css": "text/css",
             "workspace.js": "application/javascript",
+            "watch.js": "application/javascript",
             "forge.css": "text/css",
             "forge.js": "application/javascript",
             "session.css": "text/css",
