@@ -111,7 +111,7 @@ CAPABILITIES = {
     },
     'shine': {
         'kind': 'skill',
-        'description': 'UI/UX design skill (ClearSpeed/Shine standards). Loads SKILL.md on enable.',
+        'description': 'UI/UX design skill (Clearspeed/Shine standards). Loads SKILL.md on enable.',
         'skill': 'shine',
     },
     'hollywood': {
