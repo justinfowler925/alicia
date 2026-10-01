@@ -101,3 +101,19 @@ profiles:
       probe: Private Studio version matches delivered SHA; browser shows navigation, Hollywood artwork, durable action changes, current Scout jobs and logs, and connected Forge. Verify desktop and mobile navigation.
       target: studio-alicia
       freshness_hours: 4
+  coworker_watch:
+    requirements:
+    - id: tests
+      kind: test
+      command: .venv/bin/python -m pytest -q
+      freshness_hours: 4
+    - id: deploy
+      kind: deploy
+      command: ./scripts/deploy-studio.sh
+      target: studio-alicia
+      freshness_hours: 4
+    - id: production
+      kind: readback
+      probe: Studio version matches source SHA; real work-email conversations flow through evidence extraction into the rendered follow-up tracker; owner status persists and survives rescan; account coverage and any Slack authorization failure remain explicit.
+      target: studio-alicia
+      freshness_hours: 4
