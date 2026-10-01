@@ -41,16 +41,17 @@
 
     </div>
     <span id="live" class="live" data-connected="false" role="status" aria-live="polite">offline</span>
-    <span id="resilience-chip" class="resilience-chip" data-ok="false" role="status" title="Billing and canary status">brain:…</span>
     <button type="button" id="theme-toggle" aria-pressed="false" aria-label="Toggle light/dark theme">
       <span class="label">Dark</span>
     </button>
-    <button type="button" id="mute" aria-pressed="false" aria-label="Toggle spoken replies">
+    <button type="button" id="new-session" aria-label="Start a new session">New</button>
+    <button type="button" id="forge-toggle" aria-controls="forge-panel" aria-pressed="false">Forge chat</button>
+    <details class="voice-settings"><summary>Voice settings</summary><div class="voice-settings-panel"><button type="button" class="help-balloon-trigger" popovertarget="voice-help" aria-label="Voice help">Voice help</button>    <button type="button" id="mute" aria-pressed="false" aria-label="Toggle spoken replies">
       <span class="label">Speaking on</span>
     </button>
     <button type="button" id="voice-enroll" aria-label="Enroll your voice">Voice enrollment</button>
-    <button type="button" id="new-session" aria-label="Start a new session">New</button>
-    <button type="button" id="forge-toggle" aria-controls="forge-panel" aria-pressed="false">Forge chat</button>
+    <span id="resilience-chip" class="resilience-chip" data-ok="false" role="status" title="Billing and canary status">brain:…</span>
+</div></details>
   </header>
 
   <section id="workspace-page" aria-live="polite"></section>
@@ -103,10 +104,9 @@
           <p id="voice-state-detail">Voice is off.</p>
         </div>
       </div>
-      <button type="button" class="help-balloon-trigger" popovertarget="voice-help" aria-label="Voice help">?</button>
+      
       <div id="voice-help" class="help-balloon" popover>
-        Start voice to talk naturally. Say “wrong” or “correct intent” to dispute the last claim.
-        Residue holds only what needs eyes. Say “capture” to save a thought. Text works too.
+        Start voice to speak, or type a message below. Use Stop voice to end the call.
       </div>
       <button type="button" id="mic" class="mic voice-primary" data-testid="voice-control"
               aria-label="Start voice conversation" aria-pressed="false">
@@ -129,13 +129,33 @@
       </div>
     </section>
 
+    <p id="status-line" role="status"></p>
+    <div class="conversation-details" id="conversation-details">
+    <div class="conversation-wrap">
+      <div class="scroll" id="conversation" tabindex="0" role="log" aria-label="Conversation history">
+        <div class="conversation-empty" id="conversation-empty">
+          <h2>Alicia</h2>
+          <p>Start voice or type a message.</p>
+        </div>
+      </div>
+      <button type="button" id="to-latest" class="to-latest" hidden>New messages ↓</button>
+    </div>
+    <form class="composer" id="composer">
+      <label class="sr-only" for="say">Message</label>
+      <textarea id="say" rows="1" placeholder="Message Alicia…" autocomplete="off"
+                aria-describedby="composer-hint"></textarea>
+      <p id="composer-hint" class="sr-only">Press Enter to send, Shift and Enter for a new line.</p>
+      <button type="submit" id="send" class="primary">Send</button>
+    </form>
+    </div>
+    <details class="conversation-activity"><summary>Activity &amp; decisions <span id="conversation-activity-count"></span></summary>
     <!-- Glance Residue: voice owns the loop. Readback is the last spoken
          claim; the operational claim is what needs Justin; residue is only
          what eyes must verify. Sessions are attention targets, not a peer grid. -->
     <section class="intent-readback" aria-label="Latest readback">
       <div class="readback-heading">
         <span id="readback-label">Alicia · ready</span>
-        <button type="button" id="correct-intent">Correct intent</button>
+        <button type="button" id="correct-intent">Correct last response</button>
       </div>
       <p id="intent-readback" aria-live="polite">Start voice. I’ll repeat the task I understood and keep you informed as work progresses.</p>
     </section>
@@ -172,36 +192,16 @@
       </details>
     </section>
 
-    <section class="glance-residue" data-testid="glance-residue" aria-label="Needs eyes" hidden>
+    <section class="glance-residue" data-testid="glance-residue" aria-label="Review" hidden>
       <header class="residue-head">
-        <h3>Needs eyes</h3>
+        <h3>Review</h3>
         <span class="count" id="residue-count"></span>
       </header>
-      <p class="residue-hint">Only claims speech cannot safely settle.</p>
+      <p class="residue-hint">Items requiring review.</p>
       <ul class="residue-list" id="residue-list"></ul>
       <p class="residue-empty" id="residue-empty" hidden>Nothing waiting for eyes.</p>
     </section>
 
-    <p id="status-line" role="status"></p>
-    <details class="conversation-details" id="conversation-details">
-      <summary>Conversation &amp; keyboard</summary>
-    <div class="conversation-wrap">
-      <div class="scroll" id="conversation" tabindex="0" role="log" aria-label="Conversation history">
-        <div class="conversation-empty" id="conversation-empty">
-          <h2>Your voice is the work surface</h2>
-          <p>Talk naturally. Alicia will judge the work and answer with one useful next move.</p>
-          <button type="button" data-start-voice>Start talking</button>
-        </div>
-      </div>
-      <button type="button" id="to-latest" class="to-latest" hidden>New messages ↓</button>
-    </div>
-    <form class="composer" id="composer">
-      <label class="sr-only" for="say">Message</label>
-      <textarea id="say" rows="1" placeholder="Message or capture — type when voice is not convenient…" autocomplete="off"
-                aria-describedby="composer-hint"></textarea>
-      <p id="composer-hint" class="sr-only">Press Enter to send, Shift and Enter for a new line.</p>
-      <button type="submit" id="send" class="primary">Send</button>
-    </form>
     </details>
   </section>
 
@@ -372,7 +372,7 @@
       <button value="cancel" aria-label="Close voice enrollment">Close</button>
     </form>
     <p id="enrollment-state">Checking enrollment…</p>
-    <p class="enrollment-privacy">Read each line in a normal voice. Alicia stores a local speaker embedding, not these recordings.</p>
+    <p class="enrollment-privacy">Read each line in a normal voice. Alicia stores a speaker profile on Mac Studio, not these recordings. This profile is used by local speaker verification; GPT Live does not use it to verify your identity.</p>
     <ol id="enrollment-prompts" class="enrollment-prompts"></ol>
     <label class="enrollment-consent">
       <input id="enrollment-consent" type="checkbox">

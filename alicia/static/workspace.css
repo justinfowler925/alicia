@@ -22,3 +22,14 @@ a{color:inherit}button,input,select,textarea{font:inherit}button,a,input,select,
 
 /* Keep global chrome small; conversation controls belong to the conversation. */
 .topbar .title{display:none}.topbar #live{margin-right:auto}body:not([data-page="alicia"]) .topbar #mute,body:not([data-page="alicia"]) .topbar #voice-enroll,body:not([data-page="alicia"]) .topbar #new-session,body:not([data-page="alicia"]) .topbar #resilience-chip{display:none}.workspace-brand{margin-bottom:var(--shine-space-5)}.workspace-nav nav a{flex-wrap:nowrap}.nav-label{font-family:var(--shine-font-sans)}.workspace-head h1{margin:0}.workspace-head{align-items:center}.nav-footer{margin-top:var(--shine-space-5)}
+
+/* Conversation first; operational detail stays available on demand. */
+body:not([data-page="alicia"]) .voice-settings{display:none}
+.voice-settings{position:relative}.voice-settings>summary{cursor:pointer;list-style:none;padding:var(--shine-space-2) var(--shine-space-3);border:1px solid var(--workspace-border);border-radius:var(--shine-radius-md);font-size:var(--shine-text-xs)}
+.voice-settings-panel{position:absolute;right:0;top:100%;z-index:30;min-width:16rem;display:grid;gap:var(--shine-space-3);padding:var(--shine-space-4);background:var(--workspace-surface);border:1px solid var(--workspace-border);border-radius:var(--shine-radius-md)}
+body[data-page="alicia"] .voice-stage{max-width:56rem}.voice-stage-head{flex-direction:row;align-items:center}.voice-presence{margin-right:auto}.voice-primary{width:auto;flex:none}.voice-stage-head .help-balloon-trigger{display:none}
+.conversation-details{border-top:0}.conversation-details .conversation-wrap{height:clamp(16rem,45vh,32rem)}.conversation-details .conversation-empty{min-height:100%;justify-content:center}.conversation-details .conversation-empty h2{font-size:var(--shine-text-2xl)}.conversation-details .composer{padding:var(--shine-space-4);border-top:1px solid var(--workspace-border)}
+.conversation-activity{border-top:1px solid var(--workspace-border)}.conversation-activity>summary{cursor:pointer;padding:var(--shine-space-4);color:var(--workspace-muted);font-size:var(--shine-text-sm)}.conversation-activity .attention-block{border-radius:0;border-inline:0}.conversation-activity .attention-lead,.conversation-activity .session-coverage{display:none}
+#status-line:empty{display:none}body[data-page="alicia"] .work-tray{max-width:56rem;margin-top:var(--shine-space-4)}
+
+.voice-settings-panel .help-balloon-trigger{width:auto;height:auto;border-radius:var(--shine-radius-md)}

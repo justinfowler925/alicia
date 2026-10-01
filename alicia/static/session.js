@@ -48,7 +48,6 @@ async function refreshResilienceChip() {
     const cli = can.cli && can.cli.ok ? "ok" : (can.cli && can.cli.skipped ? "—" : "down");
     const convai = can.convai && can.convai.ok ? "ok" : (can.convai && can.convai.skipped ? "—" : "down");
     el.textContent = studio ? `Cursor Pro · ${cli} · GPT Live voice` : `brain:${plane} cli:${cli} convai:${convai}`;
-    if (studio && $("#voice-enroll")) $("#voice-enroll").hidden = true;
     el.dataset.ok = data.ok ? "true" : "false";
     el.title = JSON.stringify({
       billing: {
@@ -200,7 +199,7 @@ async function submitEnrollment() {
     const response = await fetch("/api/voice-enrollment", { method: "POST", body });
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || `server said ${response.status}`);
-    $("#enrollment-state").textContent = "Voice enrolled. Alicia will require this local owner profile for live voice.";
+    $("#enrollment-state").textContent = "Voice enrolled on Mac Studio. GPT Live does not use this profile for identity verification.";
     const enrollmentLabel = $("#voice-enroll .label");
     if (enrollmentLabel) enrollmentLabel.textContent = "Voice enrolled";
   } catch (err) {
@@ -582,7 +581,7 @@ function resolveThinking(event) {
       jump.addEventListener("click", () => {
         const target = document.querySelector(`[data-turn-id="${CSS.escape(String(turnId))}"]`);
         if (!target) return;
-        $("#conversation-details").open = true;
+        // Conversation is always visible.
         target.scrollIntoView({ block: "center", behavior: "smooth" });
         target.classList.remove("jumped");
         void target.offsetWidth;
@@ -1686,6 +1685,8 @@ function renderAttentionSessions(sessions, counts, model) {
   const visible = attentionMode ? ordered.filter(sessionNeedsAttention) : ordered;
   const page = attentionMode ? visible : ordered.slice(0, sessionLimit);
 
+  const activityCount = $("#conversation-activity-count");
+  if (activityCount) activityCount.textContent = model.intervene.length ? `· ${model.intervene.length} pending` : "";
   if (count) {
     count.textContent = attentionMode
       ? `${model.intervene.length} need you · ${sessions.length} observed`
