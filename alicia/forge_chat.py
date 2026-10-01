@@ -23,7 +23,7 @@ def require_local_chat(request: Request):
     """
     if not request.client or request.client.host not in {"127.0.0.1", "::1"}:
         raise HTTPException(403, "Forge chat is available only on this Mac")
-    if request.url.hostname not in {"127.0.0.1", "localhost", "::1"}:
+    if request.url.hostname not in {"127.0.0.1", "localhost", "::1"} and not getattr(request.state, "studio_owner", False):
         raise HTTPException(403, "Local host required")
     origin = request.headers.get("origin")
     if origin and urlsplit(origin).netloc != request.headers.get("host"):
@@ -70,6 +70,12 @@ sys.path.insert(0,str(root))
 
 
 
+def studio_command(bootstrap):
+    if Path.home() == Path("/Users/jfstudio"):
+        return ["/opt/homebrew/bin/python3", "-c", bootstrap]
+    return ["/usr/bin/ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "jfstudio@100.102.92.119", "/opt/homebrew/bin/python3 -c " + shlex.quote(bootstrap)]
+
+
 def remote(request: dict):
     # Ship this deployed bridge source for this invocation, so Studio cannot
     # silently run an older bridge. Only the action JSON contains user input.
@@ -78,8 +84,7 @@ def remote(request: dict):
     import shlex
     try:
         result = subprocess.run(
-            ["/usr/bin/ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
-             "jfstudio@100.102.92.119", "/opt/homebrew/bin/python3 -c " + shlex.quote(bootstrap)],
+            studio_command(bootstrap),
             input=json.dumps({"source": source, "local_source": local_runtime_source(),
                               "tools_source": local_tools_source(), "request": request}),
             text=True, capture_output=True, timeout=25, check=False,
@@ -111,9 +116,7 @@ async def upload(thread_id: UUID, attachment_id: UUID, request: Request, name: s
     source = Path(__file__).with_name("forge_bridge.py").read_text()
     bootstrap = "import json,sys; p=json.loads(sys.stdin.buffer.readline()); " + INSTALL_LOCAL + "ns={'__name__':'bridge'}; exec(compile(p['source'],'forge_bridge.py','exec'),ns); ns['stream_main'](p['request'],sys.stdin.buffer)"
     proc = await asyncio.create_subprocess_exec(
-        "/usr/bin/ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
-        "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=3",
-        "jfstudio@100.102.92.119", "/opt/homebrew/bin/python3 -c " + shlex.quote(bootstrap),
+        *studio_command(bootstrap),
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
     )
     try:

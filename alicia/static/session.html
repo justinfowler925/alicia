@@ -3,17 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Alicia — work queue</title>
+<title>Alicia — your workspace</title>
 <script>(function(){try{var t=localStorage.getItem("alicia.theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;var d=localStorage.getItem("alicia.dir");if(d==="rtl"||d==="ltr")document.documentElement.setAttribute("dir",d);}catch(e){}})();</script>
 <link rel="stylesheet" href="/static/shine-tokens.css">
 <link rel="stylesheet" href="/static/session.css">
 <link rel="stylesheet" href="/static/overview.css">
 <link rel="stylesheet" href="/static/forge.css">
+<link rel="stylesheet" href="/static/workspace.css">
 </head>
 <body data-cite="spectrum-ai-chat">
 <!-- Voice is the work surface. The transcript is durable evidence, the
      supervisor is the attention policy, and the queue is supporting detail. -->
-<main class="shell voice-shell">
+<a class="skip-workspace" href="#workspace-main">Skip to workspace</a>
+<aside class="workspace-nav" aria-label="Workspace navigation" data-product-pattern="workspace-navigation">
+  <a class="workspace-brand" href="#overview"><span class="brand-mark" aria-hidden="true">a.</span><span>Alicia<small>YOUR PRIVATE WORKSPACE</small></span></a>
+  <button type="button" id="workspace-menu" aria-expanded="false" aria-controls="workspace-nav-links">Menu</button>
+  <div id="workspace-nav-links">
+    <p class="nav-label">WORKSPACE</p>
+    <nav aria-label="Main navigation">
+      <a href="#overview" data-page="overview">Overview</a>
+      <a href="#alicia" data-page="alicia">Talk to Alicia</a>
+      <a href="#actions" data-page="actions">Actions <span id="nav-action-count"></span></a>
+      <a href="#projects" data-page="projects">All projects</a>
+    </nav>
+    <p class="nav-label">AGENTS</p>
+    <nav aria-label="Agents"><a href="#forge" data-page="forge">Forge <small>Build &amp; execute</small></a><a href="#scout" data-page="scout">Scout <small>Watch &amp; gather</small></a></nav>
+    <p class="nav-label">STUDIO</p>
+    <nav aria-label="Applications"><a href="#demo-maker" data-page="demo-maker">Demo Maker</a><a href="#clearspeed-demos" data-page="clearspeed-demos">Clearspeed Demos</a><a href="#hollywood" data-page="hollywood">Hollywood</a></nav>
+    <div class="nav-footer"><span class="status-dot" aria-hidden="true"></span> Hosted on Mac Studio<small>Private · connected through Tailscale</small></div>
+  </div>
+</aside>
+<main class="shell voice-shell" id="workspace-main" tabindex="-1" data-cite="flowbite-dashboard">
 
   <header class="topbar">
     <div class="title">
@@ -32,6 +52,8 @@
     <button type="button" id="new-session" aria-label="Start a new session">New</button>
     <button type="button" id="forge-toggle" aria-controls="forge-panel" aria-pressed="false">Forge chat</button>
   </header>
+
+  <section id="workspace-page" aria-live="polite"></section>
 
   <section class="panel forge-panel" id="forge-panel" aria-label="Forge chat" hidden data-product-pattern="conversation">
     <header class="forge-head">
@@ -366,5 +388,6 @@
 <script src="/static/session.js"></script>
 <script src="/static/operations.js"></script>
 <script src="/static/forge.js"></script>
+<script src="/static/workspace.js"></script>
 </body>
 </html>

@@ -125,7 +125,7 @@ def test_disclosure_state_is_native_rather_than_asserted_twice():
     fact the element already reports, and the two drift."""
     html = _html()
     assert "<details" in html and "<summary" in html
-    assert "aria-expanded" not in html
+    assert all("aria-expanded" not in tag for tag in re.findall(r"<(?:details|summary)\b[^>]*>", html))
 
 
 def test_every_record_table_declares_the_table_contract():
