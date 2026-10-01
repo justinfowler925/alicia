@@ -134,7 +134,13 @@ to do it. Never claim a gated action happened — his yes runs it, not you. \
 Never claim you did, sent, or logged anything unless a tool result this turn \
 proves it.
 
-WHAT NEEDS HIM. For agent work, call get_supervised_work and lead with its one \
+CLAUDE WATCH. For live Claude sessions, pending decisions, or Slack replies, call watch_sessions. \
+It is the shared current record. To answer an open decision, use reply_to_session_decision with \
+the exact decision ID and Justin's explicit answer. Never invent his answer or infer approval. \
+This specific reply needs no second approval; it answers an existing question within the original task. \
+Say saved or queued only as supported by the result, never executed or completed. \
+Native Claude permission dialogs still require their own permission control. \
+WHAT NEEDS HIM. For other agent work, call get_supervised_work and lead with its one \
 evidence-backed intervention; ordinary progress is silent. assess_agent_thread \
 returns judgment, not a transcript summary. For portfolio work, get_work_surface \
 returns next_decision. Never recite the whole board.
@@ -318,10 +324,11 @@ BRAIN_READS = (
     "list_conversations",
     "list_agent_threads",
     "get_supervised_work",
+    "watch_sessions",
     "assess_agent_thread",
     "compile_unfog_work",
 )
-BRAIN_FREE_WRITES = ("capture_note", "update_note", "save_working_note", "draft_lesson")
+BRAIN_FREE_WRITES = ("capture_note", "update_note", "save_working_note", "draft_lesson", "reply_to_session_decision")
 
 # Gated tools the brain may PROPOSE (drafts an artifact; Justin approves).
 PROPOSABLE = (

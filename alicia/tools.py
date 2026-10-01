@@ -1522,6 +1522,9 @@ def build_default_registry(
             "check_slack",
         ):
             reg.discard(name)
+    from .session_watch import WatchStore
+    reg.register(Tool(name="watch_sessions", description="Read actual monitored Claude sessions and open decisions. Use for questions about what Alicia is watching, stuck sessions, or pending Slack decisions.", parameters={"type":"object","properties":{}}, fn=lambda: WatchStore().state()))
+    reg.register(Tool(name="reply_to_session_decision", description="Save Justin's explicit answer to one existing open session decision. First use watch_sessions to obtain its exact ID. Use his actual response, never infer approval or answer on his behalf. Replies sync to Slack and queue context for that Claude session; queued is not executed.", parameters={"type":"object","properties":{"decision_id":{"type":"string"},"text":{"type":"string"}},"required":["decision_id","text"]}, fn=lambda decision_id,text: WatchStore().reply(decision_id,text,"Alicia conversation")))
     return reg
 
 

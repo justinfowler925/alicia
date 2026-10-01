@@ -241,7 +241,7 @@ def test_session_ideas_build_plan_markers():
         assert 'id="send" class="primary">Send</button>' in html
         assert '<button type="submit">Capture</button>' in html
         assert "Session slots" in html
-        assert "Message or capture" in html
+        assert "Message Alicia" in html
         assert 'aria-label="Status"' not in html
         assert ">Board<" not in html
         assert 'aria-label="Captured"' not in html
