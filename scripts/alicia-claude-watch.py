@@ -74,7 +74,7 @@ def run(event):
     api('/events',{'host':config['host'],'session_id':sid,'event_id':str(uuid.uuid4()),'event':name,
         'cwd':event.get('cwd',''),'title':Path(event.get('cwd','')).name,
         'context':ctx[-23000:],'notification_type':event.get('notification_type',''),'observed_at':observed_at})
-    if name not in ('SessionStart','Stop','StopFailure'):return
+    if name=='SessionEnd':return
     # asyncRewake attaches this listener to the existing Claude session. Never start a competing --resume process.
     lock=(ROOT/(sid+'.listener.lock')).open('a')
     try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)

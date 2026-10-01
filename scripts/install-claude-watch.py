@@ -28,7 +28,7 @@ def install(home, source, host, url):
             group['hooks']=[h for h in group.get('hooks',[]) if h.get('statusMessage')!='Alicia session watch']
         groups[:]=[g for g in groups if g.get('hooks')]
         hook={'type':'command','command':sys.executable,'args':[str(target)],'statusMessage':'Alicia session watch'}
-        if event in ('SessionStart','Stop','StopFailure'):
+        if event!='SessionEnd':
             hook.update(asyncRewake=True,timeout=86400)
         else:
             hook.update({'async':True,'timeout':15})
