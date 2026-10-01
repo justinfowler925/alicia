@@ -233,7 +233,7 @@ class Event(BaseModel):
     host: str = Field(pattern=r'^[a-zA-Z0-9_-]{1,60}$')
     session_id: str = Field(pattern=r'^[a-fA-F0-9-]{36}$')
     event_id: str = Field(min_length=1,max_length=180)
-    event: str = Field(pattern=r'^(SessionStart|SessionEnd|Stop|StopFailure|Notification|UserPromptSubmit|PostToolUse|PostToolUseFailure|Snapshot)$')
+    event: str = Field(pattern=r'^(SessionStart|SessionEnd|Stop|StopFailure|Notification|UserPromptSubmit|SystemPrompt|PostToolUse|PostToolUseFailure|Snapshot)$')
     title: str = Field(default='',max_length=300)
     cwd: str = Field(default='',max_length=1000)
     context: str = Field(default='',max_length=24000)

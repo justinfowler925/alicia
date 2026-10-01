@@ -121,3 +121,12 @@ def test_installer_preserves_settings_and_is_idempotent(tmp_path):
     assert saved['hooks']['Stop'][0]==original['hooks']['Stop'][0]
     assert len(saved['hooks']['Stop'])==2
     assert saved['hooks']['Stop'][1]['hooks'][0]['asyncRewake']
+
+
+def test_system_prompt_cannot_reset_continuation_budget(tmp_path):
+    store=WatchStore(tmp_path/'watch.sqlite');event(store)
+    store.assess_one(lambda p:dict(kind='continue',next_step='Run the tests.'))
+    event(store,'SystemPrompt','automatic','SYSTEM OBSERVATION: Stop hook feedback')
+    with store.db() as c:assert c.execute('SELECT continuations FROM sessions').fetchone()[0]==1
+    event(store,'UserPromptSubmit','owner','USER: Now fix the renderer.')
+    with store.db() as c:assert c.execute('SELECT continuations FROM sessions').fetchone()[0]==0

@@ -28,6 +28,10 @@ def redact(text):
     return re.sub(r'(?i)(\b(?:authorization|api[_ -]?key|token|secret|password)\s*[=:]\s*)[^\s,;]+',r'\1[redacted]',text)
 
 
+def system_prompt(text):
+    return str(text).lstrip().startswith(('<task-notification>','<system-reminder>','<local-command-stdout>'))
+
+
 def context(path,prompt=''):
     """Read bounded first/latest messages, not tool payloads or credential files."""
     p=Path(path).expanduser()
@@ -49,9 +53,13 @@ def context(path,prompt=''):
         if role not in ('user','assistant'):continue
         content=message.get('content','')
         if isinstance(content,list):content='\n'.join(x.get('text','') for x in content if isinstance(x,dict) and x.get('type')=='text')
-        if isinstance(content,str) and content.strip():messages.append((role,content[:3500]))
+        if isinstance(content,str) and content.strip():
+            if r.get('promptSource')=='system' or (r.get('origin') or {}).get('kind')=='task-notification' or system_prompt(content):
+                role='system observation (not owner authorization)'
+            messages.append((role,content[:3500]))
     chosen=messages[:1]+messages[-7:]
-    return redact('\n'.join(role.upper()+': '+text for role,text in chosen)+('\nLATEST USER: '+prompt if prompt else ''))[-20000:]
+    latest_label='SYSTEM OBSERVATION' if system_prompt(prompt) else 'LATEST USER'
+    return redact('\n'.join(role.upper()+': '+text for role,text in chosen)+('\n'+latest_label+': '+prompt if prompt else ''))[-20000:]
 
 
 def run(event):
@@ -61,12 +69,13 @@ def run(event):
     sid=event.get('session_id','')
     if not re.fullmatch(r'[a-fA-F0-9-]{36}',sid):return
     name=event.get('hook_event_name','')
+    if name=='UserPromptSubmit' and system_prompt(event.get('prompt','')):name='SystemPrompt'
     if name in ('PostToolUse','PostToolUseFailure'):
         throttle=ROOT/(sid+'.seen')
         if throttle.exists() and time.time()-throttle.stat().st_mtime<25:return
         throttle.touch()
     transcript=event.get('transcript_path','')
-    ctx=context(transcript,event.get('prompt','')) if name in ('Stop','StopFailure','UserPromptSubmit','Notification') else ''
+    ctx=context(transcript,event.get('prompt','')) if name in ('Stop','StopFailure','UserPromptSubmit','SystemPrompt','Notification') else ''
     if name=='Notification':
         ctx += '\nNOTIFICATION: '+redact(str(event.get('message','')))[:2000]
     if name=='Stop' and event.get('last_assistant_message'):
