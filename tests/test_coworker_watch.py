@@ -53,3 +53,13 @@ def test_assessment_race_preserves_updated_source(tmp_path):
   return dict(actionable=True,confidence=1,title='Send',evidence='Justin, please send the proposal by Friday.')
  s.assess(judge)
  assert not s.snapshot()['items'] and s.snapshot()['pending_review']==1
+
+
+def test_active_threads_keep_old_open_work_and_drop_closed(tmp_path):
+ s=CommitmentStore(tmp_path/'c.db');source(s);assess(s)
+ with s.db() as c:c.execute('UPDATE sources SET updated=1')
+ assert s.active_threads('gmail')==['thread']
+ assert s.active_threads('slack')==[]
+ item=s.snapshot()['items'][0]
+ s.update(item['id'],'done','','Alicia')
+ assert s.active_threads('gmail')==[]

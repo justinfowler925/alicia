@@ -44,6 +44,10 @@ class CommitmentStore:
     def ingest(self,provider,key,url,context):
         context=clean(context,22000);revision=hashlib.sha256(context.encode()).hexdigest()
         with self.db() as c:c.execute('''INSERT INTO sources(id,provider,url,context,revision,updated) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET context=excluded.context,revision=excluded.revision,url=excluded.url,updated=excluded.updated''',(provider+':'+key,provider,url,context,revision,time.time()))
+    def active_threads(self,provider,limit=40):
+        with self.db() as c:
+            rows=c.execute("SELECT s.id FROM sources s JOIN commitments c ON c.source_id=s.id WHERE s.provider=? AND c.status NOT IN ('done','dismissed') ORDER BY s.updated ASC LIMIT ?",(provider,limit)).fetchall()
+        return [r[0].split(':',1)[1] for r in rows]
     def snapshot(self):
         with self.db() as c:
             rows=[dict(r) for r in c.execute('SELECT c.*,s.provider,s.url FROM commitments c JOIN sources s ON s.id=c.source_id ORDER BY CASE WHEN c.status IN (\'done\',\'dismissed\') THEN 1 ELSE 0 END,c.due=\'\',c.due,c.updated DESC')]
@@ -127,7 +131,7 @@ class GmailSource:
             params={'q':'newer_than:7d {from:clearspeed.com to:clearspeed.com} -in:trash -in:spam','maxResults':40}
             if cursor:params['pageToken']=cursor
             r=c.get(base+'messages',params=params);r.raise_for_status();listing=r.json()
-            ids=list(dict.fromkeys(m['threadId'] for m in listing.get('messages',[])))
+            ids=list(dict.fromkeys([m['threadId'] for m in listing.get('messages',[])]+store.active_threads('gmail')))
             for tid in ids:
                 r=c.get(base+'threads/'+tid,params={'format':'full'});r.raise_for_status();thread=r.json();texts=[]
                 for msg in thread.get('messages',[])[-8:]:
@@ -140,7 +144,7 @@ class GmailSource:
                 if texts:store.ingest('gmail',tid,'https://mail.google.com/mail/u/?authuser='+ACCOUNT+'#all/'+tid,'\n\n'.join(texts)[-22000:])
             store.setting('gmail_page',listing.get('nextPageToken',''))
             store.setting('gmail_checked',time.time());store.setting('gmail_error','')
-            store.setting('gmail_coverage',ACCOUNT+' · Clearspeed senders · rolling 7 days'+(' · older pages still loading' if listing.get('nextPageToken') else ''))
+            store.setting('gmail_coverage',ACCOUNT+' · Clearspeed senders · rolling 7 days plus tracked open conversations'+(' · older pages still loading' if listing.get('nextPageToken') else ''))
 
 class SlackSource:
     def __init__(self,token):self.token=token
