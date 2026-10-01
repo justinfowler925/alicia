@@ -97,8 +97,7 @@
       if (!data.turns.length) {
         const empty = document.createElement('div'); empty.className = 'conversation-empty';
         const title = document.createElement('h3'); title.textContent = 'New conversation';
-        const text = document.createElement('p'); text.textContent = '';
-        empty.append(title, text); log.append(empty);
+        empty.append(title); log.append(empty);
       }
       if (nearBottom) log.scrollTop = log.scrollHeight;
       rendered = key;
