@@ -586,6 +586,9 @@ function resolveThinking(event) {
     }
   }
   state.pendingQuestion = null;
+  // Finished answers live in the conversation; the progress panel is temporary.
+  if (card) card.hidden = true;
+  setRailPanel("#thinking-panel", Boolean($("#thinking .thinking:not(.done)")));
 }
 
 /* --- proposed writes ----------------------------------------------------
