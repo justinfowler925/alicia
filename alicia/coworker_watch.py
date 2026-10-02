@@ -174,7 +174,11 @@ class SlackSource:
                     store.setting('slack_retry_at',time.time()+delay)
                     raise RuntimeError('Slack rate limited reading; retry scheduled after '+str(delay)+' seconds.')
                 response.raise_for_status();data=response.json()
-                if not data.get('ok'):raise RuntimeError('Slack '+method+': '+str(data.get('error','unknown_error')))
+                if not data.get('ok'):
+                    if data.get('error') in ('channel_not_found','not_in_channel','thread_not_found','message_not_found') and method.startswith('conversations.'):
+                        state.setdefault('unavailable',[]).append(params['channel']+':'+str(params.get('ts','')))
+                        return {'unavailable':True,'messages':[]}
+                    raise RuntimeError('Slack '+method+': '+str(data.get('error','unknown_error')))
                 time.sleep(1.25)  # Internal apps: stay below the history/replies tier.
                 return data
             identity=api('auth.test')
@@ -194,6 +198,8 @@ class SlackSource:
                     thread=state['threads'][0]
                     data=api('conversations.replies',channel=thread['channel'],ts=thread['ts'],
                              limit=200,cursor=thread['cursor'])
+                    if data.get('unavailable'):
+                        state['threads'].pop(0);save();continue
                     thread['messages'].extend(data.get('messages',[]))
                     thread['cursor']=data.get('response_metadata',{}).get('next_cursor','')
                     if not thread['cursor']:
@@ -219,7 +225,7 @@ class SlackSource:
                     store.setting('slack_completed',state['latest'])
                     store.setting('slack_scan','')
                     store.setting('slack_checked',time.time());store.setting('slack_error','')
-                    store.setting('slack_coverage','Joined conversations · DMs and threads involving you · rolling 7 days plus tracked open threads · scan complete')
+                    store.setting('slack_coverage','Joined conversations · DMs and threads involving you · rolling 7 days plus tracked open threads · scan complete'+(' · '+str(len(state['unavailable']))+' conversations unavailable' if state.get('unavailable') else ''))
                     return
                 save()
                 store.setting('slack_checked',time.time());store.setting('slack_error','')
@@ -228,11 +234,12 @@ class SlackSource:
     def ingest_thread(store,channel,ts,messages):
         human=[m for m in messages if m.get('user') and not m.get('bot_id') and m.get('text')]
         if not human:return
-        context='Justin Slack user: '+OWNER+'\n'+ '\n\n'.join(
+        header='Justin Slack user: '+OWNER+'\n'
+        context='\n\n'.join(
             'FROM SLACK USER: '+m['user']+'\nTIMESTAMP: '+m['ts']+'\nMESSAGE: '+m['text']
             for m in sorted(human,key=lambda m:float(m['ts'])))
         # Keep the most recent evidence, including later completion/retraction messages.
-        store.ingest('slack',channel+':'+ts,'https://app.slack.com/archives/'+channel+'/p'+ts.replace('.',''),context[-22000:])
+        store.ingest('slack',channel+':'+ts,'https://app.slack.com/archives/'+channel+'/p'+ts.replace('.',''),header+context[-(22000-len(header)):])
 
 
 def sync_slack(store,slack):

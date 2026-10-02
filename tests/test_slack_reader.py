@@ -97,3 +97,18 @@ def test_budget_resumes_without_losing_history_pages(tmp_path,monkeypatch):
     watch.SlackSource('test').poll(s)
     assert pages==list(range(46)) and s.setting('slack_completed')
     with s.db() as c:assert c.execute('select count(*) from sources').fetchone()[0]==46
+
+
+def test_deleted_tracked_thread_cannot_stall_other_conversations(tmp_path,monkeypatch):
+    s=watch.CommitmentStore(tmp_path/'s.db')
+    s.setting('slack_scan',json.dumps({'stage':'history','latest':'100','oldest':'0',
+        'channels':[{'id':'D1','direct':True,'cursor':''}],
+        'threads':[{'channel':'GONE','ts':'1.0','tracked':True,'cursor':'','messages':[]}]}))
+    def request(r):
+        if r.url.path.endswith('auth.test'):return auth()
+        if r.url.path.endswith('conversations.replies'):return reply({'ok':False,'error':'thread_not_found'})
+        return reply({'ok':True,'messages':[message('2.0','Please send the proposal')]})
+    install(monkeypatch,request);watch.SlackSource('test').poll(s)
+    with s.db() as c:assert c.execute('select count(*) from sources').fetchone()[0]==1
+    assert '1 conversations unavailable' in s.setting('slack_coverage')
+    assert s.setting('slack_completed')
