@@ -185,9 +185,11 @@ class SlackSource:
                     data=api('users.conversations',types='public_channel,private_channel,im,mpim',
                              exclude_archived='true',limit=200,cursor=state['cursor'])
                     state['channels'].extend({'id':ch['id'],'direct':bool(ch.get('is_im') or ch.get('is_mpim')),
-                                              'cursor':''} for ch in data.get('channels',[]))
+                                              'cursor':'','updated':ch.get('updated',0)} for ch in data.get('channels',[]))
                     state['cursor']=data.get('response_metadata',{}).get('next_cursor','')
-                    if not state['cursor']:state['stage']='history'
+                    if not state['cursor']:
+                        state['channels'].sort(key=lambda ch:(ch['direct'],ch.get('updated',0)),reverse=True)
+                        state['stage']='history'
                 elif state['threads']:
                     thread=state['threads'][0]
                     data=api('conversations.replies',channel=thread['channel'],ts=thread['ts'],
@@ -282,7 +284,8 @@ async def coworker_loop(store):
         while True:
             try:await asyncio.to_thread(source.poll,store)
             except Exception as e:store.setting(name+'_error',clean(str(e),240))
-            await asyncio.sleep(300)
+            # Continue bounded Slack backfill without adding five minutes per page.
+            await asyncio.sleep(5 if name=='slack' and store.setting('slack_scan') and not store.setting('slack_error') else 300)
     async def review_loop():
         while True:
             try:
