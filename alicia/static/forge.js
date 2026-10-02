@@ -7,7 +7,11 @@
   let busy = false, working = false, timer = null, generation = 0, rendered = '';
   let attachments = [];
   let runActivity = null, turnCount = 0, lastCheck = 0, connection = 'connecting';
-  const status = (text) => { if ($('forge-status').textContent !== text) $('forge-status').textContent = text; };
+  const status = (text) => {
+    if ($('forge-status').textContent !== text) $('forge-status').textContent = text;
+    // Routine success belongs in the transcript; actionable feedback stays visible.
+    $('forge-status').hidden = ['Ready.', 'Reply received.'].includes(text);
+  };
   async function api(action, extra = {}) {
     const response = await fetch('/api/forge/request', {
       signal: AbortSignal.timeout(35000),
@@ -37,6 +41,7 @@
     const phase = disconnected ? (connection === 'disconnected' ? 'Connection lost' : 'Status stale') : checking ? 'Checking Studio…' : quiet ? 'No recent activity' : a?.phase || 'Ready';
     if ($('forge-phase').textContent !== phase) $('forge-phase').textContent = phase;
     $('forge-activity').dataset.state = disconnected ? 'disconnected' : checking ? 'checking' : quiet ? 'quiet' : live ? 'working' : a?.active ? 'waiting' : 'idle';
+    $('forge-activity').hidden = !a?.active && !disconnected && !checking;
     let detail = a ? `${elapsed} elapsed · ${a.events} updates · ${a.tools} tool calls` : 'No turn running.';
     if (a?.active) detail += a.last_output_at ? ` · Last output ${duration(quietFor)} ago` : ' · No output yet';
     if (disconnected) detail += ` · Last confirmed ${lastCheck ? duration(sinceCheck) + ' ago' : 'never'}. Reconnect to check progress.`;
@@ -90,7 +95,7 @@
       log.replaceChildren();
       for (const t of data.turns) {
         turn('You', t.message + (t.attachments?.length ? '\n\nAttached: ' + t.attachments.map(a => a.name).join(', ') : ''), true);
-        if (t.answer) turn('Forge · ' + (t.model || 'Unknown model').split('/').at(-1), t.answer);
+        if (t.answer) turn('Forge', t.answer);
         if (t.status !== 'succeeded') turn('Forge · ' + t.status,
           t.cancellation_requested && !terminal.has(t.status) ? 'Stopping…' : t.reason || (terminal.has(t.status) ? 'No completed reply. You can send a follow-up.' : 'Working on Studio…'));
       }
