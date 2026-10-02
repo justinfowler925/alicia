@@ -2,7 +2,7 @@
 const {chromium} = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
 (async () => {
- const browser = await chromium.launch({headless:true});
+ const browser = await chromium.launch({headless:true, ...(process.env.PLAYWRIGHT_CHANNEL ? {channel:process.env.PLAYWRIGHT_CHANNEL} : {})});
  try {
   const page = await browser.newPage({viewport:{width:1440,height:1000}});
   const id='ef503ece-22a1-40a8-a507-40e39066af43';
@@ -20,6 +20,8 @@ const assert = require('node:assert/strict');
   });
   await page.goto((process.env.FORGE_URL||'http://127.0.0.1:8771/')+'#forge');
   await page.locator('#forge-phase').getByText('Thinking',{exact:true}).waitFor();
+  assert.equal(await page.locator('#forge-activity').getAttribute('open'),null);
+  await page.locator('#forge-activity summary').click();
   assert.match(await page.locator('#forge-turn-count').innerText(),/Turn 1 · 1 active/);
   assert.equal(await page.locator('#forge-activity').getAttribute('data-state'),'working');
   assert.match(await page.locator('#forge-activity-detail').innerText(),/8 updates · 2 tool calls/);
@@ -44,11 +46,14 @@ const assert = require('node:assert/strict');
   await page.locator('#forge-phase').getByText('Queued',{exact:true}).waitFor({timeout:15000});
   assert.equal(await page.locator('#forge-activity').getAttribute('data-state'),'waiting');
   await page.getByRole('button',{name:'Stop',exact:true}).click();
-  await page.locator('#forge-phase').getByText('Stopped',{exact:true}).waitFor();
+  await page.waitForFunction(()=>document.getElementById('forge-phase').textContent==='Stopped');
+  assert.equal(await page.locator('#forge-activity').isVisible(),false);
   assert.equal(stopped,true);
   assert.match(await page.locator('#forge-turn-count').innerText(),/0 active/);
   mode='succeeded';await page.reload();
-  await page.locator('#forge-phase').getByText('Complete',{exact:true}).waitFor();
+  await page.waitForFunction(()=>document.getElementById('forge-phase').textContent==='Complete');
+  assert.equal(await page.locator('#forge-activity').isVisible(),false);
+  assert.equal(await page.locator('#forge-status').isVisible(),false);
   const done=await page.locator('#forge-activity-detail').innerText();
   await page.waitForTimeout(1100);
   assert.equal(await page.locator('#forge-activity-detail').innerText(),done);
