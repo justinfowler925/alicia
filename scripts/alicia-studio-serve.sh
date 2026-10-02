@@ -10,7 +10,7 @@ export ALICIA_WATCH_SLACK_OWNER=U03TVK7B057
 export ALICIA_CONVERSATION_PROVIDER=cursor
 export ALICIA_VOICE_PROVIDER=openai_live
 export ALICIA_VOICE_CURSOR_PROPOSALS=1
-export ALICIA_CURSOR_MODEL=gpt-5.6-luna-low
+export ALICIA_CURSOR_MODEL=auto
 export AGENT_CLI_CREDENTIAL_STORE=file
 # Keep the real loopback proxy peer for the Tailscale identity boundary.
 export FORWARDED_ALLOW_IPS=""

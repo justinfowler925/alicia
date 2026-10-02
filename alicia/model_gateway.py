@@ -19,7 +19,7 @@ def default_profile(name: str, cfg: AliciaCfg) -> ModelProfile:
     """Return the explicit provider order for a workload, never a hidden fallback."""
     if os.environ.get("ALICIA_CONVERSATION_PROVIDER") == "cursor":
         from .model_profiles import PROFILE_REQUIREMENTS
-        return ModelProfile(name, (ModelCandidate("cursor", os.environ.get("ALICIA_CURSOR_MODEL", "gpt-5.6-luna-low"),
+        return ModelProfile(name, (ModelCandidate("cursor", os.environ.get("ALICIA_CURSOR_MODEL", "auto"),
             PROFILE_REQUIREMENTS[name], priority=10),))
     candidates = {
         "conversation": (

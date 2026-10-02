@@ -81,3 +81,28 @@ def test_remote_cli_quotes_arguments_and_does_not_run_second_server(monkeypatch,
     assert remote_cli.forward(['chat','hello; touch /tmp/no'])==0
     assert "'hello; touch /tmp/no'" in called.call_args.args[0][-1]
     with pytest.raises(RuntimeError):remote_cli.forward(['serve'])
+
+
+@pytest.mark.parametrize("selection", [None, "auto", "composer-2.5"])
+def test_cursor_auto_reaches_cli(monkeypatch, tmp_path, selection):
+    from alicia import cursor_cli
+    monkeypatch.setenv("ALICIA_REASONING_ROOT", str(tmp_path))
+    monkeypatch.delenv("ALICIA_CURSOR_MODEL", raising=False)
+    if selection:
+        monkeypatch.setenv("ALICIA_CURSOR_MODEL", selection)
+    process = Mock(returncode=0)
+    process.communicate.return_value = ('{"result":"pong","is_error":false}', '')
+    launch = Mock(return_value=process)
+    monkeypatch.setattr(cursor_cli.subprocess, "Popen", launch)
+    assert cursor_cli.complete("Reply with exactly: pong") == "pong"
+    args = launch.call_args.args[0]
+    assert args[args.index("--model") + 1] == (selection or "auto")
+
+
+def test_studio_profiles_default_to_cursor_auto(monkeypatch):
+    from alicia.model_gateway import default_profile
+    monkeypatch.setenv("ALICIA_CONVERSATION_PROVIDER", "cursor")
+    monkeypatch.delenv("ALICIA_CURSOR_MODEL", raising=False)
+    for name in ("conversation", "supervisor", "frontier", "builder"):
+        profile = default_profile(name, AliciaCfg())
+        assert {(c.provider, c.model) for c in profile.candidates} == {("cursor", "auto")}
