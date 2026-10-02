@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const requests=[];
+const context={Audio:class{},crypto:require('node:crypto').webcrypto,setTimeout:()=>0,clearTimeout:()=>{},fetch:async(url,opts)=>{requests.push({url,body:JSON.parse(opts.body)});return {ok:true,json:async()=>({reply:'Done'})}}};
+vm.createContext(context);
+vm.runInContext(fs.readFileSync('alicia/static/live-voice.js','utf8').replace('export class LiveVoice','class LiveVoice')+'\nglobalThis.LiveVoice=LiveVoice;',context);
+(async()=>{
+ const voice=new context.LiveVoice('scratch',()=>{},()=>{});
+ voice.receive({type:'session.input_transcript.delta',delta:'What command?'});
+ voice.receive({type:'session.output_transcript.delta',delta:'Use the CLI.'});
+ voice.receive({type:'session.input_transcript.delta',delta:'Now check '});
+ voice.receive({type:'session.input_transcript.delta',delta:'again.'});
+ await voice.delegate({delegation:{id:'work-1'}});
+ const work=requests.filter(x=>x.url.endsWith('/live-delegation'));
+ assert.equal(work.length,1);
+ assert.equal(work[0].body.message,'Now check again.');
+ assert.equal(work[0].body.transcript_ids.length,1);
+ const saved=requests.filter(x=>x.url.endsWith('/live-transcript'));
+ assert(saved.some(x=>x.body.id===work[0].body.transcript_ids[0] && x.body.text==='Now check again.'));
+ console.log('PASS actual receive → transcript persistence → delegation excludes answered input');
+})().catch(e=>{console.error(e);process.exitCode=1});

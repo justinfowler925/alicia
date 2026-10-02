@@ -60,10 +60,14 @@ export class LiveVoice {
     if(this.closed) return;
     if(event.type==="session.started") {this.ready=true;clearTimeout(this.readyTimeout);this.onPhase("listening","Listening — work runs on Studio.");}
     if(event.type==="session.input_transcript.delta") {
-      this.input.push({text:event.delta||"",end:event.end_ms||0});
-      this.record("user",event.delta||"");
+      const transcriptId=this.record("user",event.delta||"");
+      this.input.push({text:event.delta||"",transcriptId});
     }
-    if(event.type==="session.output_transcript.delta") this.record("assistant",event.delta||"");
+    if(event.type==="session.output_transcript.delta") {
+      // A spoken answer closes the previous input; never carry it into a later request.
+      this.input=[];
+      this.record("assistant",event.delta||"");
+    }
     if(event.type==="session.delegation.created" && event.delegation?.target==="client") {
       if(!this.seen.has(event.delegation.id)) {this.seen.add(event.delegation.id);void this.delegate(event);}
     }
@@ -75,10 +79,12 @@ export class LiveVoice {
     this.flushCaption();
     await this.logQueue;
     const id=event.delegation.id;
+    const transcript_ids=[...new Set(selected.map(x=>x.transcriptId))];
     const message=selected.map(x=>x.text).join("").trim();
     if(!message) {this.send({type:"session.commentary.append",delegation_id:id,content:"I did not receive a complete request. Please repeat what you want me to do."});return;}
     try {
-      const response=await fetch(`/api/session/${this.sessionId}/live-delegation`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,message})});
+      if(this.transcriptFailed) throw new Error("Transcript was not saved");
+      const response=await fetch(`/api/session/${this.sessionId}/live-delegation`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,message,transcript_ids})});
       const result=await response.json();
       this.send({type:"session.commentary.append",delegation_id:id,content:response.ok ? result.reply : "That request is recorded but I cannot confirm completion. Check the conversation before repeating it."});
     } catch {this.send({type:"session.commentary.append",delegation_id:id,content:"The work connection dropped. Studio may still be working; check the conversation before repeating the action."});}
@@ -91,6 +97,7 @@ export class LiveVoice {
     this.onTranscript?.(role,this.caption.text);
     clearTimeout(this.captionTimer);
     this.captionTimer=setTimeout(()=>this.flushCaption(),1500);
+    return this.caption.id;
   }
   flushCaption() {
     clearTimeout(this.captionTimer);
@@ -100,6 +107,7 @@ export class LiveVoice {
       for(let attempt=0;attempt<2;attempt++) {
         try {const r=await fetch(`/api/session/${this.sessionId}/live-transcript`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(part),keepalive:true});if(r.ok)return;}catch{}
       }
+      this.transcriptFailed=true;
       this.onPhase("error","Conversation could not be saved. Check your Studio connection.");
     });
   }
