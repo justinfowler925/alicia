@@ -90,6 +90,8 @@ const state = {
   audioUrl: null,
   voicePhase: "idle",
   voiceTransport: null,
+  voiceProvider: null,
+  playbackEpoch: 0,
   sayAbort: null,
   speechAbort: null,
   voiceStartAbort: null,
@@ -315,7 +317,21 @@ function connect(sessionId) {
   };
 }
 
+async function loadVoiceProvider() {
+  if (state.voiceProvider !== null) return state.voiceProvider;
+  try {
+    const response = await fetch("/api/voice");
+    if (!response.ok) return null;
+    const config = await response.json();
+    // A start may have learned the provider while this request was pending.
+    if (state.voiceProvider === null) state.voiceProvider = config.provider || null;
+  } catch { /* No confirmed speech provider: keep the reply in text. */ }
+  return state.voiceProvider;
+}
+
 function voiceOwnsPlayback() {
+  // Playback ownership survives Stop, navigation and a lost connection.
+  if (state.voiceProvider === "openai_live") return true;
   // LiveKit and default ConvAI already speak. Product-owned turns mute the
   // ConvAI agent and speak only through /api/speak — allow that path.
   if (state.voiceTransport === "openai_live") return true;
@@ -909,18 +925,25 @@ async function startVoice() {
       return setVoicePhase("error", "Could not check the answer engine. Try starting voice again.");
     }
     const readiness = await readinessResponse.json();
+    if (controller.signal.aborted) return;
+    state.voiceProvider = readiness.provider || state.voiceProvider;
     if (readiness.ready === false) return setVoicePhase("error", readiness.reason);
     if (readiness.provider === "openai_live") {
       const {LiveVoice} = await import("/static/live-voice.js");
-      state.liveVoice = new LiveVoice(state.sessionId, setVoicePhase, (_role, text) => {
+      if (controller.signal.aborted) return;
+      const liveVoice = new LiveVoice(state.sessionId, setVoicePhase, (_role, text) => {
         const detail = document.querySelector("#voice-state-detail");
         if (detail && text) detail.textContent = text;
       });
+      state.liveVoice = liveVoice;
       state.voiceTransport = "openai_live";
-      state.liveVoice.mute(state.muted);
-      try { await state.liveVoice.start(controller.signal); }
+      liveVoice.mute(state.muted);
+      try { await liveVoice.start(controller.signal); }
       catch (error) {
-        state.liveVoice.stop();state.voiceTransport=null;
+        liveVoice.stop();
+        if (controller.signal.aborted || state.liveVoice !== liveVoice) return;
+        state.liveVoice = null;
+        state.voiceTransport = null;
         setVoicePhase("error", error.name === "NotAllowedError" ? "Allow microphone access, then tap Start voice." : (error.message || "Voice could not connect. Tap Start voice to retry."));
       }
       return;
@@ -1090,6 +1113,9 @@ function stopListening() {
 
 async function speak(text, { productOwned = false } = {}) {
   if (state.muted || !text) return;
+  const epoch = state.playbackEpoch;
+  const provider = await loadVoiceProvider();
+  if (!provider || provider === "openai_live" || epoch !== state.playbackEpoch || state.muted) return;
   if (productOwned) state.productBrainSpeak = true;
   if (voiceOwnsPlayback()) return;
   state.speechAbort?.abort();
@@ -1104,7 +1130,9 @@ async function speak(text, { productOwned = false } = {}) {
       signal: controller.signal,
     });
     if (!r.ok) throw new Error(`speech service said ${r.status}`);
-    const url = URL.createObjectURL(await r.blob());
+    const blob = await r.blob();
+    if (controller.signal.aborted || epoch !== state.playbackEpoch || voiceOwnsPlayback()) return;
+    const url = URL.createObjectURL(blob);
     stopSpeaking();
     const audio = new Audio(url);
     state.audio = audio;
@@ -1131,6 +1159,7 @@ async function speak(text, { productOwned = false } = {}) {
 }
 
 function stopSpeaking() {
+  state.playbackEpoch++;
   state.speechAbort?.abort();
   state.speechAbort = null;
   if (state.audio) {
