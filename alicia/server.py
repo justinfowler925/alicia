@@ -2075,6 +2075,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         ear = getattr(request.app.state, "ear", None)
         return {
             "enabled": bool(voice_cfg and voice_cfg.enabled),
+            "provider": os.environ.get("ALICIA_VOICE_PROVIDER", "legacy"),
             "whisper": HAS_WHISPER,
             "tts": bool(voice_cfg and (voice_cfg.elevenlabs_api_key or "").strip()),
             "ear": ear.status() if ear is not None else {"enabled": False, "listening": False},
@@ -2118,7 +2119,14 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
 
     @app.post("/api/speak")
     async def speak(req: SpeakBody) -> Response:
-        """Return ElevenLabs TTS audio/mpeg for the given text."""
+        """Return legacy TTS only when it is the selected speech path."""
+        # Enforce this in the actor too: stale/secondary tabs must never silently
+        # replace GPT-Live with ElevenLabs after Stop or a late work result.
+        if os.environ.get("ALICIA_VOICE_PROVIDER") == "openai_live":
+            raise HTTPException(status_code=409, detail=(
+                "GPT-Live owns spoken replies. Start voice to reconnect; "
+                "the answer remains in the conversation."
+            ))
         if not cfg.voice or not cfg.voice.enabled:
             raise HTTPException(status_code=503, detail="voice is not enabled")
         api_key = (cfg.voice.elevenlabs_api_key or "").strip()

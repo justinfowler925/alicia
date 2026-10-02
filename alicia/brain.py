@@ -549,6 +549,16 @@ def brain_reply(
         det = _deterministic_reply(registry, messages, meta)
         if det is not None:
             return det
+    if meta.get("backend") == "cursor":
+        code = meta.get("cli_error", "brain_service_unavailable")
+        reason = {
+            "brain_auth_unavailable": "Cursor reported a sign-in problem on Studio.",
+            "brain_credits_exhausted": "Cursor reported an account limit on Studio.",
+        }.get(code, "Cursor could not finish that request on Studio.")
+        return (
+            reason + " Your request is saved; the answer remains in this conversation.",
+            {**meta, "error_code": code, "retryable": code == "brain_service_unavailable"},
+        )
     if meta.get("cli_error") == "brain_auth_unavailable":
         return (
             "My Claude sign-in needs attention. Run claude auth login on this Mac, "
@@ -752,7 +762,11 @@ def _guarded_tool_loop(
             error_key = "api_error" if meta["backend"] == "claude_api" else "cli_error"
             meta[error_key] = "brain_service_unavailable"
             folded = str(exc).casefold()
-            if any(t in folded for t in ("credit balance", "too low", "billing")):
+            if meta["backend"] == "cursor":
+                # The CLI adapter classifies the actual failure. A generic exit
+                # is not evidence of expired auth, and never implies Claude.
+                meta[error_key] = getattr(exc, "error_code", "brain_service_unavailable")
+            elif any(t in folded for t in ("credit balance", "too low", "billing")):
                 meta[error_key] = "brain_credits_exhausted"
             elif any(t in folded for t in ("api_key", "api key", "auth", "credential", "1password")):
                 meta[error_key] = "brain_auth_unavailable"
