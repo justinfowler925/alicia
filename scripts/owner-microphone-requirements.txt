@@ -1,0 +1,7 @@
+# Isolated CPU environment: do not install into Alicia's web service environment.
+numpy>=1.24
+sounddevice==0.5.6
+speechbrain==1.0.3
+torch==2.8.0
+torchaudio==2.8.0
+huggingface-hub==0.36.2
