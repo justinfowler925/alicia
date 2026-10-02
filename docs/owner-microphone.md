@@ -5,14 +5,13 @@ The model reads Alicia's existing owner profile; it does not enroll, upload, or
 retain microphone recordings. Raw audio is held in bounded memory and discarded.
 Cursor is not involved in audio filtering.
 
-Install BlackHole 2ch from Homebrew (`brew install --cask blackhole-2ch`). Create a
-separate Python 3.12 environment and install
-`scripts/owner-microphone-requirements.txt`. From this checkout run:
+Install BlackHole 2ch from Homebrew (`brew install --cask blackhole-2ch`). Run `scripts/install-owner-microphone.sh` from a merged checkout to install
+a separate Python 3.12 runtime with its source SHA recorded. Then run:
 
 ```
-python -m alicia.owner_microphone --devices
-python -m alicia.owner_microphone --observe --seconds 60
-python -m alicia.owner_microphone
+~/.alicia-owner-mic/run.sh --devices
+~/.alicia-owner-mic/run.sh --observe --seconds 60
+~/.alicia-owner-mic/run.sh
 ```
 
 Grant microphone access to the launching application when macOS requests it.
