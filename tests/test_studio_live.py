@@ -106,3 +106,19 @@ def test_studio_profiles_default_to_cursor_auto(monkeypatch):
     for name in ("conversation", "supervisor", "frontier", "builder"):
         profile = default_profile(name, AliciaCfg())
         assert {(c.provider, c.model) for c in profile.candidates} == {("cursor", "auto")}
+
+
+def test_reviewer_model_override_reaches_cli_without_changing_conversation(monkeypatch,tmp_path):
+    from alicia import cursor_cli
+    monkeypatch.setenv('ALICIA_REASONING_ROOT',str(tmp_path))
+    monkeypatch.setenv('ALICIA_CURSOR_MODEL','auto')
+    process=Mock(returncode=0)
+    process.communicate.return_value=('{"result":"ok","is_error":false}','')
+    launch=Mock(return_value=process)
+    monkeypatch.setattr(cursor_cli.subprocess,'Popen',launch)
+    assert cursor_cli.complete('Review',model='composer-2.5')=='ok'
+    args=launch.call_args.args[0]
+    assert args[args.index('--model')+1]=='composer-2.5'
+    cursor_cli.complete('Conversation')
+    args=launch.call_args.args[0]
+    assert args[args.index('--model')+1]=='auto'
