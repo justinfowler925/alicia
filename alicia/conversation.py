@@ -22,6 +22,7 @@ that same reply; whether audio happens is the caller's business.
 from __future__ import annotations
 
 import re
+import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -137,6 +138,7 @@ class ConversationManager:
         self._on_event = on_event or (lambda _kind, _payload: None)
         self._brain_threads: dict[str, threading.Thread] = {}
         self._brain_generation: dict[str, int] = {}
+        self._brain_active_turn: dict[str, int] = {}
         self._outbox_by_turn: dict[int, Any] = {}
 
     def emit(self, kind: str, payload: dict[str, Any]) -> None:
@@ -156,6 +158,7 @@ class ConversationManager:
         read_only: bool = True,
         wait: bool = False,
         owner_verified: bool | None = None,
+        live_turn_ids: list[str] | None = None,
     ) -> TurnResult:
         """Take one user turn and answer it. Voice and text land here identically.
 
@@ -193,10 +196,12 @@ class ConversationManager:
                 error="voice_killed",
             )
 
+        saved_turn = self.store.match_live_request(session_id, message, live_turn_ids) if live_turn_ids else None
+
         # Durable outbox before the model runs — restart-safe user words.
         outbox = resilience.enqueue_say(session_id, message, channel)
 
-        turn = self.store.append_turn(session_id, "user", message, channel=channel)
+        turn = saved_turn or self.store.append_turn(session_id, "user", message, channel=channel)
         self.emit("turn", {"session_id": session_id, "turn": turn.as_dict()})
 
         # A pending proposal owns the next turn. Answering it is not a new
@@ -533,12 +538,21 @@ class ConversationManager:
         )
         return _flatten(reply), meta
 
+    def _run_brain_checked(self, session_id: str, message: str, turn_id: int, channel: str):
+        try:
+            return self._run_brain(session_id, message, turn_id, channel)
+        except Exception:
+            logging.getLogger(__name__).exception("Conversation worker failed for turn %s", turn_id)
+            # A worker exception must settle the visible turn, not leave an endless spinner.
+            return ("I couldn't complete this request. Check any action's result before retrying.",
+                    {"error": "worker_failed", "error_code": "worker_failed", "retryable": False})
+
     def _brain_now(
         self, session_id: str, message: str, turn_id: int, *, channel: str
     ) -> TurnResult:
         """Inline brain turn — the Ear speaks the return value, so it waits."""
         self.emit("thinking", {"session_id": session_id, "question": message, "turn_id": turn_id})
-        reply, meta = self._run_brain(session_id, message, turn_id, channel)
+        reply, meta = self._run_brain_checked(session_id, message, turn_id, channel)
         return self._land_brain(session_id, reply, meta, turn_id)
 
     def _start_brain(
@@ -550,6 +564,11 @@ class ConversationManager:
         old architecture lying about progress. The thinking card carries the
         state; the reply lands as a real turn when it exists.
         """
+        previous = self._brain_active_turn.get(session_id)
+        self._brain_active_turn[session_id] = turn_id
+        if previous is not None:
+            self.emit("superseded", {"session_id": session_id, "turn_id": previous,
+                                     "replacement_turn_id": turn_id})
         self.emit("thinking", {"session_id": session_id, "question": message, "turn_id": turn_id})
 
         # A new question SUPERSEDES the one still in flight — only the newest
@@ -558,10 +577,12 @@ class ConversationManager:
         generation = self._brain_generation[session_id]
 
         def run() -> None:
-            reply, meta = self._run_brain(session_id, message, turn_id, channel)
+            reply, meta = self._run_brain_checked(session_id, message, turn_id, channel)
             if generation != self._brain_generation.get(session_id):
                 return
             self._land_brain(session_id, reply, meta, turn_id)
+            if self._brain_active_turn.get(session_id) == turn_id:
+                self._brain_active_turn.pop(session_id, None)
 
         thread = threading.Thread(
             target=run, name=f"brain-{session_id[:6]}", daemon=True

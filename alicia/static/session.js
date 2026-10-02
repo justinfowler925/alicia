@@ -107,6 +107,11 @@ const state = {
   seenTurns: new Set(),
   fields: new Map(),
   pendingQuestion: null,
+  chatWorking: new Map(),
+  chatConnected: false,
+  chatSending: false,
+  chatError: "",
+  chatUnknown: false,
   enrollmentSamples: [],
   enrollmentRecording: false,
 };
@@ -256,15 +261,22 @@ async function openSession() {
    conversation. Everything is rebuilt from the server snapshot. */
 async function hydrate(sessionId) {
   if (state.sessionId && state.sessionId !== sessionId) teardownVoice();
+  const sameSession = state.sessionId === sessionId;
   state.sessionId = sessionId;
   const snap = await fetch(`/api/session/${sessionId}`).then((r) => r.json());
   $("#conversation").innerHTML = "";
   state.seenTurns.clear();
+  if (!sameSession) state.chatWorking.clear();
+  $("#thinking").replaceChildren();
+  state.chatError = "";
+  renderChatActivity();
   $("#intent-readback").textContent = "Start voice or type a message.";
   $("#readback-label").textContent = "Alicia · ready";
   state.fields.clear();
   (snap.turns || []).forEach((t) => renderTurn(t, { animate: false }));
   restoreThinking(snap.turns || []);
+  state.chatUnknown = !state.chatWorking.size && snap.turns?.at(-1)?.role === "user";
+  renderChatActivity();
   (snap.fields || []).forEach((f) => renderField(f, { animate: false }));
   (snap.artifacts || []).forEach(renderProposal);
   if (!(snap.turns || []).length) renderConversationEmpty();
@@ -306,6 +318,7 @@ function connect(sessionId) {
 function voiceOwnsPlayback() {
   // LiveKit and default ConvAI already speak. Product-owned turns mute the
   // ConvAI agent and speak only through /api/speak — allow that path.
+  if (state.voiceTransport === "openai_live") return true;
   if (state.productBrainSpeak) return false;
   return (
     state.voiceTransport === "openai_live"
@@ -336,6 +349,13 @@ function handle(event) {
       // silently by design, which meant conversational mode said "Ok." and then
       // nothing at all — the thing you actually asked for never reached the ear.
       if (event.spoken && !voiceOwnsPlayback()) speak(event.spoken);
+      break;
+    case "superseded":
+      state.chatWorking.delete(event.turn_id);
+      state.pendingQuestion = [...state.chatWorking.keys()].at(-1) ?? null;
+      const old = document.querySelector(`#thinking .thinking[data-answers="${CSS.escape(String(event.turn_id))}"]`);
+      if (old) { old.classList.add("done"); old.querySelector(".working").textContent = "Replaced by your newer request; earlier work may still finish."; }
+      renderChatActivity();
       break;
     case "thinking":
       renderThinking(event);
@@ -380,6 +400,8 @@ function renderText(el, text) {
 }
 
 function setLiveConnected(on) {
+  state.chatConnected = on;
+  renderChatActivity();
   const el = $("#live");
   if (!el) return;
   el.setAttribute("data-connected", on ? "true" : "false");
@@ -388,6 +410,7 @@ function setLiveConnected(on) {
 
 function renderTurn(turn, { animate = true, live = animate } = {}) {
   if (!turn || state.seenTurns.has(turn.id)) return;
+  const follow = atBottom($("#conversation"));
   state.seenTurns.add(turn.id);
   clearInterim();
   if (turn.role !== "user") {
@@ -421,18 +444,21 @@ function renderTurn(turn, { animate = true, live = animate } = {}) {
   renderText(body, turn.text);
 
   el.append(who, body);
-  $("#conversation").append(el);
+  const transcript = $("#conversation");
+  const next = [...transcript.querySelectorAll(".turn[data-turn-id]")].find(row => Number(row.dataset.turnId) > Number(turn.id));
+  transcript.insertBefore(el, next || null);
   // Only a turn arriving NOW may move the queue. `hydrate` replays the whole
   // transcript through here on every reload, so an ungated call re-applied the
   // focus from whatever ticket was last mentioned — the board came back showing
   // one row of six, behind a chip that is easy to miss.
   if (live) boardFollow(turn.text);
-  if (animate) scrollToEnd();
+  if (animate) scrollToEnd({ force: follow });
 }
 
 /* What the recogniser thinks it heard, before it commits. Provisional on
    purpose — you can see it hearing you, and never mistake a guess for a fact. */
 function showInterim(text) {
+  const follow = atBottom($("#conversation"));
   let el = $("#interim");
   if (!el) {
     el = document.createElement("article");
@@ -442,7 +468,7 @@ function showInterim(text) {
     $("#conversation").append(el);
   }
   el.querySelector(".body").textContent = text;
-  scrollToEnd();
+  scrollToEnd({ force: follow });
 }
 
 function clearInterim() {
@@ -526,6 +552,38 @@ function setRailPanel(panelId, hasContent) {
   if (panel) panel.hidden = !hasContent;
 }
 
+/* Connectivity proves the event stream, not model progress. Elapsed time is
+   deliberately described as time without a result, never a fabricated heartbeat. */
+function renderChatActivity() {
+  const host = $("#chat-activity");
+  if (!host) return;
+  const pending = [...state.chatWorking.values()];
+  const elapsed = pending.length ? Math.max(0, Math.floor((Date.now() - Math.min(...pending)) / 1000)) : 0;
+  const duration = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
+  let phase = "idle", label = "Ready", detail = "";
+  if (!state.chatConnected) {
+    phase = "disconnected"; label = "Connection lost";
+    detail = pending.length || state.chatSending ? "Studio may still be working. Reconnect to check; your request will not be resent." : "Reconnecting to Studio…";
+  } else if (state.chatError) {
+    phase = "error"; label = "Needs attention"; detail = state.chatError;
+  } else if (pending.length) {
+    phase = elapsed >= 45 ? "waiting" : "working";
+    label = elapsed >= 45 ? `Waiting for Alicia · ${duration}` : `Alicia is working · ${duration}`;
+    detail = elapsed >= 45 ? "No result yet. The connection is open; progress has not been confirmed." : "Your request is running on Studio.";
+    if (pending.length > 1) detail = `${pending.length} requests awaiting results. ${detail}`;
+  } else if (state.chatUnknown) {
+    phase = "waiting"; label = "No saved reply yet";
+    detail = "This conversation was restored. Whether the earlier request is still running is not confirmed.";
+  } else if (state.chatSending) {
+    phase = "sending"; label = "Sending…";
+  }
+  host.dataset.state = phase;
+  $("#chat-activity-label").textContent = label;
+  $("#chat-activity-detail").textContent = detail;
+  $("#chat-reconnect").hidden = !["disconnected", "waiting"].includes(phase);
+  $("#conversation").setAttribute("aria-busy", pending.length ? "true" : "false");
+}
+
 /* --- thinking ----------------------------------------------------------- */
 
 /* A reload must not blank the Thinking panel. The deep answers are ordinary
@@ -542,6 +600,11 @@ function restoreThinking(turns) {
 }
 
 function renderThinking(event) {
+  if (state.chatWorking.has(event.turn_id)) return;
+  state.chatUnknown = false;
+  state.chatWorking.set(event.turn_id, Date.now());
+  state.chatError = "";
+  renderChatActivity();
   const card = document.createElement("div");
   card.className = "thinking";
   card.dataset.answers = event.turn_id;
@@ -557,6 +620,10 @@ function renderThinking(event) {
 }
 
 function resolveThinking(event) {
+  state.chatUnknown = false;
+  state.chatWorking.delete(event.answers_turn);
+  state.chatError = event.turn?.meta?.error ? "Alicia could not finish. Read the response before trying again." : "";
+  renderChatActivity();
   const card = $(`#thinking .thinking[data-answers="${event.answers_turn}"]`);
   if (card) {
     card.classList.add("done");
@@ -585,7 +652,7 @@ function resolveThinking(event) {
       card.append(jump);
     }
   }
-  state.pendingQuestion = null;
+  state.pendingQuestion = [...state.chatWorking.keys()].at(-1) ?? null;
   // Finished answers live in the conversation; the progress panel is temporary.
   if (card) card.hidden = true;
   setRailPanel("#thinking-panel", Boolean($("#thinking .thinking:not(.done)")));
@@ -685,9 +752,12 @@ async function settleProposal(artifactId, decision, row) {
 
 async function say(message, channel) {
   const text = (message || "").trim();
-  if (!text || !state.sessionId) return;
+  if (!text || !state.sessionId || state.chatSending) return;
   clearInterim();
-  state.sayAbort?.abort();
+  state.chatSending = true;
+  state.chatUnknown = false;
+  state.chatError = "";
+  renderChatActivity();
   const controller = new AbortController();
   state.sayAbort = controller;
   if (channel === "voice") setVoicePhase("thinking");
@@ -705,6 +775,8 @@ async function say(message, channel) {
     if (!r.ok) throw new Error(`server said ${r.status}`);
   } catch (err) {
     if (err.name === "AbortError") return;
+    state.chatError = `Couldn't confirm delivery — ${err.message}. Check the conversation before retrying.`;
+    renderChatActivity();
     setStatus(`Couldn't send that — ${err.message}. Your text is back in the box.`);
     // Hand the words back rather than eating them.
     const box = $("#say");
@@ -715,6 +787,8 @@ async function say(message, channel) {
     }
   } finally {
     if (state.sayAbort === controller) state.sayAbort = null;
+    state.chatSending = false;
+    renderChatActivity();
     $("#send").disabled = false;
   }
 }
@@ -1887,6 +1961,21 @@ function setStatus(text) {
 /* --- wiring ------------------------------------------------------------- */
 
 function init() {
+  // Session-watch is supporting activity; its cards must never displace chat.
+  const activity = document.querySelector(".conversation-activity");
+  const watch = document.querySelector(".watch-panel");
+  if (watch && activity) activity.append(watch);
+  const thinking = $("#thinking-panel");
+  if (thinking && activity) activity.append(thinking);
+  $("#chat-reconnect")?.addEventListener("click", () => {
+    // Reload the durable transcript before reconnecting, without resending work.
+    hydrate(state.sessionId).catch(() => {
+      state.chatError = "Could not reconnect. Your request may still be running on Studio.";
+      renderChatActivity();
+    });
+  });
+  setInterval(renderChatActivity, 1000);
+
   $("#archived-sessions")?.addEventListener("toggle", event => {
     if (event.currentTarget.open) void loadArchivedSessions();
   });
@@ -1931,8 +2020,10 @@ function init() {
 
   $("#composer").addEventListener("submit", (e) => {
     e.preventDefault();
+    if (state.chatSending) return;
     const box = $("#say");
     const text = box.value;
+    if (!text.trim()) return;
     box.value = "";
     autoGrow(box);
     say(text, "text");
@@ -1954,7 +2045,7 @@ function init() {
   });
 
   $("#say").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       $("#composer").requestSubmit();
     }

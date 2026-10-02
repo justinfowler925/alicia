@@ -1,5 +1,6 @@
 """GPT-Live transport using Alicia's durable conversation and guarded tools."""
 import asyncio
+from contextlib import closing
 import os
 import sqlite3
 from typing import Literal
@@ -26,6 +27,7 @@ class Offer(BaseModel):
 class Delegation(BaseModel):
     id: str = Field(min_length=1, max_length=200)
     message: str = Field(min_length=1, max_length=16000)
+    transcript_ids: list[str] = Field(default_factory=list, max_length=100)
 
 
 def database():
@@ -63,7 +65,12 @@ async def start(session_id: str, offer: Offer, request: Request):
 async def delegate(session_id: str, task: Delegation, request: Request):
     if not request.app.state.sessions.get_session(session_id):
         raise HTTPException(404, 'Unknown conversation')
-    with database() as db:
+    if task.transcript_ids:
+        try:
+            request.app.state.sessions.match_live_request(session_id, task.message, task.transcript_ids)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+    with closing(database()) as db, db:
         existing = db.execute('SELECT message,state,reply FROM delegations WHERE session=? AND id=?', (session_id,task.id)).fetchone()
         if existing:
             if existing[0] != task.message:
@@ -76,11 +83,12 @@ async def delegate(session_id: str, task: Delegation, request: Request):
     async def run():
         try:
             result = await asyncio.to_thread(request.app.state.conversation.handle,
-                session_id, task.message, channel='voice', wait=True, owner_verified=False)
+                session_id, task.message, channel='voice', wait=True, owner_verified=False,
+                **({'live_turn_ids': task.transcript_ids} if task.transcript_ids else {}))
             reply = result.reply
         except Exception:
             reply = 'I could not complete that request. It is recorded; check the conversation before retrying.'
-        with database() as db:
+        with closing(database()) as db, db:
             db.execute('UPDATE delegations SET state=?,reply=? WHERE session=? AND id=?', ('done',reply,session_id,task.id))
         return {'reply': reply}
     job = asyncio.create_task(run())
