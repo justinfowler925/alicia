@@ -2,6 +2,7 @@
 from __future__ import annotations
 import asyncio
 import base64
+from contextlib import contextmanager
 from datetime import datetime, timezone, date
 from email.utils import parseaddr
 import hashlib
@@ -35,8 +36,12 @@ class CommitmentStore:
           CREATE TABLE IF NOT EXISTS changes(id INTEGER PRIMARY KEY,commitment_id TEXT,status TEXT,note TEXT,actor TEXT,at REAL);
           CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT);
         ''')
+    @contextmanager
     def db(self):
-        c=sqlite3.connect(self.path,timeout=10);c.row_factory=sqlite3.Row;return c
+        c=sqlite3.connect(self.path,timeout=10);c.row_factory=sqlite3.Row
+        try:
+            with c:yield c
+        finally:c.close()
     def setting(self,key,value=None):
         with self.db() as c:
             if value is not None:c.execute('INSERT OR REPLACE INTO settings VALUES (?,?)',(key,str(value)));return value
@@ -147,25 +152,85 @@ class GmailSource:
             store.setting('gmail_coverage',ACCOUNT+' · Clearspeed senders · rolling 7 days plus tracked open conversations'+(' · older pages still loading' if listing.get('nextPageToken') else ''))
 
 class SlackSource:
+    """Read the owner's memberships with existing history scopes; resume every page."""
     def __init__(self,token):self.token=token
     def poll(self,store):
-        if not self.token:raise RuntimeError('Slack reading is not connected: stored user tokens are invalid. Notification bot remains connected.')
+        if not self.token:raise RuntimeError('Slack reader credential is unavailable.')
+        retry=float(store.setting('slack_retry_at') or 0)
+        if time.time()<retry:return
+        state=json.loads(store.setting('slack_scan') or 'null')
+        if not state:
+            state={'stage':'memberships','cursor':'','channels':[],
+                   'oldest':str(time.time()-7*86400),'latest':str(time.time()),
+                   'threads':[{'channel':key.split(':',1)[0],'ts':key.split(':',1)[1],
+                               'tracked':True,'cursor':'','messages':[]}
+                              for key in store.active_threads('slack')]}
+        def save():store.setting('slack_scan',json.dumps(state))
         with httpx.Client(timeout=20,headers={'Authorization':'Bearer '+self.token}) as c:
-            identity=c.post('https://slack.com/api/auth.test').json()
-            if not identity.get('ok') or identity.get('user_id')!=OWNER:raise RuntimeError('Slack user authorization needs reconnecting for Justin’s messages.')
-            query='after:'+datetime.fromtimestamp(time.time()-7*86400,timezone.utc).date().isoformat()+' '+('to:me','<@'+OWNER+'>','from:me')[int(store.setting('slack_query') or 0)]
-            page=int(store.setting('slack_page') or 1)
-            r=c.get('https://slack.com/api/search.messages',params={'query':query,'sort':'timestamp','sort_dir':'desc','count':40,'page':page});r.raise_for_status();data=r.json()
-            if not data.get('ok'):raise RuntimeError('Slack message search unavailable: '+str(data.get('error')))
-            messages=data.get('messages',{})
-            for m in messages.get('matches',[]):
-                if m.get('bot_id') or not m.get('user'):continue
-                key=m.get('channel',{}).get('id','')+':'+str(m.get('thread_ts') or m['ts'])
-                store.ingest('slack',key,m.get('permalink',''),'FROM SLACK USER: '+m['user']+'\nJustin Slack user: '+OWNER+'\nMESSAGE: '+m.get('text',''))
-            more=page<int(messages.get('paging',{}).get('pages',1))
-            store.setting('slack_page',page+1 if more else 1)
-            if not more:store.setting('slack_query',(int(store.setting('slack_query') or 0)+1)%3)
-            store.setting('slack_checked',time.time());store.setting('slack_error','');store.setting('slack_coverage','Direct requests and your messages · rolling 7 days'+(' · older pages still loading' if more else ''))
+            def api(method,**params):
+                response=c.get('https://slack.com/api/'+method,params=params)
+                if response.status_code==429:
+                    delay=max(60,int(response.headers.get('Retry-After','60')))
+                    store.setting('slack_retry_at',time.time()+delay)
+                    raise RuntimeError('Slack rate limited reading; retry scheduled after '+str(delay)+' seconds.')
+                response.raise_for_status();data=response.json()
+                if not data.get('ok'):raise RuntimeError('Slack '+method+': '+str(data.get('error','unknown_error')))
+                time.sleep(1.25)  # Internal apps: stay below the history/replies tier.
+                return data
+            identity=api('auth.test')
+            if identity.get('user_id')!=OWNER or identity.get('team_id')!='TL8SFF7J8':
+                raise RuntimeError('Slack reader does not match Justin’s Clearspeed account.')
+            for _ in range(39):
+                if state['stage']=='memberships':
+                    data=api('users.conversations',types='public_channel,private_channel,im,mpim',
+                             exclude_archived='true',limit=200,cursor=state['cursor'])
+                    state['channels'].extend({'id':ch['id'],'direct':bool(ch.get('is_im') or ch.get('is_mpim')),
+                                              'cursor':''} for ch in data.get('channels',[]))
+                    state['cursor']=data.get('response_metadata',{}).get('next_cursor','')
+                    if not state['cursor']:state['stage']='history'
+                elif state['threads']:
+                    thread=state['threads'][0]
+                    data=api('conversations.replies',channel=thread['channel'],ts=thread['ts'],
+                             limit=200,cursor=thread['cursor'])
+                    thread['messages'].extend(data.get('messages',[]))
+                    thread['cursor']=data.get('response_metadata',{}).get('next_cursor','')
+                    if not thread['cursor']:
+                        messages=thread['messages']
+                        involved=thread.get('tracked') or thread.get('direct') or any(
+                            m.get('user')==OWNER or '<@'+OWNER+'>' in m.get('text','') for m in messages)
+                        if involved:self.ingest_thread(store,thread['channel'],thread['ts'],messages)
+                        state['threads'].pop(0)
+                elif state['channels']:
+                    channel=state['channels'][0]
+                    data=api('conversations.history',channel=channel['id'],oldest=state['oldest'],
+                             latest=state['latest'],inclusive='true',limit=200,cursor=channel['cursor'])
+                    for m in data.get('messages',[]):
+                        ts=m.get('thread_ts') or m['ts']
+                        if m.get('reply_count'):
+                            state['threads'].append({'channel':channel['id'],'ts':ts,
+                                'direct':channel['direct'],'cursor':'','messages':[]})
+                        elif channel['direct'] or m.get('user')==OWNER or '<@'+OWNER+'>' in m.get('text',''):
+                            self.ingest_thread(store,channel['id'],ts,[m])
+                    channel['cursor']=data.get('response_metadata',{}).get('next_cursor','')
+                    if not channel['cursor']:state['channels'].pop(0)
+                else:
+                    store.setting('slack_completed',state['latest'])
+                    store.setting('slack_scan','')
+                    store.setting('slack_checked',time.time());store.setting('slack_error','')
+                    store.setting('slack_coverage','Joined conversations · DMs and threads involving you · rolling 7 days plus tracked open threads · scan complete')
+                    return
+                save()
+                store.setting('slack_checked',time.time());store.setting('slack_error','')
+                store.setting('slack_coverage','Joined conversations · DMs and threads involving you · rolling 7 days plus tracked open threads · scan in progress')
+    @staticmethod
+    def ingest_thread(store,channel,ts,messages):
+        human=[m for m in messages if m.get('user') and not m.get('bot_id') and m.get('text')]
+        if not human:return
+        context='Justin Slack user: '+OWNER+'\n'+ '\n\n'.join(
+            'FROM SLACK USER: '+m['user']+'\nTIMESTAMP: '+m['ts']+'\nMESSAGE: '+m['text']
+            for m in sorted(human,key=lambda m:float(m['ts'])))
+        # Keep the most recent evidence, including later completion/retraction messages.
+        store.ingest('slack',channel+':'+ts,'https://app.slack.com/archives/'+channel+'/p'+ts.replace('.',''),context[-22000:])
 
 
 def sync_slack(store,slack):
@@ -221,7 +286,7 @@ async def coworker_loop(store):
     async def review_loop():
         while True:
             try:
-                active=await asyncio.to_thread(store.assess,lambda p:complete(p,timeout=60));store.setting('review_error','')
+                active=await asyncio.to_thread(store.assess,lambda p:complete(p,timeout=60,model=os.environ.get("ALICIA_COWORKER_MODEL","composer-2.5")));store.setting('review_error','')
             except Exception as e:active=False;store.setting('review_error',clean(str(e),240))
             await asyncio.sleep(10 if active else 30)
     async def notify_loop():

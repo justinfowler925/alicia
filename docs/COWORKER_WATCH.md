@@ -8,8 +8,12 @@ Updates from Alicia's tools, the page, and the owner's replies to Alicia's notif
 
 ## Connection status
 
-Gmail uses Studio's selected, verified work-account OAuth credentials with read-only access. The existing notification bot can DM Justin but cannot read his own private Slack conversations. Slack message discovery is not operational until a dedicated user connection is authorized; invalid stored access and refresh tokens were verified during setup. The UI reports that gap explicitly. The preliminary Slack search adapter is not a qualified full-history/thread integration and must be completed and verified with the restored connection before Slack coverage can be claimed.
+Gmail uses Studio's selected work-account OAuth credentials. Slack uses the existing RevOps 2030 user connection for Justin (`U03TVK7B057`, Clearspeed `TL8SFF7J8`) through `ALICIA_WATCH_SLACK_USER_TOKEN`. The notification bot remains separate. The reader uses `users.conversations`, `conversations.history`, and `conversations.replies`; it does not require Slack search access or any write scope.
+
+Slack scans joined public/private channels and direct/group messages. It discovers messages rooted within the last seven days and reads their full threads, keeping human DMs and conversations involving Justin. Tracked open threads are revisited beyond that window (40 oldest-checked per cycle). New replies to older, untracked roots are outside this discovery window. Pagination and partial threads survive restarts; a scan uses at most 40 paced API calls per five-minute cycle. The UI distinguishes a scan in progress from a completed scan. A rate limit preserves its cursor and honors Retry-After. Slack retention and membership determine available history; this is not an all-workspace archive.
+
+The obligation reviewer uses explicit `ALICIA_COWORKER_MODEL` (default `composer-2.5`) independently of the interactive conversation model. It never raises a spending limit. Source checks and review errors are reported separately.
 
 ## Verification
 
-Unit tests cover source evidence, low-confidence exclusion, thread deduplication, persistent owner dispositions, completion review, stale writes, changing-source races, and continued polling of old open work. Live email ingestion and model processing were observed. No successful full Slack message ingestion or owner Slack-reply round trip is claimed by this delivery.
+Tests cover evidence, confidence, owner dispositions, completion review, stale writes, source races, old tracked threads, membership/history/reply pagination, resumable scan budgets, wrong-account rejection, and rate-limit recovery. Model qualification uses isolated positive, FYI, and prompt-injection conversations. Live reading is qualified against the owner's actual connection; fixture testing never writes to the running service's database.

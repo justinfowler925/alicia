@@ -6,11 +6,11 @@ import signal
 import subprocess
 
 
-def complete(prompt: str, *, timeout: float = 90) -> str:
+def complete(prompt: str, *, timeout: float = 90, model: str | None = None) -> str:
     root = Path(os.environ.get('ALICIA_REASONING_ROOT', '~/.alicia/reasoning')).expanduser()
     root.mkdir(parents=True, exist_ok=True)
     binary = os.environ.get('ALICIA_CURSOR_BIN', str(Path.home()/'.local/bin/cursor-studio'))
-    model = os.environ.get('ALICIA_CURSOR_MODEL', 'auto')
+    model = model or os.environ.get('ALICIA_CURSOR_MODEL', 'auto')
     if any(s in model.lower() for s in ('claude', 'anthropic')):
         raise RuntimeError('Use Cursor Auto or a non-Anthropic Cursor model')
     child_env = os.environ.copy()
