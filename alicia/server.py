@@ -326,6 +326,8 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         )
         from .session_watch import watch_loop
         watch_task = asyncio.create_task(watch_loop(app.state.session_watch)) if os.environ.get("ALICIA_WATCH_ENABLED") == "1" else None
+        from .coworker_watch import coworker_loop
+        coworker_task = asyncio.create_task(coworker_loop(app.state.commitments)) if os.environ.get("ALICIA_COWORKER_WATCH_ENABLED") == "1" else None
         slack_capturer = (
             asyncio.create_task(_slack_capture_loop())
             if start_watchdog and cfg.atlas_enabled
@@ -383,7 +385,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         finally:
             if ear is not None:
                 ear.stop()
-            for task in (poller, refiner, supervisor_task, slack_capturer, watch_task):
+            for task in (poller, refiner, supervisor_task, slack_capturer, watch_task, coworker_task):
                 if task:
                     task.cancel()
             app.state.watchdog.stop()
@@ -516,6 +518,9 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
     from .session_watch import router as watch_router, WatchStore
     app.state.session_watch = WatchStore()
     app.include_router(watch_router)
+    from .coworker_watch import router as commitment_router, CommitmentStore
+    app.state.commitments = CommitmentStore()
+    app.include_router(commitment_router)
     from .workspace import router as workspace_router
     app.include_router(workspace_router)
 
