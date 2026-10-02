@@ -37,3 +37,38 @@ body[data-page="alicia"] .voice-stage{max-width:56rem}.voice-stage-head{flex-dir
 /* The assistant is the entry point; the legacy backlog stays out of navigation. */
 .work-tray{display:none!important}
 .watch-panel{padding:var(--shine-space-4);border-bottom:1px solid var(--workspace-border)}.watch-heading{display:flex;justify-content:space-between;gap:var(--shine-space-3);flex-wrap:wrap;font-size:var(--shine-text-sm)}.watch-sessions{margin-top:var(--shine-space-3)}.watch-sessions>summary{cursor:pointer;font-size:var(--shine-text-xs);color:var(--workspace-muted)}.watch-session{display:grid;gap:var(--shine-space-2);padding-block:var(--shine-space-3);border-bottom:1px solid var(--workspace-border);font-size:var(--shine-text-sm)}.watch-decision{padding-top:var(--shine-space-4);margin-top:var(--shine-space-4);border-top:1px solid var(--workspace-border)}.watch-decision h3{font-size:var(--shine-text-sm)}.watch-decision p{margin-top:var(--shine-space-2)}.watch-decision textarea{background:var(--workspace-bg);color:var(--workspace-ink);padding:var(--shine-space-3);border:1px solid var(--workspace-border);border-radius:var(--shine-radius-md);resize:vertical}
+
+/* The conversation owns the viewport; supporting work remains in Activity. */
+body[data-page="alicia"] { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+body[data-page="alicia"] .shell.voice-shell { display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; }
+body[data-page="alicia"] .topbar { width: 100%; flex: none; margin-bottom: var(--shine-space-4); }
+body[data-page="alicia"] .voice-stage { width: 100%; flex: 1; min-height: 0; overflow: hidden; }
+body[data-page="alicia"] .voice-stage-head { flex: none; padding: var(--shine-space-3) var(--shine-space-4); gap: var(--shine-space-3); }
+body[data-page="alicia"] .voice-primary { min-height: var(--tap); }
+body[data-page="alicia"] .conversation-details { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+body[data-page="alicia"] .conversation-details .conversation-wrap { flex: 1; height: auto; min-height: 0; }
+body[data-page="alicia"] #conversation { overflow-y: auto; overscroll-behavior: contain; padding: var(--shine-space-5); }
+body[data-page="alicia"] .conversation-details .composer { flex: none; align-items: end; padding: var(--shine-space-3) var(--shine-space-4); }
+body[data-page="alicia"] .conversation-activity { flex: none; max-height: 35%; overflow-y: auto; }
+body[data-page="alicia"] .conversation-activity > summary { padding: var(--shine-space-2) var(--shine-space-4); }
+body[data-page="alicia"] .turn.alicia { max-width: 100%; }
+body[data-page="alicia"] .turn.alicia .body { background: transparent; border: 0; padding-inline: 0; }
+body[data-page="alicia"] #status-line:empty { display: none; }
+.chat-activity { display: flex; align-items: center; gap: var(--shine-space-3); padding: var(--shine-space-2) var(--shine-space-4); color: var(--workspace-muted); font-size: var(--shine-text-xs); flex: none; }
+.chat-activity p { margin: var(--shine-space-1) 0 0; }
+.chat-activity p:empty { display: none; }
+.chat-activity button { margin-left: auto; min-height: var(--tap); }
+.chat-working-dot { width: var(--shine-space-2); height: var(--shine-space-2); flex: none; border-radius: var(--shine-radius-full); background: currentColor; }
+.chat-activity[data-state="idle"] .chat-working-dot { display: none; }
+.chat-activity[data-state="working"] .chat-working-dot,
+.chat-activity[data-state="sending"] .chat-working-dot { color: var(--workspace-accent); animation: chat-working 1.5s ease-in-out infinite; }
+@keyframes chat-working { 50% { opacity: .3; } }
+@media (max-width: 760px) {
+  body[data-page="alicia"] .workspace-nav { flex: none; }
+  body[data-page="alicia"] .shell.voice-shell { height: auto; padding: var(--shine-space-3); }
+  body[data-page="alicia"] .voice-stage-head { flex-direction: row; align-items: center; }
+  body[data-page="alicia"] .composer { flex-wrap: nowrap; }
+  body[data-page="alicia"] .composer textarea { flex: 1; min-width: 0; }
+  body[data-page="alicia"] .composer button { flex: none; min-height: var(--tap); }
+}
+@media (prefers-reduced-motion: reduce) { .chat-working-dot { animation: none !important; } }

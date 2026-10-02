@@ -237,6 +237,23 @@ class SessionStore:
                 (session_id, role, text, "voice", at, json.dumps(meta)))
             return Turn(int(cur.lastrowid), session_id, role, text, "voice", at, meta)
 
+    def match_live_request(self, session_id: str, message: str, event_ids: list[str]) -> Turn:
+        """Reuse the recorded voice words; never append a second copy for delegation."""
+        if not event_ids or len(set(event_ids)) != len(event_ids):
+            raise ValueError("Invalid voice transcript references")
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM turns WHERE session_id=? AND json_extract(meta, '$.live_id') IN ("
+                + ",".join("?" for _ in event_ids) + ") ORDER BY id",
+                (session_id, *event_ids),
+            ).fetchall()
+        if (len(rows) != len(event_ids) or any(r["role"] != "user" for r in rows)
+                or [json.loads(r["meta"])["live_id"] for r in rows] != event_ids
+                or "".join(r["text"] for r in rows).strip() != message.strip()):
+            raise ValueError("Voice request does not match its saved transcript")
+        row = rows[-1]
+        return Turn(row["id"], session_id, row["role"], row["text"], row["channel"], row["at"], json.loads(row["meta"]))
+
     def transcript(self, session_id: str, *, limit: int | None = None) -> list[Turn]:
         sql = "SELECT * FROM turns WHERE session_id=? ORDER BY id"
         args: tuple[Any, ...] = (session_id,)

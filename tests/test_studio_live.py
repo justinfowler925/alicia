@@ -106,3 +106,89 @@ def test_studio_profiles_default_to_cursor_auto(monkeypatch):
     for name in ("conversation", "supervisor", "frontier", "builder"):
         profile = default_profile(name, AliciaCfg())
         assert {(c.provider, c.model) for c in profile.candidates} == {("cursor", "auto")}
+
+
+def test_delegation_reuses_saved_voice_turn_and_rejects_mismatches(monkeypatch, tmp_path):
+    from alicia.session import SessionStore
+    monkeypatch.setenv('ALICIA_STATE_DIR', str(tmp_path))
+    store = SessionStore(tmp_path / 'sessions.sqlite')
+    sid = store.open_session()
+    first = store.append_live_turn(sid, 'user', 'Check ', 'part-1')
+    last = store.append_live_turn(sid, 'user', 'again.', 'part-2')
+    assert store.match_live_request(sid, 'Check again.', ['part-1', 'part-2']).id == last.id
+    with pytest.raises(ValueError):
+        store.match_live_request(sid, 'Old question Check again.', ['part-1', 'part-2'])
+    with pytest.raises(ValueError):
+        store.match_live_request(store.open_session(), 'Check ', ['part-1'])
+    app = FastAPI(); app.include_router(live_voice.router)
+    app.state.sessions = store
+    app.state.live_voice_jobs = set()
+    handle = Mock(return_value=SimpleNamespace(reply='Done.'))
+    app.state.conversation = SimpleNamespace(handle=handle)
+    with TestClient(app) as client:
+        body = {'id': 'new-work', 'message': 'Wrong', 'transcript_ids': ['part-1', 'part-2']}
+        assert client.post(f'/api/session/{sid}/live-delegation', json=body).status_code == 409
+        body['message'] = 'Check again.'
+        assert client.post(f'/api/session/{sid}/live-delegation', json=body).status_code == 200
+    assert handle.call_args.kwargs['live_turn_ids'] == ['part-1', 'part-2']
+    assert [t.id for t in store.transcript(sid)] == [first.id, last.id]
+
+
+@pytest.mark.parametrize("wait", [True, False])
+def test_real_conversation_reuses_live_turn_and_settles_worker_failure(monkeypatch, tmp_path, wait):
+    from alicia.session import SessionStore
+    from alicia.conversation import ConversationManager
+    monkeypatch.setenv('ALICIA_STATE_DIR', str(tmp_path))
+    store = SessionStore(tmp_path/'sessions.sqlite')
+    sid = store.open_session()
+    original = store.append_live_turn(sid, 'user', 'Check the current work.', 'spoken-1')
+    events = []
+    manager = ConversationManager(Mock(), AliciaCfg(), store, on_event=lambda k,p:events.append((k,p)), memory=Mock(), todos=Mock())
+    monkeypatch.setattr(manager, '_pending_artifact', lambda _:None)
+    monkeypatch.setattr(manager, '_run_brain', Mock(side_effect=RuntimeError('synthetic worker death')))
+    result = manager.handle(sid, 'Check the current work.', channel='voice', wait=wait, owner_verified=False, live_turn_ids=['spoken-1'])
+    manager.wait_for_brain(sid)
+    turns = store.transcript(sid)
+    assert [t.role for t in turns] == ['user', 'alicia']
+    assert turns[0].id == original.id
+    if wait:
+        assert result.error == 'worker_failed'
+    answers = [p for k,p in events if k == 'answer']
+    assert len(answers) == 1
+    assert answers[0]['answers_turn'] == original.id
+    assert answers[0]['turn']['meta']['error'] == 'worker_failed'
+
+
+def test_browser_voice_turn_contract():
+    import subprocess
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    subprocess.run(['node', 'tests/live_voice_turn_contracts.cjs'], cwd=root, check=True, timeout=15)
+
+
+def test_superseded_request_is_explicit_not_reported_as_cancelled(monkeypatch, tmp_path):
+    import threading
+    from alicia.session import SessionStore
+    from alicia.conversation import ConversationManager
+    monkeypatch.setenv('ALICIA_STATE_DIR', str(tmp_path))
+    store = SessionStore(tmp_path/'sessions.sqlite'); sid = store.open_session()
+    events = []; release = threading.Event(); entered = threading.Event()
+    manager = ConversationManager(Mock(), AliciaCfg(), store, on_event=lambda k,p:events.append((k,p)), memory=Mock(), todos=Mock())
+    monkeypatch.setattr(manager, '_pending_artifact', lambda _:None)
+    def run(session_id, message, turn_id, channel):
+        if message == 'first request':
+            entered.set(); assert release.wait(5)
+        return message + ' answer', {}
+    monkeypatch.setattr(manager, '_run_brain', run)
+    manager.handle(sid, 'first request')
+    assert entered.wait(5)
+    first_thread = manager._brain_threads[sid]
+    try:
+        manager.handle(sid, 'second request')
+        manager.wait_for_brain(sid)
+    finally:
+        release.set(); first_thread.join(5)
+    superseded = [p for k,p in events if k == 'superseded']
+    assert len(superseded) == 1
+    assert superseded[0]['turn_id'] != superseded[0]['replacement_turn_id']
+    assert [t.text for t in store.transcript(sid) if t.role == 'alicia'] == ['second request answer']
