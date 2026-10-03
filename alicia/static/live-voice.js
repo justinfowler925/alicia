@@ -6,7 +6,9 @@ export class LiveVoice {
     this.onTranscript = onTranscript;
     this.input = [];
     this.logQueue = Promise.resolve();
-    this.caption = null;
+    this.captions = new Map();
+    this.captionTimers = new Map();
+    this.transcriptEvents = new Set();
     this.seen = new Set();
     this.closed = false;
     this.audio = new Audio();
@@ -59,14 +61,19 @@ export class LiveVoice {
   receive(event) {
     if(this.closed) return;
     if(event.type==="session.started") {this.ready=true;clearTimeout(this.readyTimeout);this.onPhase("listening","Listening — work runs on Studio.");}
+    if(event.type==="session.input_transcript.delta" || event.type==="session.output_transcript.delta") {
+      if(event.event_id && this.transcriptEvents.has(event.event_id)) return;
+      if(event.event_id) this.transcriptEvents.add(event.event_id);
+    }
     if(event.type==="session.input_transcript.delta") {
-      const transcriptId=this.record("user",event.delta||"");
-      this.input.push({text:event.delta||"",transcriptId});
+      const transcriptId=this.record("user",event.delta||"",event);
+      this.input.push({text:event.delta||"",transcriptId,start_ms:event.start_ms,end_ms:event.end_ms});
     }
     if(event.type==="session.output_transcript.delta") {
-      // A spoken answer closes the previous input; never carry it into a later request.
-      this.input=[];
-      this.record("assistant",event.delta||"");
+      // Output fragments are not response boundaries. Keep every user word;
+      // the backend uses the latest saved caption plus durable conversation history.
+      this.flushCaption("user");
+      this.record("assistant",event.delta||"",event);
     }
     if(event.type==="session.delegation.created" && event.delegation?.target==="client") {
       if(!this.seen.has(event.delegation.id)) {this.seen.add(event.delegation.id);void this.delegate(event);}
@@ -75,10 +82,21 @@ export class LiveVoice {
     if(event.type==="error") {this.stop();this.onPhase("error","The voice service reported an error. Your recorded work remains on Studio.");}
   }
   async delegate(event) {
-    const selected=this.input.splice(0);
+    const id=event.delegation.id;
+    const cutoff=Number.isFinite(event.offset_ms)?event.offset_ms:Infinity;
+    const eligible=this.input.filter(part=>!Number.isFinite(part.end_ms)||part.end_ms<=cutoff);
+    const remaining=this.input.filter(part=>!eligible.includes(part));
+    const latestId=eligible.at(-1)?.transcriptId;
+    const selected=eligible.filter(part=>part.transcriptId===latestId);
+    // A single saved caption crossing a delegation cannot be split by guessing
+    // words from approximate timestamps. Keep it and request a clear retry.
+    if(selected.some(part=>remaining.some(other=>other.transcriptId===part.transcriptId))) {
+      this.send({type:"session.commentary.append",delegation_id:id,content:"Your speech overlaps this request. I have not run it. Please finish and repeat the complete instruction."});
+      return;
+    }
+    this.input=remaining;
     this.flushCaption();
     await this.logQueue;
-    const id=event.delegation.id;
     const transcript_ids=[...new Set(selected.map(x=>x.transcriptId))];
     const message=selected.map(x=>x.text).join("").trim();
     if(!message) {this.send({type:"session.commentary.append",delegation_id:id,content:"I did not receive a complete request. Please repeat what you want me to do."});return;}
@@ -89,19 +107,31 @@ export class LiveVoice {
       this.send({type:"session.commentary.append",delegation_id:id,content:response.ok ? result.reply : "That request is recorded but I cannot confirm completion. Check the conversation before repeating it."});
     } catch {this.send({type:"session.commentary.append",delegation_id:id,content:"The work connection dropped. Studio may still be working; check the conversation before repeating the action."});}
   }
-  record(role,text) {
+  record(role,text,event={}) {
     this.onPhase(role === "assistant" ? "speaking" : "listening");
-    if (this.caption?.role !== role) this.flushCaption();
-    if (!this.caption) this.caption={id:crypto.randomUUID(),role,text:""};
-    this.caption.text+=text;
-    this.onTranscript?.(role,this.caption.text);
-    clearTimeout(this.captionTimer);
-    this.captionTimer=setTimeout(()=>this.flushCaption(),1500);
-    return this.caption.id;
+    if(role === "user") this.flushCaption("assistant");
+    let part=this.captions.get(role);
+    if(part && (part.text.length+text.length>15000 || part.event_ids.length>=900)) {
+      this.flushCaption(role);part=null;
+    }
+    if(!part) {
+      part={id:crypto.randomUUID(),role,text:"",event_ids:[]};
+      this.captions.set(role,part);
+    }
+    part.text+=text;
+    if(event.event_id) part.event_ids.push(event.event_id);
+    if(Number.isFinite(event.start_ms)) part.start_ms=Math.min(part.start_ms??Infinity,event.start_ms);
+    if(Number.isFinite(event.end_ms)) part.end_ms=Math.max(part.end_ms??0,event.end_ms);
+    this.onTranscript?.(role,part.text);
+    clearTimeout(this.captionTimers.get(role));
+    this.captionTimers.set(role,setTimeout(()=>this.flushCaption(role),1500));
+    return part.id;
   }
-  flushCaption() {
-    clearTimeout(this.captionTimer);
-    const part=this.caption;this.caption=null;
+  flushCaption(role) {
+    if(!role) {for(const speaker of [...this.captions.keys()]) this.flushCaption(speaker);return;}
+    clearTimeout(this.captionTimers.get(role));
+    this.captionTimers.delete(role);
+    const part=this.captions.get(role);this.captions.delete(role);
     if(!part?.text.trim()) return;
     this.logQueue=this.logQueue.then(async()=>{
       for(let attempt=0;attempt<2;attempt++) {

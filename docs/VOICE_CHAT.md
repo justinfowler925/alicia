@@ -1,0 +1,9 @@
+# Live voice in the conversation
+
+Live delegation results carry an exact session-scoped `live_delegation_id` and render as expandable **Work result** disclosures. Native spoken transcripts remain assistant messages. This distinguishes a durable work result from what was spoken; it does not assert the two texts are equivalent. Failed results open automatically, and a result remains available when no speech arrives. Typed replies keep their ordinary presentation. Existing transcript rows are neither rewritten nor deleted.
+
+The client persists each caption with provider event IDs and available timeline bounds. At delegation time the latest eligible caption is the current message; earlier captions remain in the conversation history supplied to the real manager. Assistant output never deletes incoming speech. If a caption crosses the delegation cutoff, dispatch waits for a complete instruction instead of silently slicing it. Persistence timers segment storage, not semantic response boundaries.
+
+Qualification on 2026-10-03 used an isolated actual `gpt-live-1` WebSocket session with silent PCM input and a commentary command: all seven output transcript deltas omitted `client_event_id`, while the commentary acknowledgement included it. Consequently this implementation does not rely on optional speech correlation. The provider contract is documented in [Live conversations](https://developers.openai.com/api/docs/guides/live-conversations) and [Live delegation](https://developers.openai.com/api/docs/guides/live-delegation).
+
+Regression coverage drives the actual client receive/persist/delegate path, the API with a real isolated session store and conversation manager, and the browser pane through disclosure, failure, reload, interim speech, scrolling, and typed-answer cases. This qualification does not establish physical microphone speaker identity or acoustic echo rejection.

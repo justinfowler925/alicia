@@ -353,6 +353,9 @@ function handle(event) {
     case "board":
       applyBoardEvent(event);
       break;
+    case "turn_updated":
+      renderTurn(event.turn, { replace: true, live: false });
+      break;
     case "turn":
       renderTurn(event.turn);
       break;
@@ -424,18 +427,20 @@ function setLiveConnected(on) {
   el.textContent = on ? "live" : "offline";
 }
 
-function renderTurn(turn, { animate = true, live = animate } = {}) {
-  if (!turn || state.seenTurns.has(turn.id)) return;
+function renderTurn(turn, { animate = true, live = animate, replace = false } = {}) {
+  if (!turn || (state.seenTurns.has(turn.id) && !replace)) return;
   const follow = atBottom($("#conversation"));
   state.seenTurns.add(turn.id);
-  clearInterim();
-  if (turn.role !== "user") {
+  if (replace) document.querySelector(`#conversation [data-turn-id="${CSS.escape(String(turn.id))}"]`)?.remove();
+  const workResult = Boolean(turn.meta?.live_delegation_id);
+  if (!replace) clearInterim();
+  if (turn.role !== "user" && !workResult) {
     const text = String(turn.text || "").trim();
     // A complete first sentence is a compact readback, never a chopped word stream.
     const sentence = text.match(/^[\s\S]*?[.!?](?=\s|$)/)?.[0] || text.split("\n")[0];
     renderText($("#intent-readback"), sentence);
     $("#readback-label").textContent = "Alicia · latest reply";
-  } else {
+  } else if (turn.role === "user") {
     $("#readback-label").textContent = "Alicia · considering your direction";
   }
   const empty = $("#conversation-empty");
@@ -459,7 +464,18 @@ function renderTurn(turn, { animate = true, live = animate } = {}) {
   body.className = "body";
   renderText(body, turn.text);
 
-  el.append(who, body);
+  if (workResult) {
+    el.classList.add("work-result");
+    const detail = document.createElement("details");
+    detail.className = "voice-work-result";
+    const summary = document.createElement("summary");
+    summary.textContent = turn.meta?.error ? "Work result · needs attention" : "Work result";
+    detail.open = Boolean(turn.meta?.error);
+    detail.append(summary, body);
+    el.append(detail);
+  } else {
+    el.append(who, body);
+  }
   const transcript = $("#conversation");
   const next = [...transcript.querySelectorAll(".turn[data-turn-id]")].find(row => Number(row.dataset.turnId) > Number(turn.id));
   transcript.insertBefore(el, next || null);

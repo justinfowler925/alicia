@@ -222,7 +222,7 @@ class SessionStore:
             turn_id = int(cur.lastrowid or 0)
         return Turn(turn_id, session_id, role, text, channel, at, meta or {})
 
-    def append_live_turn(self, session_id: str, role: Role, text: str, event_id: str) -> Turn:
+    def append_live_turn(self, session_id: str, role: Role, text: str, event_id: str, *, provenance: dict[str, Any] | None = None) -> Turn:
         """Persist a voice transcript exactly once, without executing it as a request."""
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -232,10 +232,26 @@ class SessionStore:
             ).fetchone()
             if row:
                 return Turn(row["id"], session_id, row["role"], row["text"], row["channel"], row["at"], json.loads(row["meta"]))
-            at, meta = _now(), {"live_id": event_id}
+            at, meta = _now(), {"live_id": event_id, **(provenance or {})}
             cur = conn.execute("INSERT INTO turns (session_id,role,text,channel,at,meta) VALUES (?,?,?,?,?,?)",
                 (session_id, role, text, "voice", at, json.dumps(meta)))
             return Turn(int(cur.lastrowid), session_id, role, text, "voice", at, meta)
+
+    def mark_live_result(self, session_id: str, turn_id: int, delegation_id: str) -> Turn:
+        """Add exact work provenance; never infer equivalence with spoken words."""
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT * FROM turns WHERE session_id=? AND id=? AND role='alicia'",
+                               (session_id, turn_id)).fetchone()
+            if row is None:
+                raise ValueError("The live work result is not an assistant turn in this session")
+            meta = json.loads(row["meta"])
+            if meta.get("live_delegation_id") not in (None, delegation_id):
+                raise ValueError("The work result already belongs to another delegation")
+            meta["live_delegation_id"] = delegation_id
+            conn.execute("UPDATE turns SET meta=? WHERE session_id=? AND id=?",
+                         (json.dumps(meta), session_id, turn_id))
+        return Turn(row["id"], session_id, row["role"], row["text"], row["channel"], row["at"], meta)
 
     def match_live_request(self, session_id: str, message: str, event_ids: list[str]) -> Turn:
         """Reuse the recorded voice words; never append a second copy for delegation."""

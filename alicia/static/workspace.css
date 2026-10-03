@@ -72,3 +72,7 @@ body[data-page="alicia"] #status-line:empty { display: none; }
   body[data-page="alicia"] .composer button { flex: none; min-height: var(--tap); }
 }
 @media (prefers-reduced-motion: reduce) { .chat-working-dot { animation: none !important; } }
+
+.voice-work-result { border: 1px solid var(--workspace-border); border-radius: var(--shine-radius-md); padding: var(--shine-space-3) var(--shine-space-4); }
+.voice-work-result > summary { cursor: pointer; color: var(--workspace-muted); font-size: var(--shine-text-sm); }
+.voice-work-result[open] > summary { margin-bottom: var(--shine-space-3); }
