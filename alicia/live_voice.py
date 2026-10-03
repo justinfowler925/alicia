@@ -86,6 +86,11 @@ async def delegate(session_id: str, task: Delegation, request: Request):
                 session_id, task.message, channel='voice', wait=True, owner_verified=False,
                 **({'live_turn_ids': task.transcript_ids} if task.transcript_ids else {}))
             reply = result.reply
+            # A work result is a different source from what the live voice says.
+            # Persist that distinction even when the provider supplies no correlation.
+            if (getattr(result, 'turn_id', 0) or 0) > 0:
+                turn = request.app.state.sessions.mark_live_result(session_id, result.turn_id, task.id)
+                request.app.state.bus.publish('turn_updated', {'session_id': session_id, 'turn': turn.as_dict()})
         except Exception:
             reply = 'I could not complete that request. It is recorded; check the conversation before retrying.'
         with closing(database()) as db, db:
@@ -102,12 +107,20 @@ class Transcript(BaseModel):
     id: str = Field(min_length=1, max_length=200)
     role: Literal['user', 'assistant']
     text: str = Field(min_length=1, max_length=16000)
+    event_ids: list[str] = Field(default_factory=list, max_length=1000)
+    start_ms: float | None = Field(default=None, ge=0)
+    end_ms: float | None = Field(default=None, ge=0)
 
 @router.post('/{session_id}/live-transcript')
 async def transcript(session_id: str, part: Transcript, request: Request):
     store = request.app.state.sessions
     if not store.get_session(session_id):
         raise HTTPException(404, 'Unknown conversation')
-    turn = store.append_live_turn(session_id, 'alicia' if part.role == 'assistant' else 'user', part.text, part.id)
+    if part.start_ms is not None and part.end_ms is not None and part.end_ms < part.start_ms:
+        raise HTTPException(422, 'Transcript interval ends before it starts')
+    provenance = {'live_event_ids': part.event_ids}
+    if part.start_ms is not None: provenance['live_start_ms'] = part.start_ms
+    if part.end_ms is not None: provenance['live_end_ms'] = part.end_ms
+    turn = store.append_live_turn(session_id, 'alicia' if part.role == 'assistant' else 'user', part.text, part.id, provenance=provenance)
     request.app.state.bus.publish('turn', {'session_id': session_id, 'turn': turn.as_dict()})
     return {'ok': True}

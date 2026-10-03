@@ -208,3 +208,53 @@ def test_superseded_request_is_explicit_not_reported_as_cancelled(monkeypatch, t
     assert len(superseded) == 1
     assert superseded[0]['turn_id'] != superseded[0]['replacement_turn_id']
     assert [t.text for t in store.transcript(sid) if t.role == 'alicia'] == ['second request answer']
+
+
+def test_live_result_provenance_and_previous_instruction_reach_real_manager(monkeypatch, tmp_path):
+    from alicia.session import SessionStore
+    from alicia.conversation import ConversationManager
+    monkeypatch.setenv('ALICIA_STATE_DIR', str(tmp_path))
+    store = SessionStore(tmp_path/'sessions.sqlite'); sid=store.open_session()
+    first=store.append_live_turn(sid,'user','Review the complete Orchard design and its acceptance criteria. ','u-first')
+    store.append_live_turn(sid,'alicia','I am listening.','a-interleaved')
+    last=store.append_live_turn(sid,'user','Especially the second requirement.','u-last')
+    observed=[]
+    manager=ConversationManager(Mock(), AliciaCfg(), store, memory=Mock(), todos=Mock())
+    monkeypatch.setattr(manager,'_pending_artifact',lambda _:None)
+    def brain(session_id,message,turn_id,channel):
+        observed.append((message,store.history_for_model(session_id)))
+        return 'The second requirement passes.',{}
+    monkeypatch.setattr(manager,'_run_brain',brain)
+    app=FastAPI();app.include_router(live_voice.router)
+    app.state.sessions=store;app.state.conversation=manager;app.state.live_voice_jobs=set();app.state.bus=Mock()
+    with TestClient(app) as client:
+        result=client.post(f'/api/session/{sid}/live-delegation',json={'id':'delegated-1','message':last.text,'transcript_ids':['u-last']})
+        assert result.status_code==200
+        assert result.json()['reply']=='The second requirement passes.'
+        spoken=client.post(f'/api/session/{sid}/live-transcript',json={'id':'a-result','role':'assistant','text':'That requirement is good.','event_ids':['provider-1','provider-2'],'start_ms':2100,'end_ms':2800})
+        assert spoken.status_code==200
+    assert observed[0][0]==last.text
+    assert any(first.text==message['content'] for message in observed[0][1])
+    reopened=SessionStore(tmp_path/'sessions.sqlite').transcript(sid)
+    assert len(reopened)==5
+    assert reopened[-2].meta['live_delegation_id']=='delegated-1'
+    assert reopened[-2].text=='The second requirement passes.'
+    assert reopened[-1].text=='That requirement is good.'
+    assert reopened[-1].meta['live_event_ids']==['provider-1','provider-2']
+    assert reopened[-1].meta['live_start_ms']==2100
+    assert 'live_delegation_id' not in reopened[-1].meta
+    assert app.state.bus.publish.call_args_list[0].args[0]=='turn_updated'
+    with pytest.raises(ValueError): store.mark_live_result(store.open_session(),reopened[-2].id,'wrong-session')
+    with pytest.raises(ValueError): store.mark_live_result(sid,first.id,'not-an-answer')
+    with pytest.raises(ValueError): store.mark_live_result(sid,reopened[-2].id,'different-delegation')
+
+
+def test_zero_turn_live_reply_does_not_become_a_false_failure(monkeypatch,tmp_path):
+    monkeypatch.setenv('ALICIA_STATE_DIR',str(tmp_path))
+    app=FastAPI();app.include_router(live_voice.router)
+    app.state.sessions=SimpleNamespace(get_session=lambda _:True)
+    app.state.conversation=SimpleNamespace(handle=Mock(return_value=SimpleNamespace(reply='',turn_id=0)))
+    app.state.live_voice_jobs=set()
+    with TestClient(app) as client:
+        response=client.post('/api/session/session1/live-delegation',json={'id':'silence','message':'give me a moment'})
+        assert response.json()['reply']==''

@@ -76,6 +76,28 @@ const root=process.env.CHAT_STATIC_DIR||path.resolve(__dirname,'../alicia/static
   await page.evaluate(()=>window.__emit({kind:'turn',turn:{id:0,role:'user',text:'Earlier recovered message',channel:'text'}}));
   assert.equal(await page.locator('#conversation .turn').first().getAttribute('data-turn-id'),'0','Recovered messages maintain order');
   assert(await page.evaluate(()=>{state.voiceTransport='openai_live';state.productBrainSpeak=true;return voiceOwnsPlayback()}),'GPT Live never falls through to second voice');
+  // Live work output is a source-backed disclosure, never text-matched to speech.
+  await page.locator('#conversation').evaluate(e=>e.scrollTop=0);
+  const scrollBefore=await page.locator('#conversation').evaluate(e=>e.scrollTop);
+  await page.evaluate(()=>{showInterim('New words still being heard');window.__emit({kind:'turn_updated',turn:{id:27,role:'alicia',text:'Answer 27',channel:'text',meta:{live_delegation_id:'work-27'}}})});
+  assert.equal(await page.locator('#interim .body').innerText(),'New words still being heard');
+  assert.equal(await page.locator('#conversation').evaluate(e=>e.scrollTop),scrollBefore,'Provenance update preserves history scroll');
+  assert.equal(await page.locator('[data-turn-id="27"] .voice-work-result').count(),1);
+  assert.equal(await page.locator('[data-turn-id="27"] .body').isVisible(),false);
+  await page.locator('[data-turn-id="27"] summary').click();
+  assert.equal(await page.locator('[data-turn-id="27"] .body').innerText(),'Answer 27');
+  assert.equal(await page.locator('[data-turn-id="26"] .voice-work-result').count(),0,'Ordinary typed answer remains a normal reply');
+  await page.evaluate(()=>window.__emit({kind:'turn',turn:{id:30,role:'alicia',text:'Spoken wording stays separate.',channel:'voice',meta:{live_id:'speech-30'}}}));
+  assert.equal(await page.locator('[data-turn-id="30"] .body').innerText(),'Spoken wording stays separate.');
+  await page.evaluate(()=>window.__emit({kind:'turn',turn:{id:31,role:'alicia',text:'The request failed.',meta:{live_delegation_id:'work-31',error:'worker_failed'}}}));
+  assert.equal(await page.locator('[data-turn-id="31"] .voice-work-result').getAttribute('open'),'');
+  assert.equal(await page.locator('[data-turn-id="31"] .body').innerText(),'The request failed.');
+  turns.push({id:27,role:'alicia',text:'Answer 27',channel:'text',meta:{live_delegation_id:'work-27'}},{id:30,role:'alicia',text:'Spoken wording stays separate.',channel:'voice',meta:{live_id:'speech-30'}});
+  await page.reload();
+  await page.waitForSelector('[data-turn-id="27"] .voice-work-result');
+  assert.equal(await page.locator('[data-turn-id="27"] .body').isVisible(),false,'Reload rebuilds persisted work provenance');
+  await page.locator('[data-turn-id="27"] summary').click();
+  assert.equal(await page.locator('[data-turn-id="27"] .body').innerText(),'Answer 27','No-speech result remains inspectable');
   if(process.env.CHAT_SCREENSHOT_DIR){fs.mkdirSync(process.env.CHAT_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.CHAT_SCREENSHOT_DIR,'chat-wide.png')})}
   await page.setViewportSize({width:390,height:844});
   assert(await visibleComposer(),'Narrow composer stays inside viewport');
