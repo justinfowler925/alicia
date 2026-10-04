@@ -85,3 +85,7 @@ body[data-page="alicia"] #status-line:empty { display: none; }
 .chat-attachment button { flex: none; min-width: var(--tap); min-height: var(--tap); }
 .chat-upload-status, .chat-attachment-name { color: var(--workspace-muted); font-size: var(--shine-text-sm); }
 .chat-upload-status { margin: 0; padding: var(--shine-space-2) var(--shine-space-4); }
+
+.voice-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--shine-space-2); }
+.voice-actions button { min-height: var(--tap); }
+body[data-page="alicia"] .voice-stage-head { flex-wrap: wrap; }

@@ -1,0 +1,34 @@
+const {chromium}=require('playwright');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const root=process.env.CHAT_STATIC_DIR||path.resolve(__dirname,'../alicia/static');
+(async()=>{const browser=await chromium.launch({channel:'chrome'});try{
+ const page=await browser.newPage({viewport:{width:1440,height:900}});let productOwned=false;
+ await page.addInitScript(()=>{window.EventSource=class {constructor(){setTimeout(()=>this.onopen?.(),0)}close(){}};window.__volumes=[];window.__micChanges=[];window.__legacy={setVolume:v=>window.__volumes.push(v.volume),setMicMuted:v=>window.__micChanges.push(v),endSession:async()=>{}};});
+ await page.route('**/*',async route=>{const url=new URL(route.request().url()),p=url.pathname;let data={};
+  if(url.hostname==='esm.sh')return route.fulfill({contentType:'text/javascript',body:'export const Conversation={startSession:async()=>window.__legacy};'});
+  if(p.startsWith('/static/'))return route.fulfill({body:fs.readFileSync(path.join(root,path.basename(p))),contentType:p.endsWith('.css')?'text/css':'text/javascript'});
+  if(p==='/session')return route.fulfill({body:fs.readFileSync(path.join(root,'session.html')),contentType:'text/html'});
+  if(p==='/api/session/aaaaaaaaaaaa')data={session_id:'aaaaaaaaaaaa',turns:[],fields:[],artifacts:[]};
+  else if(p==='/api/voice-ready')data={ready:true,provider:'openai_live'};
+  else if(p.endsWith('/convai-token'))data={enabled:true,signedUrl:'fixture',productOwned};
+  else if(p==='/api/watch')data={sessions:[],decisions:[]};
+  else if(p==='/api/todos')data={todos:[]};
+  else if(p==='/api/supervisor')data={sessions:[],queue:[],counts:{}};
+  return route.fulfill({json:data});
+ });
+ await page.goto('http://chat-fixture.test/session?session=aaaaaaaaaaaa');await page.waitForSelector('#mute');
+ assert(await page.getByRole('button',{name:'Mute Alicia',exact:true}).isVisible());assert(!await page.locator('.voice-settings').evaluate(e=>e.open));
+ await page.evaluate(async()=>{const {LiveVoice}=await import('/static/live-voice.js');LiveVoice.prototype.start=async function(){this.onPhase('listening');};await startVoice();window.__track={enabled:true,stop(){}};state.liveVoice.microphone={getTracks:()=>[window.__track]};});
+ await page.getByRole('button',{name:'Mute Alicia',exact:true}).click();
+ assert(await page.evaluate(()=>state.liveVoice.audio.muted));assert(await page.evaluate(()=>window.__track.enabled));assert.equal(await page.locator('#mute').getAttribute('aria-pressed'),'true');
+ await page.getByRole('button',{name:'Unmute Alicia',exact:true}).focus();await page.keyboard.press('Enter');assert(!await page.evaluate(()=>state.liveVoice.audio.muted));
+ await page.locator('#mute').click();await page.evaluate(async()=>{teardownVoice();await startVoice();});assert(await page.evaluate(()=>state.liveVoice.audio.muted),'Reconnect starts muted');
+ await page.evaluate(async()=>{teardownVoice();await startConvAI(new AbortController().signal);});assert.deepEqual(await page.evaluate(()=>window.__volumes),[0]);assert.deepEqual(await page.evaluate(()=>window.__micChanges),[]);
+ await page.locator('#mute').click();assert.equal(await page.evaluate(()=>window.__volumes.at(-1)),1);
+ await page.locator('#mute').click();assert.equal(await page.evaluate(()=>window.__volumes.at(-1)),0);
+ productOwned=true;await page.evaluate(async()=>{await teardownConvAI();await startConvAI(new AbortController().signal);});await page.locator('#mute').click();assert.equal(await page.evaluate(()=>window.__volumes.at(-1)),0,'Unmute cannot enable alternate TTS in product-owned mode');assert.deepEqual(await page.evaluate(()=>window.__micChanges),[]);
+ await page.evaluate(()=>{state.livekitAudio=[new Audio()];});await page.locator('#mute').click();assert(await page.evaluate(()=>state.livekitAudio[0].muted));await page.locator('#mute').click();assert(!await page.evaluate(()=>state.livekitAudio[0].muted));
+ const out=process.env.CHAT_SCREENSHOT_DIR;if(out)fs.mkdirSync(out,{recursive:true});
+ for(const [name,width,height] of [['wide',1440,900],['narrow',390,844]]){await page.setViewportSize({width,height});const mute=await page.locator('#mute').boundingBox(),composer=await page.locator('#composer').boundingBox();assert(mute.width>0&&mute.height>=44&&mute.x>=0&&mute.x+mute.width<=width);assert(composer.y+composer.height<=height);assert(await page.locator('#chat-attach').isVisible());if(out)await page.screenshot({path:path.join(out,`mute-${name}.png`)});}
+ console.log('PASS visible mute; native audio muted/unmuted; input unchanged; reconnect; ConvAI volume and ownership; LiveKit audio; keyboard; desktop/mobile composer and attachments');
+ }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});
