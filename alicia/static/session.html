@@ -140,7 +140,11 @@
       <div><span id="chat-activity-label">Connecting…</span><p id="chat-activity-detail"></p></div>
       <button type="button" id="chat-reconnect" hidden>Reconnect</button>
     </div>
+    <div id="chat-attachments" class="chat-attachments" aria-live="polite"></div>
+    <p id="chat-upload-status" class="chat-upload-status" role="status"></p>
     <form class="composer" id="composer">
+      <input id="chat-files" type="file" multiple hidden accept=".txt,.md,.csv,.json,.log,.xml,.yaml,.yml,.py,.js,.sql,.html,.pdf,.docx">
+      <button id="chat-attach" type="button" aria-label="Attach files" title="Attach documents (PDF, Word, text; 10 MB per file)"><span aria-hidden="true">+</span></button>
       <label class="sr-only" for="say">Message</label>
       <textarea id="say" rows="1" placeholder="Message Alicia…" autocomplete="off"
                 aria-describedby="composer-hint"></textarea>

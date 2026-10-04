@@ -159,6 +159,7 @@ class ConversationManager:
         wait: bool = False,
         owner_verified: bool | None = None,
         live_turn_ids: list[str] | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> TurnResult:
         """Take one user turn and answer it. Voice and text land here identically.
 
@@ -201,7 +202,7 @@ class ConversationManager:
         # Durable outbox before the model runs — restart-safe user words.
         outbox = resilience.enqueue_say(session_id, message, channel)
 
-        turn = saved_turn or self.store.append_turn(session_id, "user", message, channel=channel)
+        turn = saved_turn or self.store.append_turn(session_id, "user", message, channel=channel, meta={"attachments": attachments} if attachments else None)
         self.emit("turn", {"session_id": session_id, "turn": turn.as_dict()})
 
         # A pending proposal owns the next turn. Answering it is not a new
@@ -529,7 +530,7 @@ class ConversationManager:
         reply, meta = brain_reply(
             self.cfg,
             registry,
-            history=self.store.history_for_model(session_id, keep=_HISTORY_KEEP),
+            history=self.store.history_for_model(session_id, keep=_HISTORY_KEEP, include_attachments=True),
             channel=channel,
             standing_notes=self._standing_notes(),
             on_propose=self._on_propose(session_id, channel, message),

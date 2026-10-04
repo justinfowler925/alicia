@@ -76,3 +76,12 @@ body[data-page="alicia"] #status-line:empty { display: none; }
 .voice-work-result { border: 1px solid var(--workspace-border); border-radius: var(--shine-radius-md); padding: var(--shine-space-3) var(--shine-space-4); }
 .voice-work-result > summary { cursor: pointer; color: var(--workspace-muted); font-size: var(--shine-text-sm); }
 .voice-work-result[open] > summary { margin-bottom: var(--shine-space-3); }
+
+/* Main-chat document control shares Forge's compact attach action. */
+#chat-attach { flex: none; width: var(--tap); min-height: var(--tap); padding: 0; font-size: var(--shine-text-xl); }
+.chat-attachments { display: flex; flex-wrap: wrap; gap: var(--shine-space-2); padding: var(--shine-space-2) var(--shine-space-4); }
+.chat-attachments:empty, .chat-upload-status:empty { display: none; }
+.chat-attachment { display: inline-flex; align-items: center; gap: var(--shine-space-2); max-width: 100%; overflow-wrap: anywhere; border: 1px solid var(--workspace-border); border-radius: var(--shine-radius-md); padding-left: var(--shine-space-2); }
+.chat-attachment button { flex: none; min-width: var(--tap); min-height: var(--tap); }
+.chat-upload-status, .chat-attachment-name { color: var(--workspace-muted); font-size: var(--shine-text-sm); }
+.chat-upload-status { margin: 0; padding: var(--shine-space-2) var(--shine-space-4); }
