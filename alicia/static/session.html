@@ -46,9 +46,7 @@
     </button>
     <button type="button" id="new-session" aria-label="Start a new session">New</button>
     <button type="button" id="forge-toggle" aria-controls="forge-panel" aria-pressed="false">Forge chat</button>
-    <details class="voice-settings"><summary>Voice settings</summary><div class="voice-settings-panel"><button type="button" class="help-balloon-trigger" popovertarget="voice-help" aria-label="Voice help">Voice help</button>    <button type="button" id="mute" aria-pressed="false" aria-label="Toggle spoken replies">
-      <span class="label">Speaking on</span>
-    </button>
+    <details class="voice-settings"><summary>Voice settings</summary><div class="voice-settings-panel"><button type="button" class="help-balloon-trigger" popovertarget="voice-help" aria-label="Voice help">Voice help</button>
     <button type="button" id="voice-enroll" aria-label="Enroll your voice">Voice enrollment</button>
     <span id="resilience-chip" class="resilience-chip" data-ok="false" role="status" title="Billing and canary status">brain:…</span>
 </div></details>
@@ -103,10 +101,15 @@
       <div id="voice-help" class="help-balloon" popover>
         Start voice to speak, or type a message below. Use Stop voice to end the call.
       </div>
+      <div class="voice-actions">
       <button type="button" id="mic" class="mic voice-primary" data-testid="voice-control"
               aria-label="Start voice conversation" aria-pressed="false">
         <span class="glyph" aria-hidden="true">◎</span><span class="label">Start voice</span>
       </button>
+      <button type="button" id="mute" aria-pressed="false" aria-label="Mute Alicia" title="Mute Alicia’s audio. Your microphone stays on.">
+        <span class="label">Mute Alicia</span>
+      </button>
+      </div>
     </header>
 
 

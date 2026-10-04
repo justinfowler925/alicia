@@ -1450,10 +1450,7 @@ async function startConvAI(signal) {
     connected = true;
     if (typeof conversation.setVolume === "function") {
       // Mute EL agent TTS always in product-owned mode.
-      conversation.setVolume({ volume: productOwned ? 0 : 1 });
-    }
-    if (state.muted && typeof conversation.setMicMuted === "function") {
-      conversation.setMicMuted(true);
+      conversation.setVolume({ volume: productOwned || state.muted ? 0 : 1 });
     }
     setVoicePhase(
       "listening",
@@ -2103,11 +2100,13 @@ function init() {
       element.muted = state.muted;
       if (!state.muted) void element.play().catch(() => {});
     }
-    if (state.convai && typeof state.convai.setMicMuted === "function") {
-      state.convai.setMicMuted(state.muted);
+    if (state.convai && typeof state.convai.setVolume === "function") {
+      state.convai.setVolume({ volume: state.productOwned || state.muted ? 0 : 1 });
     }
     e.currentTarget.setAttribute("aria-pressed", String(state.muted));
-    e.currentTarget.querySelector(".label").textContent = state.muted ? "Muted" : "Speaking on";
+    const label = state.muted ? "Unmute Alicia" : "Mute Alicia";
+    e.currentTarget.setAttribute("aria-label", label);
+    e.currentTarget.querySelector(".label").textContent = label;
   });
 
   $("#supervisor-refresh")?.addEventListener("click", () => loadSupervisor({ force: true }));

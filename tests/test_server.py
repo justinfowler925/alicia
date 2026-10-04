@@ -311,7 +311,7 @@ def test_session_shine_audit_markers():
         assert 'id="conversation-empty"' in html
         assert ">offline<" in html
         assert 'aria-label="Start a new session"' in html
-        assert 'aria-label="Toggle spoken replies"' in html
+        assert 'aria-label="Mute Alicia"' in html
         css = client.get("/static/session.css").text
         assert "min-height: 2.5rem" in css
         assert "button.danger" in css
