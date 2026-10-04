@@ -1,12 +1,16 @@
 # Alicia
 
+> **Org chart (2026-10-04):** Alicia (formerly Brutus) + Canon is the **manager /
+> control plane**. Atlas is Salesforce / RevOps only. Forge is Alicia `#forge`
+> (local Gemma). Scout scrapes/organizes data. Hollywood is media. Fowler Brain:
+> `contexts/org-chart.md`.
+
 > **Current replacement direction (2026-09-07):** [Apple accessibility reset plan](docs/APPLE_ACCESSIBILITY_RESET_PLAN.md). Continuous Voice Control input and native Apple output; Siri excluded. **Gate 0 Mac proof:** `native/Gate0Proof/` (`./scripts/run-mac.sh`). Physical samples + iPhone/Xcode still open. Older architecture and completion claims below are historical where they conflict.
 
-**Justin’s standalone MacBook coworker.** Voice is the primary work surface.
-Alicia uses explicit Cursor, Claude, and Codex profiles, reads current work
-directly from Linear, and keeps capture, Canon, Zoom, notes, and session state
-local. Atlas is intentionally ignored: no health
-probe, board fallback, chat tool, mutation, UI poll, or tunnel is active.
+**Justin’s manager on Mac Studio (formerly Brutus).** Voice is the primary work
+surface. Alicia routes specialists and keeps capture, Canon, Zoom, notes, and
+session state local. Atlas is a Salesforce specialist, not the system manager —
+legacy Atlas board health/tunnel helpers stay off unless explicitly re-enabled.
 
 **Canon model and collaborator runbook:** [`alicia/canon/README.md`](alicia/canon/README.md)
 
