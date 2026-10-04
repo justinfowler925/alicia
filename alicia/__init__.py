@@ -1,4 +1,4 @@
-"""Alicia package (formerly Brutus) — laptop talking head for Studio Atlas."""
+"""Alicia package (formerly Brutus) — manager / control plane for Justin's specialists."""
 
 import os as _os
 import sys as _sys

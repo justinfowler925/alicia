@@ -1,13 +1,20 @@
 # Alicia
 
+> **Org chart (2026-10-04):** Alicia (formerly Brutus) + Canon is Justin's
+> **manager / control plane**. Atlas is Salesforce / RevOps development only.
+> Forge is Alicia `#forge` (local Gemma general worker). Scout scrapes and
+> organizes data. Hollywood is media. Fowler Brain SSOT:
+> `~/fowler-brain/contexts/org-chart.md`.
+
 > **Current deployment (2026-09-30):** Mac Studio owns the service and durable state. Private URL: https://justins-mac-studio-1.tailbaa084.ts.net:8768/. GPT-Live handles voice, Cursor Pro handles conversation tools and work. Anthropic is not selected in Studio mode. Deploy committed source with `scripts/deploy-studio.sh`; source lives at `~/.alicia/app`, state at `~/.alicia/state`, config at `~/.alicia/config.yaml` on Studio. Laptop localhost redirects to Studio and its CLI forwards there. Earlier laptop/Claude descriptions below are historical. Spoken Cursor handoffs produce an on-screen approval; the work checkout is separate from the service.
 
 > **Current replacement direction (2026-09-07):** [Apple accessibility reset plan](docs/APPLE_ACCESSIBILITY_RESET_PLAN.md). Continuous Voice Control input and native Apple output; Siri excluded. **Gate 0 Mac proof app:** `native/Gate0Proof/` — run `./scripts/run-mac.sh`. Physical VC samples + iPhone (needs Xcode) still open. Older architecture and completion claims below are historical where they conflict.
 
-Justin's right hand, running on the laptop. End state: reads email/Slack, tracks
-coworker requests, drafts everything, hands work to Atlas (wish front door) —
-execution stays gated behind Justin, **thinking is never restricted**. Does not
-own the ledger.
+Justin's manager (formerly Brutus), running on Mac Studio. Reads email/Slack,
+tracks coworker requests, drafts work, and routes specialists: **Atlas** for
+Salesforce/RevOps, **Forge** (`#forge`) for general local work, **Scout** for
+scraping/ingestion, **Hollywood** for media. Execution stays gated behind
+Justin; **thinking is never restricted**. Canon owns the live work ledger.
 
 > **Rule for future sessions:** never fix a chat reliability bug by narrowing
 > Alicia's identity or banning cognition (see 2026-07-28). Fix the plumbing;
