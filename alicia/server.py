@@ -77,6 +77,7 @@ from .voice_identity import EnrollmentError, VoiceIdentity
 from .watchdog import Watchdog
 from .workflow_http import router as workflow_router
 from .forge_chat import router as forge_chat_router
+from .specialist_http import router as specialist_router
 from .studio_runs import router as studio_runs_router
 from .zoom_api import ZoomAPIError, ZoomClient, assets_from_summary, default_window
 from .zoom_ingest import DEFAULT_SOURCE_MODE, ZoomIngestStore, ingest_assets
@@ -501,6 +502,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
     app.include_router(canon_router)
     app.include_router(workflow_router)
     app.include_router(forge_chat_router)
+    app.include_router(specialist_router)
     app.include_router(studio_runs_router)
     from .live_voice import router as live_voice_router
     from .studio_access import install as install_studio_access

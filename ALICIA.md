@@ -16,6 +16,19 @@ Salesforce/RevOps, **Forge** (`#forge`) for general local work, **Scout** for
 scraping/ingestion, **Hollywood** for media. Execution stays gated behind
 Justin; **thinking is never restricted**. Canon owns the live work ledger.
 
+## Specialist routing (2026-10-04)
+
+Alicia owns manager routing in code, not just docs:
+
+- Chat tools: `org_chart`, `preview_specialist_route`, gated `route_specialist`
+- HTTP: `GET /api/specialists/org-chart`, `POST /api/specialists/preview`,
+  `POST /api/specialists/route`, `GET /api/specialists/receipts`
+- Forge live enqueue uses Alicia `forge_local`; Atlas/Scout/Hollywood use
+  `studio-agent launch` (Atlas defaults read-only unless a delivery contract
+  path is used outside this router)
+- Live handoffs require Alicia's existing approval gate; enqueue ≠ acceptance
+- Verify: `python3 scripts/verify-org-chart-routing.py`
+
 > **Rule for future sessions:** never fix a chat reliability bug by narrowing
 > Alicia's identity or banning cognition (see 2026-07-28). Fix the plumbing;
 > keep the rails (board-authoritative context, never-invent-state, plain-text

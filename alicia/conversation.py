@@ -490,6 +490,8 @@ class ConversationManager:
                 # enthusiasm. "dispatch now for real quick" once fanned out 78
                 # tickets; the phrase test is the deterministic backstop.
                 args["dry_run"] = not dispatch_is_live(message)
+            if tool == "route_specialist":
+                args["dry_run"] = not dispatch_is_live(message)
             contract = compile_proposal(tool, args)
             proposal = propose(tool, args)
             artifact = self.store.draft_artifact(

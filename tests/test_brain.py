@@ -104,6 +104,7 @@ def test_proposable_matches_the_gate():
         "ask_cursor",
         "ask_frontier",
         "create_linear_ticket",
+        "route_specialist",
     }
     assert set(PROPOSABLE) <= set(GATED)
 
