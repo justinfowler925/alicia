@@ -265,6 +265,7 @@ async function hydrate(sessionId) {
   if (state.sessionId && state.sessionId !== sessionId) teardownVoice();
   const sameSession = state.sessionId === sessionId;
   state.sessionId = sessionId;
+  if (!sameSession) { chatAttachments = []; renderChatAttachments(); $("#chat-upload-status").textContent = ""; }
   const snap = await fetch(`/api/session/${sessionId}`).then((r) => r.json());
   $("#conversation").innerHTML = "";
   state.seenTurns.clear();
@@ -463,6 +464,7 @@ function renderTurn(turn, { animate = true, live = animate, replace = false } = 
   const body = document.createElement("div");
   body.className = "body";
   renderText(body, turn.text);
+  for (const item of turn.meta?.attachments || []) { const name = document.createElement("p"); name.className = "chat-attachment-name"; name.textContent = `Attached: ${item.name}`; body.append(name); }
 
   if (workResult) {
     el.classList.add("work-result");
@@ -780,13 +782,63 @@ async function settleProposal(artifactId, decision, row) {
   }
 }
 
+/* Attachments stay with this draft until delivery is confirmed. */
+let chatAttachments = [];
+let chatUploading = false;
+function renderChatAttachments() {
+  const host = $("#chat-attachments");
+  host.replaceChildren();
+  for (const item of chatAttachments) {
+    const row = document.createElement("span");
+    row.className = "chat-attachment";
+    row.append(item.name);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Remove ${item.name}`);
+    remove.disabled = state.chatSending || chatUploading;
+    remove.onclick = () => {chatAttachments = chatAttachments.filter(a => a.id !== item.id); renderChatAttachments();};
+    row.append(remove); host.append(row);
+  }
+  $("#chat-attach").disabled = chatUploading || state.chatSending;
+}
+async function uploadChatFiles(files) {
+  if (chatUploading || state.chatSending) return;
+  const session = state.sessionId;
+  const status = $("#chat-upload-status");
+  chatUploading = true; renderChatAttachments(); $("#send").disabled = true;
+  const errors = [];
+  try {
+    for (const file of files) {
+      if (chatAttachments.length >= 5) {errors.push("Attach up to five files per message."); break;}
+      if (!file.size || file.size > 10 * 1024 * 1024) {errors.push(`${file.name}: choose a non-empty file under 10 MB.`); continue;}
+      status.textContent = `Reading ${file.name}…`;
+      try {
+        const response = await fetch(`/api/session/${session}/attachments?name=${encodeURIComponent(file.name)}`, {method:"POST", body:file});
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || "Upload failed. Try again.");
+        if (state.sessionId !== session) break;
+        chatAttachments.push(result); renderChatAttachments();
+      } catch (error) {errors.push(`${file.name}: ${error.message}`);}
+    }
+  } finally {
+    chatUploading = false;
+    status.textContent = errors.join(" ");
+    $("#chat-files").value = "";
+    $("#send").disabled = state.chatSending;
+    renderChatAttachments();
+  }
+}
+
 /* --- saying things ------------------------------------------------------ */
 
 async function say(message, channel) {
-  const text = (message || "").trim();
-  if (!text || !state.sessionId || state.chatSending) return;
+  const attached = channel === "text" ? [...chatAttachments] : [];
+  const text = (message || "").trim() || (attached.length ? "Please review the attached documents." : "");
+  if (!text || !state.sessionId || state.chatSending || chatUploading) return;
   clearInterim();
   state.chatSending = true;
+  renderChatAttachments();
   state.chatUnknown = false;
   state.chatError = "";
   renderChatActivity();
@@ -798,13 +850,14 @@ async function say(message, channel) {
     const r = await fetch(`/api/session/${state.sessionId}/say`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ message: text, channel }),
+      body: JSON.stringify({ message: text, channel, attachments: attached.map(a => a.id) }),
       signal: controller.signal,
     });
     // A non-2xx used to sail straight through as success: the box had already been
     // cleared by the submit handler, so the message simply vanished with no reply
     // and no error. Only a network throw was ever caught.
-    if (!r.ok) throw new Error(`server said ${r.status}`);
+    if (!r.ok) { const failure = await r.json(); throw new Error(failure.detail || `server said ${r.status}`); }
+    chatAttachments = chatAttachments.filter(a => !attached.some(sent => sent.id === a.id));
   } catch (err) {
     if (err.name === "AbortError") return;
     state.chatError = `Couldn't confirm delivery — ${err.message}. Check the conversation before retrying.`;
@@ -820,6 +873,7 @@ async function say(message, channel) {
   } finally {
     if (state.sayAbort === controller) state.sayAbort = null;
     state.chatSending = false;
+    renderChatAttachments();
     renderChatActivity();
     $("#send").disabled = false;
   }
@@ -2063,12 +2117,15 @@ function init() {
     document.querySelector(".voice-shell")?.classList.toggle("workspace-open", open);
   });
 
+  $("#chat-attach").addEventListener("click", () => $("#chat-files").click());
+  $("#chat-files").addEventListener("change", e => uploadChatFiles([...e.target.files]));
+
   $("#composer").addEventListener("submit", (e) => {
     e.preventDefault();
-    if (state.chatSending) return;
+    if (state.chatSending || chatUploading) return;
     const box = $("#say");
     const text = box.value;
-    if (!text.trim()) return;
+    if (!text.trim() && !chatAttachments.length) return;
     box.value = "";
     autoGrow(box);
     say(text, "text");

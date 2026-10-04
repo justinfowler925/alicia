@@ -123,6 +123,7 @@ class SessionOpenRequest(BaseModel):
 
 
 class SessionSayRequest(BaseModel):
+    attachments: list[str] = Field(default_factory=list, max_length=5)
     message: str
     # Which transport this turn arrived on. It changes nothing about how the
     # turn is handled — it is recorded so the screen can show how you said it.
@@ -1610,6 +1611,17 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             raise HTTPException(status_code=404, detail="unknown session")
         return snap
 
+    @app.post("/api/session/{session_id}/attachments")
+    async def session_upload(session_id: str, request: Request, name: str):
+        from .chat_attachments import directory, save, MAX_BYTES
+        directory(request.app.state.sessions, session_id)
+        data = bytearray()
+        async for chunk in request.stream():
+            if len(data) + len(chunk) > MAX_BYTES:
+                raise HTTPException(413, "Choose a file under 10 MB.")
+            data.extend(chunk)
+        return await asyncio.to_thread(save, request.app.state.sessions, session_id, name, bytes(data))
+
     @app.post("/api/session/{session_id}/say")
     async def session_say(
         session_id: str, req: SessionSayRequest, request: Request
@@ -1618,13 +1630,16 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         store: SessionStore = request.app.state.sessions
         if not store.get_session(session_id):
             raise HTTPException(status_code=404, detail="unknown session")
+        from .chat_attachments import load
+        attachments = load(store, session_id, req.attachments) if req.attachments else []
         mgr: ConversationManager = request.app.state.conversation
         # Keep MLX inference off the event loop so the board and the event
         # stream stay responsive while a turn is being answered.
         result = await asyncio.to_thread(
             mgr.handle,
             session_id,
-            req.message,
+            req.message or ("Please review the attached documents." if attachments else ""),
+            attachments=attachments,
             channel=req.channel,
             read_only=req.read_only,
             wait=req.wait,
