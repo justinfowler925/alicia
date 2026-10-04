@@ -26,6 +26,7 @@ MUTATING = [
     "capture_canon_inbox",
     "promote_canon_inbox",
     "review_canon_work",
+    "route_specialist",
 ]
 
 
@@ -43,6 +44,7 @@ def test_writable_registry_has_them():
         "capture_canon_inbox",
         "promote_canon_inbox",
         "review_canon_work",
+        "route_specialist",
     }
 
 

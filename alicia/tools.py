@@ -1503,6 +1503,93 @@ def build_default_registry(
                 fn=lambda **kwargs: _review_canon_work(**kwargs),
             )
         )
+    # Manager routing stays available even when legacy Atlas board tools are off.
+    from .specialist_router import org_chart, preview, route_specialist
+
+    reg.register(
+        Tool(
+            name="org_chart",
+            description="Read Alicia's operator org chart: who manages and what each specialist owns.",
+            parameters={"type": "object", "properties": {}},
+            fn=lambda: {"ok": True, **org_chart()},
+        )
+    )
+    reg.register(
+        Tool(
+            name="preview_specialist_route",
+            description=(
+                "Preview which specialist Alicia would use for a task without launching anyone. "
+                "atlas=Salesforce/RevOps; forge=general local Gemma; scout=scrape/data; hollywood=media."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "task": {"type": "string"},
+                    "specialist": {
+                        "type": "string",
+                        "description": "optional forced specialist: atlas|forge|scout|hollywood",
+                    },
+                },
+                "required": ["task"],
+            },
+            fn=lambda **kwargs: preview(
+                str(kwargs.get("task") or ""),
+                kwargs.get("specialist"),
+            ),
+        )
+    )
+    if not read_only:
+        reg.register(
+            Tool(
+                name="route_specialist",
+                description=(
+                    "Enqueue work to a specialist after Justin approves. "
+                    "specialists: atlas=Salesforce/RevOps only; forge=general local Gemma; "
+                    "scout=scrape/data; hollywood=media. Prefer preview_specialist_route first. "
+                    "Defaults dry_run=true; set dry_run=false only for an approved live handoff. "
+                    "Enqueue is not acceptance."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "task": {
+                            "type": "string",
+                            "description": "Exact work to hand to the specialist",
+                        },
+                        "specialist": {
+                            "type": "string",
+                            "description": "atlas | forge | scout | hollywood (optional; inferred if omitted)",
+                        },
+                        "dry_run": {
+                            "type": "boolean",
+                            "description": "true=preview (default); false=enqueue live after gate approval",
+                        },
+                        "cwd": {
+                            "type": "string",
+                            "description": "optional project directory on Studio",
+                        },
+                        "work_item": {
+                            "type": "string",
+                            "description": "optional Canon/work id",
+                        },
+                        "read_only": {
+                            "type": "boolean",
+                            "description": "prefer inspect/plan-only for Atlas/Scout/Hollywood",
+                        },
+                    },
+                    "required": ["task"],
+                },
+                fn=lambda **kwargs: route_specialist(
+                    str(kwargs.get("task") or ""),
+                    specialist=kwargs.get("specialist"),
+                    dry_run=bool(kwargs.get("dry_run", True)),
+                    cwd=str(kwargs.get("cwd") or ""),
+                    work_item=str(kwargs.get("work_item") or ""),
+                    read_only=bool(kwargs.get("read_only", False)),
+                ),
+            )
+        )
+
     # Cursor is the only reasoning backend. Atlas compatibility code remains
     # behind a reversible flag, but standalone Alicia must not expose a tool
     # that could route into it.

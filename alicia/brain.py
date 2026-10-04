@@ -331,6 +331,8 @@ BRAIN_READS = (
     "coworker_commitments",
     "assess_agent_thread",
     "compile_unfog_work",
+    "org_chart",
+    "preview_specialist_route",
 )
 BRAIN_FREE_WRITES = ("capture_note", "update_note", "save_working_note", "draft_lesson", "reply_to_session_decision", "update_coworker_commitment")
 
@@ -342,6 +344,7 @@ PROPOSABLE = (
     "ask_cursor",
     "ask_frontier",
     "create_linear_ticket",
+    "route_specialist",
 )
 
 _PROPOSE_TOOL = {

@@ -58,6 +58,7 @@ GATED = frozenset(
         "create_linear_ticket",
         "organize_agent_thread",
         "organize_project",
+        "route_specialist",
     }
 )
 
@@ -167,6 +168,19 @@ def describe(tool: str, args: dict[str, Any]) -> tuple[str, str]:
         return (
             f"Send to {tool.removeprefix('ask_')}: {_short(a.get('message') or a.get('question'))}",
             f"Send that to {tool.removeprefix('ask_')}?",
+        )
+    if tool == "route_specialist":
+        live = not a.get("dry_run", True)
+        who = a.get("specialist") or "auto"
+        task = _short(a.get("task"))
+        if live:
+            return (
+                f"LIVE handoff to {who}: “{task}”",
+                f"Send that live to {who}?",
+            )
+        return (
+            f"Preview handoff to {who}: “{task}”",
+            f"Preview routing that to {who}?",
         )
     if tool == "create_linear_ticket":
         title = _short(a.get("title"))
