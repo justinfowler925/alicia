@@ -44,6 +44,7 @@ from .cursor_runner import run_cursor_tick
 from .focus import clip as clip_text
 from .github_evidence import GitHubEvidenceReceiver
 from .linear_surface import linear_work_surface
+from .manager_status import merged_work_surface
 from .local_llm import list_models
 from .memory import MemoryStore
 from .model_gateway import judge_with_profile
@@ -663,8 +664,6 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
 
     @app.get("/api/status")
     async def status(request: Request) -> dict[str, Any]:
-        from .manager_status import merged_work_surface
-
         try:
             body = await asyncio.to_thread(
                 merged_work_surface, timeout_s=min(request.app.state.cfg.timeout_s, 15.0)

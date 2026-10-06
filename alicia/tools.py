@@ -24,8 +24,8 @@ from .focus import spoken_next_decision
 from .linear_surface import (
     create_linear_ticket,
     find_linear_ticket_candidates,
-    linear_work_surface,
 )
+from .manager_status import merged_work_surface
 from .memory import MemoryStore
 from .model_gateway import judge_with_profile, run_profile
 from .nucleus import build_nucleus_snapshot, invalidate_nucleus_cache, nucleus_view
@@ -133,8 +133,6 @@ def _work_surface(
 ) -> dict[str, Any]:
     """Merged manager status — Linear + Canon + Forge + Cursor (one surface)."""
     _ = (client, include_probes)
-    from .manager_status import merged_work_surface
-
     surface = merged_work_surface(timeout_s=(cfg.timeout_s if cfg else 8.0))
     surface["next_decision"] = spoken_next_decision(surface)
     surface["atlas_ignored"] = True

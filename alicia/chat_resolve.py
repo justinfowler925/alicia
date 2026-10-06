@@ -12,7 +12,7 @@ from .brain import complete as chat_completion
 from .client import AtlasClient
 from .config import AliciaCfg
 from .focus import spoken_next_decision
-from .linear_surface import linear_work_surface
+from .manager_status import merged_work_surface
 from .memory import MemoryStore
 from .tools import ToolRegistry, build_default_registry, format_tool_catalog
 
@@ -345,10 +345,10 @@ def _trim(text: str, n: int = 1200) -> str:
 
 
 def _fetch_board(client: AtlasClient, cfg: AliciaCfg | None = None) -> dict[str, Any] | None:
-    """The direct Linear board is chat's current work-state ground truth."""
+    """Merged manager status (Linear + Canon + Forge + Cursor) for chat ground truth."""
     _ = client
     try:
-        return linear_work_surface(timeout_s=(cfg.timeout_s if cfg else 8.0))
+        return merged_work_surface(timeout_s=(cfg.timeout_s if cfg else 8.0))
     except Exception:  # noqa: BLE001 — board build failure should not kill chat
         return None
 

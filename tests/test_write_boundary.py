@@ -116,7 +116,9 @@ def test_cursor_chat_returns_within_its_timeout(tmp_path):
         patch.object(cursor_runner, "branch_is_safe", return_value=(True, "")),
     ):
         started = time.monotonic()
-        out = cursor_runner.run_cursor_chat(cfg, "do a thing", prompt_fn=slow)
+        out = cursor_runner.run_cursor_chat(
+            cfg, "do a thing", repo_hint="alicia", prompt_fn=slow
+        )
         elapsed = time.monotonic() - started
 
     assert out["ok"] is False

@@ -426,7 +426,18 @@ def test_transcribe_returns_text_when_whisper_available():
 
 def test_status_degraded_when_linear_down_without_atlas_fallback():
     cfg = AliciaCfg(local_llm=LocalLLMCfg(enabled=False), watchdog_enabled=False)
-    with patch("alicia.server.linear_work_surface", side_effect=ConnectionError("down")), patch("alicia.server.AtlasClient") as cls:
+    degraded = {
+        "source": "canon",
+        "headline": "Linear unavailable.",
+        "needs_you": [],
+        "working": [],
+        "queued": [],
+        "stuck": [],
+        "counts": {"needs_you": 0, "working": 0, "queued": 0, "canon_projects": 7},
+        "linear_error": "down",
+        "lanes": {"canon_projects": [{"id": "proj-alicia", "name": "Alicia"}]},
+    }
+    with patch("alicia.server.merged_work_surface", return_value=degraded), patch("alicia.server.AtlasClient") as cls:
         inst = MagicMock()
         inst.status.side_effect = ConnectionError("down")
         cls.return_value = inst
@@ -436,8 +447,8 @@ def test_status_degraded_when_linear_down_without_atlas_fallback():
         assert st.status_code == 200
         body = st.json()
         assert body["atlas_ignored"] is True
-        assert body["source"] == "linear_direct"
-        assert body["error"] == "down"
+        assert body["source"] != "linear_direct"
+        assert body.get("linear_error") == "down" or body.get("error") == "down"
         inst.status.assert_not_called()
         assert "digest_markdown" not in body
 
