@@ -90,11 +90,13 @@ log = logging.getLogger("alicia.server")
 
 def _deployment_manifest() -> dict[str, Any]:
     configured = os.environ.get("ALICIA_DEPLOY_MANIFEST", "").strip()
-    path = (
-        Path(configured).expanduser()
-        if configured
-        else Path(__file__).resolve().parent.parent / ".alicia-deploy.json"
-    )
+    app_dir = os.environ.get("ALICIA_APP_DIR", "").strip()
+    if configured:
+        path = Path(configured).expanduser()
+    elif app_dir:
+        path = Path(app_dir).expanduser() / ".alicia-deploy.json"
+    else:
+        path = Path(__file__).resolve().parent.parent / ".alicia-deploy.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, ValueError, OSError):
