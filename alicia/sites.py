@@ -15,13 +15,15 @@ import asyncio
 import time
 from typing import Any
 
+import os
+
 import httpx
 
 SITES: list[dict[str, str]] = [
     # --- chatbots & demos -------------------------------------------------
     {
         "name": "Voicemaker Studio",
-        "url": "https://justins-mac-studio.tailbaa084.ts.net:8790/",
+        "url": os.environ.get("DEMO_MAKER_URL", ""),  # public repo: not a committed tailnet host
         "what": "TTS demo maker — publishes into the demo library",
         "category": "chatbot",
     },

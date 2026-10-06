@@ -390,13 +390,13 @@ class _FakeZoom:
         {  # hosted by someone else, Justin attended
             "meeting_uuid": "attended==",
             "meeting_topic": "ITC sync",
-            "meeting_host_email": "maria.pocovi@clearspeed.com",
+            "meeting_host_email": "ceo@example.test",
             "meeting_start_time": "2026-08-11T16:15:00Z",
         },
         {  # nothing to do with Justin
             "meeting_uuid": "theirs==",
             "meeting_topic": "Patrick / Maria",
-            "meeting_host_email": "maria.pocovi@clearspeed.com",
+            "meeting_host_email": "ceo@example.test",
             "meeting_start_time": "2026-08-11T19:30:00Z",
         },
     ]
@@ -406,8 +406,8 @@ class _FakeZoom:
         "theirs==": {"next_steps": ["Maria: Something private."]},
     }
     PARTICIPANTS: ClassVar[dict[str, set]] = {
-        "attended==": {"justin.fowler@clearspeed.com", "maria.pocovi@clearspeed.com"},
-        "theirs==": {"maria.pocovi@clearspeed.com", "patrick.smyth@clearspeed.com"},
+        "attended==": {"justin.fowler@clearspeed.com", "ceo@example.test"},
+        "theirs==": {"ceo@example.test", "cto@example.test"},
     }
 
     def __init__(self, *a, **k) -> None:
