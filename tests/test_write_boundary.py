@@ -61,7 +61,8 @@ def test_chat_endpoint_forwards_read_only():
     from alicia import server
 
     src = inspect.getsource(server)
-    chat_src = src[src.index('@app.post("/api/chat")') :][:1500]
+    marker = '@app.post("/api/chat"'
+    chat_src = src[src.index(marker) :][:1500]
     assert "read_only=req.read_only" in chat_src, "/api/chat still drops read_only"
 
 

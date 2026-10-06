@@ -14,6 +14,8 @@ from alicia.redact import RedactionGateError, contains_secret, gate_text, redact
 from alicia.server import create_app
 from alicia.studio_access import install
 
+pytestmark = pytest.mark.no_auto_owner
+
 
 def _client(tmp_path: Path, monkeypatch) -> TestClient:
     monkeypatch.setenv("ALICIA_STATE_DIR", str(tmp_path / "state"))
