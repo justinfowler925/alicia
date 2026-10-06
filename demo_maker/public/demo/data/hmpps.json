@@ -1,0 +1,24 @@
+{
+  "slug": "hmpps",
+  "org": "HMPPS",
+  "region": "United States",
+  "irn": "00034",
+  "summary": "R",
+  "audioSrc": "/demo/audio/hmpps.mp3",
+  "questions": [
+    { "text": "Since you were released from prison, have you had any unsupervised contact with children?", "answer": "No", "result": "G" },
+    { "text": "Since you were released from prison, other than what you have already told me, have you taken any illegal drugs?", "answer": "No", "result": "G" },
+    { "text": "Since you were released from prison, have you entered your exclusion zone?", "answer": "No", "result": "G" },
+    { "text": "Since you were released from prison, have you had intimate contact with any female?", "answer": "No", "result": "R" }
+  ],
+  "timeline": {
+    "intro": 3,
+    "cues": [
+      { "ask": 3, "result": 24 },
+      { "ask": 26, "result": 39 },
+      { "ask": 40, "result": 48 },
+      { "ask": 49, "result": 55 }
+    ],
+    "end": 57
+  }
+}

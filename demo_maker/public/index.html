@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fowler Demo Maker</title>
+<link rel="stylesheet" href="/shine-tokens.css" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app">
+    <button id="navOpenBtn" class="nav-open-btn" title="Show projects">☰</button>
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <button id="navCollapseBtn" class="nav-collapse-btn" title="Collapse sidebar">«</button>
+        <h1>Fowler Demo Maker</h1>
+        <button id="newProjectBtn" class="btn btn-primary">+ New</button>
+      </div>
+      <ul id="projectList" class="project-list"></ul>
+    </aside>
+
+    <main class="main">
+      <div id="emptyState" class="empty-state">
+        <p>Select a project or create a new one to start building a multi-voice template.</p>
+      </div>
+
+      <div id="editor" class="editor hidden">
+        <div class="editor-header">
+          <input id="projName" class="proj-name-input" placeholder="Project name" />
+          <select id="outputFormat">
+            <option value="mp3">mp3</option>
+            <option value="wav">wav</option>
+            <option value="ogg">ogg</option>
+          </select>
+          <button id="undoBtn" class="btn" disabled title="Restore the last deleted segment">↶ Undo</button>
+          <button id="redoBtn" class="btn" disabled title="Re-apply the delete you just undid">↷ Redo</button>
+          <span id="autosaveStatus" class="render-status autosave-status"></span>
+          <button id="translateBtn" class="btn">🌐 Translate</button>
+          <button id="deleteProjectBtn" class="btn btn-danger">Delete</button>
+        </div>
+        <div class="voice-defaults">
+          <strong>Voices</strong>
+          <label>Language <select id="defLang"></select></label>
+          <label>Accent <select id="defAccent"></select></label>
+          <label>Sex <select id="defSex"></select></label>
+          <label>Narrator · intro/questions/closing <select id="defNarrator"></select></label>
+          <label>Answers <select id="defAnswer"></select></label>
+          <span class="voice-defaults-hint">Picking a voice applies it to all matching segments and to new ones.</span>
+        </div>
+        <textarea id="projDescription" class="proj-description" placeholder="Description (optional)"></textarea>
+
+        <fieldset class="demo-fields">
+          <legend>Demo video settings</legend>
+          <label>Subject IRN <input id="demoIrn" placeholder="00034" /></label>
+          <label>Region <input id="demoRegion" placeholder="United States" /></label>
+          <label>UI language <select id="demoLanguage" title="The language the player's own interface and language flag are drawn in. Auto follows the voices actually speaking."></select></label>
+          <label>Format <select id="demoFormat">
+            <option value="sales">Sales demo</option>
+            <option value="production">Production demo</option>
+          </select></label>
+          <span class="demo-hint">The project name appears at the top of the Questions &amp; Participants panels. Set each segment's type &amp; each question's outcome, then Render video.</span>
+        </fieldset>
+
+        <fieldset class="demo-fields lib-fields">
+          <legend>Library publishing</legend>
+          <label>Org <input id="demoOrg" placeholder="Acme Insurance" /></label>
+          <label>Vertical <select id="demoVertical">
+            <option value="">— pick —</option>
+            <option>Enterprise</option>
+            <option>GDS</option>
+          </select></label>
+          <label>Use case <select id="demoUseCase">
+            <option value="">— pick vertical first —</option>
+          </select></label>
+          <label>Outcome <select id="demoSummary">
+            <option value="">—</option>
+            <option value="G">G · clear</option>
+            <option value="R">R · high risk</option>
+          </select></label>
+          <label class="demo-check"><input id="demoSensitive" type="checkbox" /> Sensitive (email gate on public site)</label>
+          <span class="demo-hint">Saved with the project. Publish uploads to Vidyard in the background, then posts these categories to clearspeeddemos.com.</span>
+        </fieldset>
+
+        <fieldset class="demo-fields tpl-fields">
+          <legend>Apply a template</legend>
+          <label>Template <select id="tplName">
+            <option value="sales">Sales demo</option>
+            <option value="production">Production demo</option>
+          </select></label>
+          <label>Questions <select id="tplCount"></select></label>
+          <button id="applyTemplateBtn" class="btn btn-secondary" type="button">⎘ Apply template</button>
+          <span id="tplHint" class="demo-hint"></span>
+        </fieldset>
+
+        <div class="segments" id="segments"></div>
+        <button id="addSegmentBtn" class="btn btn-secondary">+ Add segment</button>
+
+        <div class="render-bar">
+          <button id="renderBtn" class="btn btn-primary btn-large">Generate audio</button>
+          <button id="renderVideoBtn" class="btn btn-primary btn-large">🎬 Render video</button>
+          <span id="renderStatus" class="render-status"></span>
+        </div>
+        <div id="videoResult" class="video-result"></div>
+
+        <div class="seg-export">
+          <div class="seg-export-bar">
+            <strong>Export individual segments</strong>
+            <select id="segExportFormat">
+              <option value="mp3">mp3</option>
+              <option value="wav">wav</option>
+            </select>
+            <button id="renderSegmentsBtn" class="btn">⬇ Export segments</button>
+            <span id="segExportStatus" class="render-status"></span>
+          </div>
+          <ul id="segmentFiles" class="segment-files"></ul>
+        </div>
+
+        <div class="renders">
+          <h3>Render history</h3>
+          <ul id="renderList" class="render-list"></ul>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <template id="segmentTemplate">
+    <div class="segment" draggable="true">
+      <div class="segment-drag-handle">⋮⋮</div>
+      <div class="segment-body">
+        <div class="segment-row">
+          <span class="seg-num"></span>
+          <span class="seg-qnum"></span>
+          <input class="seg-label" placeholder="Segment name (for your reference)" />
+          <label class="seg-role-label">Type <select class="seg-role">
+            <option value="other">—</option>
+            <option value="intro">Intro</option>
+            <option value="nq">NQ · neutral question</option>
+            <option value="pq">PQ · pertinent question</option>
+            <option value="answer">Answer</option>
+            <option value="transition">Transition</option>
+            <option value="closing">Closing</option>
+          </select></label>
+          <label class="seg-key-label" title="Both iterations of the same question share this key, so they share one row on screen">Key <input class="seg-qkey" placeholder="PQ1" /></label>
+          <label class="seg-iter-label">Pass <select class="seg-iter">
+            <option value="0">—</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+          </select></label>
+          <label class="seg-scored-label" title="Only a scored question gets a column and a risk badge on the results panel"><input type="checkbox" class="seg-scored" /> Scored</label>
+          <label class="seg-result-label">Outcome <select class="seg-result">
+            <option value="">—</option>
+            <option value="G">G · clear</option>
+            <option value="R">R · high risk</option>
+          </select></label>
+          <button class="btn btn-small seg-preview">▶ Preview</button>
+          <button class="btn btn-small btn-danger seg-delete">✕</button>
+        </div>
+        <div class="segment-row voice-filters">
+          <label class="filter-label">Language <select class="seg-lang"></select></label>
+          <label class="filter-label">Accent <select class="seg-accent"></select></label>
+          <label class="filter-label">Sex <select class="seg-sex"></select></label>
+          <label class="filter-label">Voice <select class="seg-voice"></select></label>
+          <label class="filter-label">Style <select class="seg-effect">
+            <option value="default">default</option>
+            <option value="breathing">breathing</option>
+            <option value="soft">soft</option>
+            <option value="whispered">whispered</option>
+            <option value="conversational">conversational</option>
+            <option value="news">news</option>
+          </select></label>
+        </div>
+        <textarea class="seg-text" placeholder="Text for this segment..."></textarea>
+        <div class="segment-row segment-controls">
+          <label>Vol <input type="number" class="seg-volume" value="0" min="-20" max="20" /></label>
+          <label>Speed <input type="number" class="seg-speed" value="0" min="-100" max="100" /></label>
+          <label>Pitch <input type="number" class="seg-pitch" value="0" min="-100" max="100" /></label>
+          <label>Pause after (ms) <input type="number" class="seg-pause" value="400" min="0" max="5000" step="100" /></label>
+        </div>
+        <audio class="seg-audio-preview" controls style="display:none"></audio>
+      </div>
+    </div>
+  </template>
+
+  <script src="/app.js"></script>
+</body>
+</html>
