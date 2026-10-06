@@ -62,16 +62,27 @@ class CursorRunnerCfg:
     timeout_s: float = 900.0
     model: str = "composer-2.5"
     max_per_tick: int = 1
-    reasoning_root: str = "~/.alicia/app"
+    reasoning_root: str = "~/.alicia/reasoning"
     allowlist_roots: list[str] = field(
         default_factory=lambda: [
-            "~/.alicia/app",
             "~/Projects/alicia",
-            # Pre-rename locations, until the Alicia cutover moves them.
-            "~/.brutus/app",
-            "~/Projects/brutus",
+            "~/atlas-direct",
+            "~/fowler-brain",
+            "~/local-ai-stack",
+            "~/.alicia/reasoning",
         ]
     )
+
+
+@dataclass
+class CursorCloudCfg:
+    """Opt-in Cursor Cloud Agents. Default off — never a Forge/Scout fallback."""
+
+    enabled: bool = False
+    timeout_s: float = 900.0
+    model: str = "composer-2.5"
+    default_repo_url: str = "https://github.com/justinfowler925/alicia"
+    default_starting_ref: str = "main"
 
 
 @dataclass
@@ -137,6 +148,7 @@ class AliciaCfg:
     max_actions: int = 7
     local_llm: LocalLLMCfg | None = None
     cursor_runner: CursorRunnerCfg | None = None
+    cursor_cloud: CursorCloudCfg | None = None
     voice: VoiceCfg | None = None
     claude: ClaudeCfg | None = None
 
@@ -145,6 +157,8 @@ class AliciaCfg:
             self.local_llm = LocalLLMCfg()
         if self.cursor_runner is None:
             self.cursor_runner = CursorRunnerCfg()
+        if self.cursor_cloud is None:
+            self.cursor_cloud = CursorCloudCfg()
         if self.voice is None:
             self.voice = VoiceCfg()
         if self.claude is None:
@@ -177,19 +191,34 @@ def _parse_cursor_runner(data: dict) -> CursorRunnerCfg:
     roots = block.get("allowlist_roots")
     if not isinstance(roots, list) or not roots:
         roots = [
-            "~/.alicia/app",
             "~/Projects/alicia",
-            # Pre-rename locations, until the Alicia cutover moves them.
-            "~/.brutus/app",
-            "~/Projects/brutus",
+            "~/atlas-direct",
+            "~/fowler-brain",
+            "~/local-ai-stack",
+            "~/.alicia/reasoning",
         ]
     return CursorRunnerCfg(
         enabled=bool(block.get("enabled", False)),
         timeout_s=float(block.get("timeout_s") or 900),
         model=str(block.get("model") or "composer-2.5"),
         max_per_tick=int(block.get("max_per_tick") or 1),
-        reasoning_root=str(block.get("reasoning_root") or home_path("~/.alicia/app")),
+        reasoning_root=str(block.get("reasoning_root") or home_path("~/.alicia/reasoning")),
         allowlist_roots=[str(r) for r in roots],
+    )
+
+
+def _parse_cursor_cloud(data: dict) -> CursorCloudCfg:
+    block = data.get("cursor_cloud") or {}
+    if not isinstance(block, dict):
+        block = {}
+    return CursorCloudCfg(
+        enabled=bool(block.get("enabled", False)),
+        timeout_s=float(block.get("timeout_s") or 900),
+        model=str(block.get("model") or "composer-2.5"),
+        default_repo_url=str(
+            block.get("default_repo_url") or "https://github.com/justinfowler925/alicia"
+        ),
+        default_starting_ref=str(block.get("default_starting_ref") or "main"),
     )
 
 
@@ -282,6 +311,7 @@ def load_config(path: Path | None = None) -> AliciaCfg:
         max_actions=int(data.get("max_actions") or 7),
         local_llm=_parse_local_llm(data),
         cursor_runner=_parse_cursor_runner(data),
+        cursor_cloud=_parse_cursor_cloud(data),
         voice=_parse_voice(data),
         claude=_parse_claude(data),
     )

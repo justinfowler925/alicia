@@ -663,9 +663,11 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
 
     @app.get("/api/status")
     async def status(request: Request) -> dict[str, Any]:
+        from .manager_status import merged_work_surface
+
         try:
             body = await asyncio.to_thread(
-                linear_work_surface, timeout_s=min(request.app.state.cfg.timeout_s, 15.0)
+                merged_work_surface, timeout_s=min(request.app.state.cfg.timeout_s, 15.0)
             )
             body.update({"mode": "standalone", "atlas_ignored": True})
             return body
@@ -673,7 +675,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             return {
                 "mode": "standalone",
                 "atlas_ignored": True,
-                "source": "linear_direct",
+                "source": "status_error",
                 "error": str(exc),
                 "counts": {"needs_you": 0, "working": 0, "queued": 0},
                 "needs_you": [], "working": [], "queued": [], "stuck": [],

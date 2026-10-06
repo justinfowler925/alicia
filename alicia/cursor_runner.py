@@ -58,10 +58,14 @@ log = logging.getLogger("alicia.cursor_runner")
 
 PromptFn = Callable[..., Any]
 
-# Hard denylist — enforced regardless of configuration. These trees carry
-# production credentials or are shared with concurrent human sessions.
-FORBIDDEN_ROOT_NAMES = frozenset({"sfdc", "sfdc-wt", "atlas-direct"})
+# Hard denylist — enforced regardless of configuration. Company/ClearSpeed
+# monorepos are never writable Cursor targets for this stack (personal GitHub only).
+# atlas-direct is personal (justinfowler925/atlas) and is allowlisted, not forbidden.
+FORBIDDEN_ROOT_NAMES = frozenset({"sfdc", "sfdc-wt", "clearspeed", "clearspeedrevops"})
 PROTECTED_BRANCHES = frozenset({"main", "master"})
+PERSONAL_REMOTE_OWNERS = frozenset({"justinfowler925"})
+# Paths that may have no git remote (Alicia-owned scratch).
+ALLOW_UNREMOTED_ROOT_NAMES = frozenset({"reasoning"})
 
 # A run must positively report success. Anything else leaves the job pending.
 SUCCESS_STATUSES = frozenset({"completed", "success", "succeeded", "ok", "finished", "done"})
@@ -73,13 +77,64 @@ def _expand(p: str) -> Path:
     return Path(os.path.expanduser(p)).resolve()
 
 
+def _remote_owner(root: Path) -> str | None:
+    """Return the GitHub owner from origin, or None if unavailable / not git."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(root), "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except Exception:
+        return None
+    if out.returncode != 0:
+        return None
+    url = (out.stdout or "").strip().lower()
+    if not url:
+        return None
+    # git@github.com:owner/repo.git or https://github.com/owner/repo
+    if "github.com:" in url:
+        rest = url.split("github.com:", 1)[1]
+        return rest.split("/", 1)[0] or None
+    if "github.com/" in url:
+        rest = url.split("github.com/", 1)[1]
+        return rest.split("/", 1)[0] or None
+    return None
+
+
+def root_is_personal(root: Path) -> bool:
+    """True when the checkout is not a company tree.
+
+    - Forbidden basenames (sfdc, …) always refuse.
+    - If origin exists, owner must be justinfowler925.
+    - No origin (scratch / Alicia reasoning / test fixtures) is allowed unless
+      the basename itself is forbidden.
+    """
+    name = root.name.lower()
+    if name in FORBIDDEN_ROOT_NAMES or "sfdc" in name:
+        return False
+    owner = _remote_owner(root)
+    if owner is None:
+        return True
+    return owner in PERSONAL_REMOTE_OWNERS
+
+
 def allowed_roots(allowlist: list[str]) -> list[Path]:
-    """Resolved roots with the hard denylist applied."""
+    """Resolved roots with the hard denylist + personal-remote check applied."""
     out: list[Path] = []
     for raw in allowlist or []:
         root = _expand(raw)
         if root.name.lower() in FORBIDDEN_ROOT_NAMES:
             log.error("cursor_runner: refusing forbidden allowlist root %s", root)
+            continue
+        if not root_is_personal(root):
+            log.error(
+                "cursor_runner: refusing non-personal allowlist root %s (owner=%s)",
+                root,
+                _remote_owner(root),
+            )
             continue
         out.append(root)
     return out
@@ -100,7 +155,7 @@ def resolve_cwd(repo_hint: str, allowlist: list[str]) -> Path | None:
         hint_path = _expand(hint)
         if not hint_path.is_dir():
             return None
-        if hint_path.name.lower() in FORBIDDEN_ROOT_NAMES:
+        if hint_path.name.lower() in FORBIDDEN_ROOT_NAMES or not root_is_personal(hint_path):
             return None
         for root in roots:
             if hint_path == root:
@@ -113,11 +168,20 @@ def resolve_cwd(repo_hint: str, allowlist: list[str]) -> Path | None:
         return None
 
     # Bare names: exact basename equality only. No substring matching.
+    # Aliases for personal roots (atlas → atlas-direct).
+    aliases = {
+        "atlas": "atlas-direct",
+        "atlas4": "atlas-direct",
+        "brain": "fowler-brain",
+        "local-ai": "local-ai-stack",
+        "localai": "local-ai-stack",
+    }
     needle = hint.lower().strip("/")
-    if needle in FORBIDDEN_ROOT_NAMES:
+    needle = aliases.get(needle, needle)
+    if needle in FORBIDDEN_ROOT_NAMES or "sfdc" in needle:
         return None
     for root in roots:
-        if root.name.lower() == needle and root.is_dir():
+        if root.name.lower() == needle and root.is_dir() and root_is_personal(root):
             return root
     return None
 
@@ -292,28 +356,50 @@ def run_cursor_chat(
         return {
             "ok": False,
             "error": "Cursor runner is unavailable.",
+            "executor": "cursor",
         }
-    api_key = (os.environ.get("CURSOR_API_KEY") or os.environ.get("CURSOR_APIKEY") or "").strip()
-    if not api_key and prompt_fn is None:
-        return {"ok": False, "error": "Cursor runner is unavailable."}
 
     body = (message or "").strip()
     if not body:
-        return {"ok": False, "error": "message is required"}
+        return {"ok": False, "error": "message is required", "executor": "cursor"}
 
-    hint = (repo_hint or "").strip() or "alicia"
+    # Resolve cwd before credential checks so empty/forbidden hints fail clearly
+    # and never look like a silent Forge/cloud fallback.
+    hint = (repo_hint or "").strip()
+    if not hint:
+        return {
+            "ok": False,
+            "error": (
+                "repo_hint is required; refusing to invent a cwd. "
+                "Personal allowlist only — never defaults to sfdc or Forge."
+            ),
+            "executor": "cursor",
+        }
     cwd = resolve_cwd(hint, runner.allowlist_roots)
     if cwd is None:
         return {
             "ok": False,
             "error": (
-                f"repo_hint {hint!r} did not resolve to an allowlisted directory. "
-                f"Allowlist: {runner.allowlist_roots}. Never defaults to sfdc."
+                f"repo_hint {hint!r} did not resolve to an allowlisted personal directory. "
+                f"Allowlist: {runner.allowlist_roots}. Never defaults to sfdc; no Forge fallback."
             ),
+            "executor": "cursor",
         }
     safe, branch_note = branch_is_safe(cwd)
     if not safe:
-        return {"ok": False, "error": f"refusing to run in {cwd} — {branch_note}"}
+        return {
+            "ok": False,
+            "error": f"refusing to run in {cwd} — {branch_note}",
+            "executor": "cursor",
+        }
+
+    api_key = (os.environ.get("CURSOR_API_KEY") or os.environ.get("CURSOR_APIKEY") or "").strip()
+    if not api_key and prompt_fn is None:
+        return {
+            "ok": False,
+            "error": "Cursor runner is unavailable.",
+            "executor": "cursor",
+        }
 
     timeout_s = float(runner.timeout_s or 900)
     fn = prompt_fn or _run_agent_prompt

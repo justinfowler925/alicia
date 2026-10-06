@@ -31,17 +31,27 @@ local_llm:
   autorestart_cooldown_s: 600
 
 # Headless Cursor SDK runner (needs CURSOR_API_KEY via alicia-serve.sh / 1Password).
-# Allowlist only laptop-safe checkouts — never sfdc / atlas-direct.
-# Cursor reasoning runs read-only against the deployed artifact.
+# Personal GitHub roots only — never sfdc / ClearSpeed company trees.
 cursor_runner:
   enabled: true
   timeout_s: 900
   model: "composer-2.5"
   max_per_tick: 1
-  reasoning_root: "~/.alicia/app"
+  reasoning_root: "~/.alicia/reasoning"
   allowlist_roots:
-    - "~/.alicia/app"
     - "~/Projects/alicia"
+    - "~/atlas-direct"
+    - "~/fowler-brain"
+    - "~/local-ai-stack"
+    - "~/.alicia/reasoning"
+
+# Cursor Cloud Agents — opt-in only. Never a Forge/Scout/Alicia fallback.
+cursor_cloud:
+  enabled: false
+  timeout_s: 900
+  model: "composer-2.5"
+  default_repo_url: "https://github.com/justinfowler925/alicia"
+  default_starting_ref: "main"
 
 # Claude supplies structured session judgment. It is never an implicit fallback
 # for conversation, frontier, or builder profiles.

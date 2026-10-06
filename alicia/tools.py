@@ -131,13 +131,11 @@ def _work_surface(
     *,
     include_probes: bool = False,
 ) -> dict[str, Any]:
-    """Probe-filtered board by default — same view as the Work tab.
-
-    Attaches focus actions so chat and voice see the same batched decisions
-    the screen leads with, not seventeen raw needs-you rows.
-    """
+    """Merged manager status — Linear + Canon + Forge + Cursor (one surface)."""
     _ = (client, include_probes)
-    surface = linear_work_surface(timeout_s=(cfg.timeout_s if cfg else 8.0))
+    from .manager_status import merged_work_surface
+
+    surface = merged_work_surface(timeout_s=(cfg.timeout_s if cfg else 8.0))
     surface["next_decision"] = spoken_next_decision(surface)
     surface["atlas_ignored"] = True
     return surface
@@ -149,17 +147,16 @@ def _get_digest(
     *,
     include_probes: bool = False,
 ) -> dict[str, Any]:
-    """WIP digest for chat — probe-filtered board first; raw markdown capped."""
+    """WIP digest for chat — same merged status path as /api/status."""
     try:
         surface = _work_surface(client, cfg, include_probes=include_probes)
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": str(exc), "atlas6_unreachable": True}
     return {
         "ok": True,
-        "source": "linear_direct",
         **surface,
         "digest_excerpt": "",
-        "note": "Direct Linear work surface; Atlas is intentionally ignored.",
+        "note": "Merged manager status (Linear + Canon + Forge + Cursor); Atlas ignored.",
     }
 
 
@@ -372,7 +369,71 @@ def _ask_atlas6(client: AtlasClient, message: str, mode: str = "manager", ticket
 
 def _ask_cursor(cfg: AliciaCfg, message: str, repo_hint: str = "") -> dict[str, Any]:
     """Route complex coding to a one-shot Cursor SDK run on an allowlisted cwd."""
-    return run_cursor_chat(cfg, message, repo_hint=repo_hint)
+    hint = (repo_hint or "").strip()
+    if not hint:
+        return {
+            "ok": False,
+            "error": (
+                "repo_hint is required (alicia|atlas-direct|fowler-brain|"
+                "local-ai-stack|reasoning). Never defaults to sfdc; never falls back to Forge."
+            ),
+            "executor": "cursor",
+        }
+    if "sfdc" in hint.lower() or "clearspeed" in hint.lower():
+        return {
+            "ok": False,
+            "error": f"refusing company/sfdc repo_hint {hint!r}; personal roots only.",
+            "executor": "cursor",
+        }
+    result = run_cursor_chat(cfg, message, repo_hint=hint)
+    if isinstance(result, dict):
+        result.setdefault("executor", "cursor")
+        if result.get("ok") is False:
+            # Explicit: do not suggest Forge as a substitute for Cursor failures.
+            err = str(result.get("error") or "")
+            if "unavailable" in err.lower() or "CURSOR_API_KEY" in err or "api key" in err.lower():
+                result["error"] = (
+                    err.rstrip(".")
+                    + ". Cursor lane failed; Alicia will not reroute to Forge/Gemma."
+                )
+    return result
+
+
+def _ask_forge(cfg: AliciaCfg, message: str, cwd: str = "") -> dict[str, Any]:
+    """Ask local Forge (Gemma on :8081) and join the answer into this turn."""
+    _ = cfg
+    from . import forge_local
+    from .specialist_router import record_ask_forge_receipt
+
+    try:
+        payload = forge_local.ask(message, cwd=cwd or None)
+    except Exception as exc:  # noqa: BLE001 — fail closed, never cloud-fill
+        return {
+            "ok": False,
+            "executor": "forge",
+            "model": forge_local.MODEL,
+            "error": str(exc),
+            "hint": "Forge requires resident Gemma on :8081. No Cursor/cloud fill-in.",
+        }
+    record_ask_forge_receipt({**payload, "prompt": message})
+    return payload
+
+
+def _ask_cursor_cloud(
+    cfg: AliciaCfg,
+    message: str,
+    repo_url: str = "",
+    starting_ref: str = "",
+) -> dict[str, Any]:
+    """Explicit opt-in Cursor Cloud Agents path — never a Forge fallback."""
+    from . import cursor_cloud
+
+    return cursor_cloud.run_cursor_cloud(
+        cfg,
+        message,
+        repo_url=repo_url,
+        starting_ref=starting_ref,
+    )
 
 
 def _ask_claude(cfg: AliciaCfg, message: str) -> dict[str, Any]:
@@ -920,9 +981,9 @@ def build_default_registry(
             Tool(
                 name="ask_cursor",
                 description=(
-                    "Run a one-shot Cursor agent on an allowlisted work repository "
-                    "(default repo_hint=alicia; atlas6 also allowed). Use for coding "
-                    "investigations Atlas6 cannot do. Never invents a cwd outside the allowlist."
+                    "Run a one-shot local Cursor SDK agent on a personal allowlisted root "
+                    "(alicia, atlas-direct/atlas, fowler-brain/brain, local-ai-stack, "
+                    "reasoning). Never sfdc/company trees. Never falls back to Forge/Gemma."
                 ),
                 parameters={
                     "type": "object",
@@ -930,14 +991,76 @@ def build_default_registry(
                         "message": {"type": "string", "description": "the task or question to send to Cursor"},
                         "repo_hint": {
                             "type": "string",
-                            "description": "allowlisted repo basename or path (alicia or atlas6)",
+                            "description": (
+                                "required personal root: alicia | atlas-direct | atlas | "
+                                "fowler-brain | local-ai-stack | reasoning (or absolute path)"
+                            ),
                         },
                     },
-                    "required": ["message"],
+                    "required": ["message", "repo_hint"],
                 },
                 fn=lambda **kwargs: _ask_cursor(cfg or AliciaCfg(), **kwargs),
             )
         )
+        reg.register(
+            Tool(
+                name="ask_forge",
+                description=(
+                    "Ask Forge (Alicia #forge local Gemma on :8081) a question and wait for "
+                    "the answer in this turn. Fail-closed if Gemma is down — never use Cursor "
+                    "or cloud as a substitute. Distinct from route_specialist enqueue."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "description": "question or short task for local Gemma",
+                        },
+                        "cwd": {
+                            "type": "string",
+                            "description": "optional workspace directory on Studio",
+                        },
+                    },
+                    "required": ["message"],
+                },
+                fn=lambda **kwargs: _ask_forge(
+                    cfg or AliciaCfg(),
+                    str(kwargs.get("message") or ""),
+                    cwd=str(kwargs.get("cwd") or ""),
+                ),
+            )
+        )
+        # Cursor Cloud is registered only when explicitly enabled in config.
+        if bool(getattr(getattr(cfg, "cursor_cloud", None), "enabled", False)):
+            reg.register(
+                Tool(
+                    name="ask_cursor_cloud",
+                    description=(
+                        "Launch one Cursor Cloud Agent (bc-id) for explicitly routed Cursor "
+                        "work on a personal justinfowler925 repo. Opt-in only. Never a "
+                        "Forge/Scout/Alicia fallback. Attribution is Cursor Cloud."
+                    ),
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "message": {"type": "string"},
+                            "repo_url": {
+                                "type": "string",
+                                "description": "https://github.com/justinfowler925/…",
+                            },
+                            "starting_ref": {"type": "string"},
+                        },
+                        "required": ["message"],
+                    },
+                    fn=lambda **kwargs: _ask_cursor_cloud(
+                        cfg or AliciaCfg(),
+                        str(kwargs.get("message") or ""),
+                        repo_url=str(kwargs.get("repo_url") or ""),
+                        starting_ref=str(kwargs.get("starting_ref") or ""),
+                    ),
+                )
+            )
         reg.register(
             Tool(
                 name="ask_frontier",

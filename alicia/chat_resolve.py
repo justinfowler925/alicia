@@ -30,8 +30,10 @@ everything. Claude is not a fallback.
 
 When Justin asks who does what, use org_chart. When he wants specialist work,
 use preview_specialist_route first. To enqueue after he approves a live handoff,
-propose route_specialist with dry_run=false. ask_cursor remains for allowlisted
-coding only; do not use it as a substitute for Atlas/Forge/Scout/Hollywood.
+propose route_specialist with dry_run=false. To ask Forge (local Gemma) a
+question and get the answer in this turn, use ask_forge — never substitute
+Cursor/cloud when Forge is down. ask_cursor is for allowlisted personal coding
+roots only (never sfdc); do not use it as a substitute for Atlas/Forge/Scout.
 
 FIRST RULE: answer the question Justin actually asked, directly, in the first
 sentence — but only from the context and tools you actually have. If you cannot
@@ -50,14 +52,15 @@ questions that matter, propose an approach, name the risks.
 
 You have local and Linear-backed tools. Use them to look up facts and maintain
 Justin's local work surfaces.
-If Justin asks about work status or WIP, use get_work_surface or get_digest
-(probe-filtered).
+If Justin asks about work status, WIP, or catch-me-up, use get_work_surface or
+get_digest — they merge Linear + Canon projects + live Forge/Cursor, not Linear alone.
 Memory loop: list_notes / capture_note / update_note / delete_note /
 the Ideas pad; list_working_notes / save_working_note for
 longer context; draft_lesson / list_lessons for local lesson drafts
 (never auto-send email/Slack).
-If he wants an autonomous coding handoff, use ask_cursor (keyboard only and gated).
-If Cursor is unavailable, say so honestly; never cross to another model.
+If he wants an autonomous coding handoff, use ask_cursor with an explicit
+repo_hint (keyboard only and gated). If Cursor is unavailable, say so honestly;
+never cross to Forge/Gemma or another model.
 If a FACTORY ALARM line is present, say it in your first sentence.
 
 You do not execute directly — you route. You never claim you did, sent, logged,
@@ -313,6 +316,21 @@ def _lookup_intent(message: str) -> tuple[str, dict[str, Any]] | None:
         return ("check_slack", {})
     if any(h in lower for h in ("email", "emails", "gmail", "new mail", "inbox")):
         return ("check_email", {})
+    # Named project status ("status of Shine") still uses the merged surface.
+    proj = re.search(
+        r"\b(?:status|progress|what's moving|whats moving)\s+(?:of|on|for)\s+([a-z0-9][\w\- ]{1,40})\b",
+        lower,
+    )
+    if proj:
+        return ("get_work_surface", {})
+    # Explicit Forge Q&A — join local Gemma, never Cursor fill-in.
+    forge_ask = re.search(
+        r"\b(?:ask\s+forge|forge[,:]?\s+|via\s+forge|through\s+forge|"
+        r"local\s+gemma|use\s+forge\s+to)\b",
+        lower,
+    )
+    if forge_ask:
+        return ("ask_forge", {"message": message.strip()[:4000]})
     m = re.search(r"\bREV-\d+\b", message, re.IGNORECASE)
     if m:
         return ("get_thread", {"external_id": m.group(0).upper()})
@@ -641,7 +659,7 @@ def _summarize_tool_result(
             "Nothing happened, so nothing changed."
         )
     # Prefer the slim reply field for backends — full JSON dumps drown the answer.
-    if tool_name in ("ask_atlas6", "ask_cursor", "ask_claude") and isinstance(
+    if tool_name in ("ask_atlas6", "ask_cursor", "ask_claude", "ask_forge", "ask_cursor_cloud") and isinstance(
         tool_result.get("result"), dict
     ):
         inner = tool_result["result"]
@@ -652,11 +670,27 @@ def _summarize_tool_result(
     if tool_name in ("get_work_surface", "get_digest"):
         surface = inner if isinstance(inner, dict) else (board or {})
         return spoken_next_decision(surface if isinstance(surface, dict) else board)
-    if tool_name in ("ask_atlas6", "ask_cursor", "ask_claude") and inner.get("reply"):
+    if tool_name in ("ask_atlas6", "ask_cursor", "ask_claude", "ask_forge", "ask_cursor_cloud") and inner.get("reply"):
         result_text = str(inner.get("reply"))[:3500]
         if inner.get("ok") is False or inner.get("error"):
             result_text = json.dumps(
-                {k: inner.get(k) for k in ("ok", "error", "hint", "reply", "atlas6_unreachable") if k in inner},
+                {
+                    k: inner.get(k)
+                    for k in (
+                        "ok",
+                        "error",
+                        "hint",
+                        "reply",
+                        "atlas6_unreachable",
+                        "executor",
+                        "model",
+                        "run_id",
+                        "agent_id",
+                        "bc_id",
+                        "attribution",
+                    )
+                    if k in inner
+                },
                 indent=2,
             )[:3500]
     else:
@@ -671,10 +705,22 @@ def _summarize_tool_result(
         parts.append(
             "The tool failed. Explain the failure honestly. Do not cross to another model."
         )
+    elif tool_name == "ask_forge":
+        parts.append(
+            "This answer came from Forge (local Gemma). Say that plainly. "
+            "Never call it Cursor or cloud. Summarize the reply for Justin."
+        )
+        parts.append(_BREVITY)
+    elif tool_name == "ask_cursor_cloud":
+        parts.append(
+            "This answer came from Cursor Cloud (not Forge, not Gemma). "
+            "Name Cursor Cloud and include the bc-id/agent_id if present."
+        )
+        parts.append(_BREVITY)
     elif tool_name == "ask_cursor":
         parts.append(
             "Summarize the backend reply in plain English for Justin. "
-            "Keep code/path details that matter; drop boilerplate."
+            "Keep code/path details that matter; drop boilerplate. Name Cursor, not Forge."
         )
         parts.append(_BREVITY)
     else:
@@ -700,7 +746,7 @@ def _summarize_tool_result(
 def _tool_followup_user(tool_name: str, tool_result: dict[str, Any]) -> str:
     inner = tool_result.get("result") if isinstance(tool_result.get("result"), dict) else tool_result
     if (
-        tool_name == "ask_cursor"
+        tool_name in ("ask_cursor", "ask_forge", "ask_cursor_cloud")
         and isinstance(inner, dict)
         and inner.get("reply")
         and inner.get("ok") is not False
