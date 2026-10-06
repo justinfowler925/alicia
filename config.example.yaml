@@ -55,6 +55,7 @@ cursor_cloud:
 
 # Claude supplies structured session judgment. It is never an implicit fallback
 # for conversation, frontier, or builder profiles.
+# platform_lane: hosted executor under Alicia (opt-in). Cursor remains the brain.
 claude:
   enabled: true
   model: "claude-sonnet-5"
@@ -62,6 +63,20 @@ claude:
   max_tokens: 8192
   transport: "cli"
   api_enabled: false
+  platform_lane: false
+
+# Hosted OpenAI / Codex platform lane — Justin opt-in only. Never a Forge fallback.
+openai:
+  enabled: false
+  model: "gpt-4.1-mini"
+  timeout_s: 120
+  base_url: "https://api.openai.com/v1"
+
+# Earned autonomy for local/Studio-safe classes only. Hosted never earns.
+earned_autonomy:
+  enabled: true
+  auto_run: false
+  threshold: 3
 
 # Voice input/output — requires `pip install -e .[voice]` and `brew install portaudio`
 # ElevenLabs API key is read from the ELEVENLABS_API_KEY environment variable

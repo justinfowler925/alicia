@@ -435,9 +435,82 @@ def _ask_cursor_cloud(
 
 
 def _ask_claude(cfg: AliciaCfg, message: str) -> dict[str, Any]:
-    """Compatibility stub: Cursor is Alicia's only reasoning backend."""
-    _ = (cfg, message)
-    return {"ok": False, "error": "Claude is disabled; Alicia reasons through Cursor"}
+    """Hosted Claude platform lane — opt-in via claude.platform_lane, not Alicia's brain."""
+    from .claude import ask_claude
+    from .platform_registry import assert_honest_attribution
+
+    claude_cfg = cfg.claude
+    if claude_cfg is None or not claude_cfg.enabled:
+        return {
+            "ok": False,
+            "executor": "claude",
+            "error": "Claude is disabled (claude.enabled=false).",
+        }
+    if not getattr(claude_cfg, "platform_lane", False):
+        return {
+            "ok": False,
+            "executor": "claude",
+            "error": (
+                "Claude platform lane requires claude.platform_lane=true "
+                "(hosted opt-in; Cursor remains Alicia's reasoning brain)."
+            ),
+        }
+    out = ask_claude(cfg, message)
+    if isinstance(out, dict):
+        out.setdefault("executor", "claude")
+        out.setdefault("attribution", "Claude")
+        if out.get("ok"):
+            assert_honest_attribution(out, lane="claude")
+    return out
+
+
+def _ask_openai(cfg: AliciaCfg, message: str) -> dict[str, Any]:
+    """Hosted OpenAI platform lane — default off, Justin opt-in only."""
+    from . import openai_lane
+
+    return openai_lane.run_openai(cfg, message)
+
+
+def _intake_manager_work(
+    raw_capture: str, project_hint: str = "", title: str = ""
+) -> dict[str, Any]:
+    from .canon_binding import intake_work
+
+    return intake_work(
+        raw_capture, source="alicia:chat", project_hint=project_hint, title=title
+    )
+
+
+def _backfill_canon_projects(limit: int = 80) -> dict[str, Any]:
+    from .canon_binding import backfill_orphan_work_items
+
+    return backfill_orphan_work_items(limit=limit)
+
+
+def _assign_platform(
+    cfg: AliciaCfg,
+    task: str,
+    lane: str = "",
+    work_item_id: str = "",
+    project_hint: str = "",
+    repo_hint: str = "",
+    cwd: str = "",
+    read_only: bool = True,
+) -> dict[str, Any]:
+    from .manager_loop import assign_and_run
+
+    return assign_and_run(
+        cfg,
+        task=task,
+        lane=lane or None,
+        work_item_id=work_item_id,
+        project_hint=project_hint,
+        repo_hint=repo_hint,
+        cwd=cwd,
+        read_only=read_only,
+        join=True,
+        wait_s=90.0,
+    )
 
 
 def _save_working_note(memory: MemoryStore, topic: str, body: str = "", ticket_ids: list[str] | None = None) -> dict[str, Any]:
@@ -1109,8 +1182,9 @@ def build_default_registry(
             Tool(
                 name="ask_claude",
                 description=(
-                    "Send a long-form research, writing, or analysis task to Claude "
-                    "(Anthropic API). Use when Studio is busy/down or for drafting."
+                    "Hosted Claude platform lane (opt-in: claude.platform_lane=true). "
+                    "Not Alicia's reasoning brain — Cursor stays the brain. "
+                    "Never a Forge/Gemma fallback."
                 ),
                 parameters={
                     "type": "object",
@@ -1122,6 +1196,29 @@ def build_default_registry(
                 fn=lambda **kwargs: _ask_claude(cfg or AliciaCfg(), **kwargs),
             )
         )
+        if (cfg or AliciaCfg()).openai and (cfg or AliciaCfg()).openai.enabled:
+            reg.register(
+                Tool(
+                    name="ask_openai",
+                    description=(
+                        "Hosted OpenAI platform lane (openai.enabled opt-in). "
+                        "Never a Forge/Gemma fallback; never silent when local is down."
+                    ),
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "message": {
+                                "type": "string",
+                                "description": "task for OpenAI",
+                            },
+                        },
+                        "required": ["message"],
+                    },
+                    fn=lambda **kwargs: _ask_openai(
+                        cfg or AliciaCfg(), str(kwargs.get("message") or "")
+                    ),
+                )
+            )
     reg.register(
         Tool(
             name="list_threads",
@@ -1607,6 +1704,80 @@ def build_default_registry(
         )
         reg.register(
             Tool(
+                name="intake_manager_work",
+                description=(
+                    "Justin dumps work into Alicia: capture + Canon work item with "
+                    "project_id set. Alicia owns it until done or escalated."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "raw_capture": {"type": "string"},
+                        "project_hint": {
+                            "type": "string",
+                            "description": "optional: Alicia|Atlas|Forge|Shine|Scout|LocalAI|Brain",
+                        },
+                        "title": {"type": "string"},
+                    },
+                    "required": ["raw_capture"],
+                },
+                fn=lambda **kwargs: _intake_manager_work(
+                    str(kwargs.get("raw_capture") or ""),
+                    project_hint=str(kwargs.get("project_hint") or ""),
+                    title=str(kwargs.get("title") or ""),
+                ),
+            )
+        )
+        reg.register(
+            Tool(
+                name="backfill_canon_projects",
+                description="Bind orphan Canon work_items onto seeded projects (rollup repair).",
+                parameters={
+                    "type": "object",
+                    "properties": {"limit": {"type": "integer"}},
+                },
+                fn=lambda **kwargs: _backfill_canon_projects(
+                    int(kwargs.get("limit") or 80)
+                ),
+            )
+        )
+        reg.register(
+            Tool(
+                name="assign_platform",
+                description=(
+                    "Assign a Canon work item / task to a platform executor, join/poll, "
+                    "handback with honest executor attribution, and refresh /api/status. "
+                    "Lanes: forge_local, cursor_local, cursor_cloud, openai, claude, "
+                    "atlas, scout, hollywood. Hosted lanes require explicit lane= and "
+                    "opt-in flags. Local failure never promotes to hosted."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "task": {"type": "string"},
+                        "lane": {"type": "string"},
+                        "work_item_id": {"type": "string"},
+                        "project_hint": {"type": "string"},
+                        "repo_hint": {"type": "string"},
+                        "cwd": {"type": "string"},
+                        "read_only": {"type": "boolean"},
+                    },
+                    "required": ["task"],
+                },
+                fn=lambda **kwargs: _assign_platform(
+                    cfg or AliciaCfg(),
+                    task=str(kwargs.get("task") or ""),
+                    lane=str(kwargs.get("lane") or ""),
+                    work_item_id=str(kwargs.get("work_item_id") or ""),
+                    project_hint=str(kwargs.get("project_hint") or ""),
+                    repo_hint=str(kwargs.get("repo_hint") or ""),
+                    cwd=str(kwargs.get("cwd") or ""),
+                    read_only=bool(kwargs.get("read_only", True)),
+                ),
+            )
+        )
+        reg.register(
+            Tool(
                 name="review_canon_work",
                 description="Accept, reject, or request changes on a work item in review.",
                 parameters={
@@ -1711,10 +1882,11 @@ def build_default_registry(
             )
         )
 
-    # Cursor is the only reasoning backend. Atlas compatibility code remains
-    # behind a reversible flag, but standalone Alicia must not expose a tool
-    # that could route into it.
-    reg.discard("ask_claude")
+    # Cursor is Alicia's reasoning brain. Hosted Claude/OpenAI are platform
+    # executors only — expose ask_claude when platform_lane is on; otherwise discard.
+    runtime = cfg or AliciaCfg()
+    if not (runtime.claude and runtime.claude.enabled and getattr(runtime.claude, "platform_lane", False)):
+        reg.discard("ask_claude")
     if not (cfg or AliciaCfg()).atlas_enabled:
         for name in (
             "ask_atlas6",

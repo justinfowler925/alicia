@@ -126,6 +126,26 @@ class ClaudeCfg:
     api_enabled: bool = False
     # Prefer ANTHROPIC_API_KEY env only when transport=api. Config field is fallback.
     api_key: str = ""
+    # Hosted platform executor under Alicia (manager assign / ask_claude tool).
+    # Default off — Cursor remains Alicia's reasoning brain; Claude is opt-in work.
+    platform_lane: bool = False
+
+
+@dataclass
+class OpenAICfg:
+    """Hosted OpenAI / Codex platform lane — Justin opt-in, default off."""
+
+    enabled: bool = False
+    model: str = "gpt-4.1-mini"
+    timeout_s: float = 120.0
+    base_url: str = "https://api.openai.com/v1"
+
+
+@dataclass
+class EarnAutonomyCfg:
+    enabled: bool = True
+    auto_run: bool = False
+    threshold: int = 3
 
 
 @dataclass
@@ -151,6 +171,8 @@ class AliciaCfg:
     cursor_cloud: CursorCloudCfg | None = None
     voice: VoiceCfg | None = None
     claude: ClaudeCfg | None = None
+    openai: OpenAICfg | None = None
+    earned_autonomy: EarnAutonomyCfg | None = None
 
     def __post_init__(self) -> None:
         if self.local_llm is None:
@@ -163,6 +185,10 @@ class AliciaCfg:
             self.voice = VoiceCfg()
         if self.claude is None:
             self.claude = ClaudeCfg()
+        if self.openai is None:
+            self.openai = OpenAICfg()
+        if self.earned_autonomy is None:
+            self.earned_autonomy = EarnAutonomyCfg()
 
 
 def _parse_local_llm(data: dict) -> LocalLLMCfg:
@@ -276,6 +302,33 @@ def _parse_claude(data: dict) -> ClaudeCfg:
         transport=transport,
         api_enabled=api_enabled,
         api_key=key,
+        platform_lane=bool(block.get("platform_lane", False)),
+    )
+
+
+def _parse_openai(data: dict) -> OpenAICfg:
+    block = data.get("openai") or {}
+    if not isinstance(block, dict):
+        block = {}
+    return OpenAICfg(
+        enabled=bool(block.get("enabled", False)),
+        model=str(block.get("model") or "gpt-4.1-mini"),
+        timeout_s=float(block.get("timeout_s") or 120),
+        base_url=str(block.get("base_url") or "https://api.openai.com/v1"),
+    )
+
+
+def _parse_earned_autonomy(data: dict) -> EarnAutonomyCfg:
+    block: dict = {}
+    specialist = data.get("specialist_routing")
+    if isinstance(specialist, dict) and isinstance(specialist.get("earned_autonomy"), dict):
+        block = specialist["earned_autonomy"]
+    elif isinstance(data.get("earned_autonomy"), dict):
+        block = data["earned_autonomy"]
+    return EarnAutonomyCfg(
+        enabled=bool(block.get("enabled", True)),
+        auto_run=bool(block.get("auto_run", False)),
+        threshold=int(block.get("threshold") or 3),
     )
 
 
@@ -314,4 +367,6 @@ def load_config(path: Path | None = None) -> AliciaCfg:
         cursor_cloud=_parse_cursor_cloud(data),
         voice=_parse_voice(data),
         claude=_parse_claude(data),
+        openai=_parse_openai(data),
+        earned_autonomy=_parse_earned_autonomy(data),
     )

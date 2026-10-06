@@ -254,8 +254,12 @@ def test_describe_uses_no_model():
     import alicia.gate as mod
 
     src = inspect.getsource(mod)
-    for forbidden in ("chat_completion", "httpx", "openai"):
+    # Gate copy may name the hosted OpenAI *lane* (ask_openai tool id); it must
+    # never import or call an OpenAI/http client — that is the determinism bar.
+    for forbidden in ("chat_completion", "httpx", "import openai", "from openai"):
         assert forbidden not in src, f"the gate must stay deterministic; found {forbidden}"
+    assert "openai.OpenAI" not in src
+    assert "urllib.request" not in src
 
 
 @pytest.mark.parametrize("word", ["yes", "yeah", "yep", "do it", "go ahead", "send it", "ok"])
