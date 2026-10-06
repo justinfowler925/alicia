@@ -198,12 +198,70 @@ def _launch_studio_agent(
     }
 
 
-def _write_receipt(receipt: dict[str, Any]) -> Path:
+def _write_receipt(receipt: dict[str, Any], *, path: Path | None = None) -> Path:
     _RECEIPTS.mkdir(parents=True, exist_ok=True, mode=0o700)
-    path = _RECEIPTS / f"{int(time.time())}-{receipt['specialist']}.json"
-    path.write_text(json.dumps(receipt, indent=2) + "\n")
-    path.chmod(0o600)
-    return path
+    target = path or (_RECEIPTS / f"{int(time.time())}-{receipt['specialist']}.json")
+    target.write_text(json.dumps(receipt, indent=2) + "\n")
+    target.chmod(0o600)
+    return target
+
+
+def _sync_forge_receipt(receipt: dict[str, Any], path: Path | None = None) -> dict[str, Any]:
+    """Refresh enqueue receipts from forge-local terminal state (queued → succeeded/failed)."""
+    if str(receipt.get("specialist") or "") != "forge":
+        return receipt
+    result = receipt.get("result") if isinstance(receipt.get("result"), dict) else {}
+    run_id = str(result.get("run_id") or "")
+    if not run_id:
+        return receipt
+    try:
+        from . import forge_local
+
+        run = forge_local.get(run_id)
+    except Exception:  # noqa: BLE001 — receipt read must not crash the API
+        return receipt
+    status = str(run.get("status") or "")
+    if not status or status == str(result.get("status") or ""):
+        # Still update nested status when equal but ensure answer/model fields exist.
+        if status not in {"succeeded", "failed", "cancelled", "interrupted", "blocked"}:
+            return receipt
+    answer = ""
+    answer_path = (
+        Path.home() / ".local/share/studio-agents/runs" / run_id / "answer.md"
+    )
+    # Prefer forge_local.STATE when tests monkeypatch it.
+    try:
+        from . import forge_local as _fl
+
+        answer_path = _fl.STATE / "runs" / run_id / "answer.md"
+    except Exception:  # noqa: BLE001
+        pass
+    if answer_path.is_file():
+        try:
+            answer = answer_path.read_text()
+        except OSError:
+            answer = ""
+    updated = dict(receipt)
+    nested = dict(result)
+    nested["status"] = status
+    nested["model"] = run.get("model") or nested.get("model")
+    if answer:
+        nested["answer_excerpt"] = answer[:2000]
+    updated["result"] = nested
+    updated["run_status"] = status
+    # Process success is still not delivery acceptance.
+    updated["accepted"] = False
+    if status == "succeeded":
+        updated["note"] = "Forge run succeeded — process success is not delivery acceptance"
+    elif status in {"failed", "cancelled", "interrupted", "blocked"}:
+        updated["note"] = f"Forge run terminal status={status}"
+        updated["ok"] = status == "succeeded"
+    if path is not None:
+        try:
+            _write_receipt(updated, path=path)
+        except OSError:
+            pass
+    return updated
 
 
 def latest_receipts(limit: int = 10) -> list[dict[str, Any]]:
@@ -213,10 +271,36 @@ def latest_receipts(limit: int = 10) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for path in files:
         try:
-            out.append(json.loads(path.read_text()))
+            receipt = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError):
             continue
+        out.append(_sync_forge_receipt(receipt, path=path))
     return out
+
+
+def record_ask_forge_receipt(payload: dict[str, Any]) -> dict[str, Any]:
+    """Persist an ask_forge join receipt (distinct from route_specialist enqueue)."""
+    receipt = {
+        "ok": bool(payload.get("ok")),
+        "dry_run": False,
+        "specialist": "forge",
+        "reason": "ask_forge",
+        "task": str(payload.get("prompt") or "")[:4000],
+        "launched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "result": {
+            "launcher": "forge_local.ask",
+            "run_id": payload.get("run_id"),
+            "status": payload.get("status"),
+            "model": payload.get("model"),
+            "answer_excerpt": str(payload.get("reply") or "")[:2000],
+        },
+        "run_status": payload.get("status"),
+        "accepted": False,
+        "executor": "forge",
+        "note": "ask_forge join — process success is not delivery acceptance",
+    }
+    _write_receipt(receipt)
+    return receipt
 
 
 if __name__ == "__main__":

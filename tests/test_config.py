@@ -24,7 +24,10 @@ def test_load_config_falls_back():
     cfg = load_config()
     assert cfg.atlas6_url
     assert cfg.atlas_enabled is False
-    assert "~/.alicia/app" in cfg.cursor_runner.allowlist_roots
+    assert "~/Projects/alicia" in cfg.cursor_runner.allowlist_roots
+    assert "~/atlas-direct" in cfg.cursor_runner.allowlist_roots
+    assert cfg.cursor_cloud is not None
+    assert cfg.cursor_cloud.enabled is False
     assert cfg.timeout_s > 0
     assert cfg.local_llm.model
 

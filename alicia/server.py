@@ -44,6 +44,7 @@ from .cursor_runner import run_cursor_tick
 from .focus import clip as clip_text
 from .github_evidence import GitHubEvidenceReceiver
 from .linear_surface import linear_work_surface
+from .manager_status import merged_work_surface
 from .local_llm import list_models
 from .memory import MemoryStore
 from .model_gateway import judge_with_profile
@@ -89,11 +90,13 @@ log = logging.getLogger("alicia.server")
 
 def _deployment_manifest() -> dict[str, Any]:
     configured = os.environ.get("ALICIA_DEPLOY_MANIFEST", "").strip()
-    path = (
-        Path(configured).expanduser()
-        if configured
-        else Path(__file__).resolve().parent.parent / ".alicia-deploy.json"
-    )
+    app_dir = os.environ.get("ALICIA_APP_DIR", "").strip()
+    if configured:
+        path = Path(configured).expanduser()
+    elif app_dir:
+        path = Path(app_dir).expanduser() / ".alicia-deploy.json"
+    else:
+        path = Path(__file__).resolve().parent.parent / ".alicia-deploy.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, ValueError, OSError):
@@ -665,7 +668,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
     async def status(request: Request) -> dict[str, Any]:
         try:
             body = await asyncio.to_thread(
-                linear_work_surface, timeout_s=min(request.app.state.cfg.timeout_s, 15.0)
+                merged_work_surface, timeout_s=min(request.app.state.cfg.timeout_s, 15.0)
             )
             body.update({"mode": "standalone", "atlas_ignored": True})
             return body
@@ -673,7 +676,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             return {
                 "mode": "standalone",
                 "atlas_ignored": True,
-                "source": "linear_direct",
+                "source": "status_error",
                 "error": str(exc),
                 "counts": {"needs_you": 0, "working": 0, "queued": 0},
                 "needs_you": [], "working": [], "queued": [], "stuck": [],

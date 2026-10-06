@@ -54,11 +54,13 @@ GATED = frozenset(
         "ask_atlas6",
         "ask_claude",
         "ask_cursor",
+        "ask_cursor_cloud",
         "ask_frontier",
         "create_linear_ticket",
         "organize_agent_thread",
         "organize_project",
         "route_specialist",
+        # ask_forge is intentionally NOT gated: Q&A join to local Gemma.
     }
 )
 
@@ -67,7 +69,8 @@ GATED = frozenset(
 # so a spoken instruction could put an agent inside the gate's own source. Its
 # "do not commit or push" instruction is prose to something that can run git,
 # and "prescribe, don't prohibit" says that is how you get the banned action.
-VOICE_FORBIDDEN = frozenset({"ask_cursor"})
+# ask_cursor_cloud is also voice-forbidden (cost + shell-equivalent cloud agent).
+VOICE_FORBIDDEN = frozenset({"ask_cursor", "ask_cursor_cloud"})
 
 
 @dataclass(frozen=True)
@@ -164,10 +167,11 @@ def describe(tool: str, args: dict[str, Any]) -> tuple[str, str]:
     if tool == "delete_note":
         target = _short(a.get("q") or a.get("note_id") or "?")
         return (f"Delete idea: “{target}”", f"Delete that idea — {target}?")
-    if tool in ("ask_atlas6", "ask_claude", "ask_cursor", "ask_frontier"):
+    if tool in ("ask_atlas6", "ask_claude", "ask_cursor", "ask_cursor_cloud", "ask_frontier"):
+        label = "Cursor Cloud" if tool == "ask_cursor_cloud" else tool.removeprefix("ask_")
         return (
-            f"Send to {tool.removeprefix('ask_')}: {_short(a.get('message') or a.get('question'))}",
-            f"Send that to {tool.removeprefix('ask_')}?",
+            f"Send to {label}: {_short(a.get('message') or a.get('question'))}",
+            f"Send that to {label}?",
         )
     if tool == "route_specialist":
         live = not a.get("dry_run", True)

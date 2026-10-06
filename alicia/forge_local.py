@@ -113,6 +113,90 @@ def kick():
                              start_new_session=True, close_fds=True)
 
 
+def probe_local_model(*, timeout_s: float = 5.0) -> None:
+    """Fail closed when loopback Gemma is missing or serving the wrong weights."""
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            raise ValueError('Local inference redirects are forbidden')
+
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+    models_url = 'http://127.0.0.1:8081/v1/models'
+    try:
+        with opener.open(models_url, timeout=timeout_s) as response:
+            data = json.load(response)
+    except Exception as exc:  # noqa: BLE001 — probe must stay fail-closed
+        raise RuntimeError(
+            f'Local Gemma at :8081 is unavailable ({exc}). No hosted/Cursor fallback.'
+        ) from exc
+    ids = [str(row.get('id') or '') for row in (data.get('data') or []) if isinstance(row, dict)]
+    if MODEL not in ids:
+        raise RuntimeError(
+            f'Local server is not serving resident Gemma {MODEL!r}; got {ids!r}. '
+            'No hosted/Cursor fallback.'
+        )
+
+
+def await_run(run_id: str, *, timeout_s: float = 600.0, poll_s: float = 0.5) -> dict:
+    """Poll until a local Forge run reaches a terminal status or times out."""
+    deadline = time.time() + max(1.0, float(timeout_s))
+    last = None
+    while time.time() < deadline:
+        last = get(run_id)
+        if last.get('status') in TERMINAL:
+            return last
+        time.sleep(max(0.1, float(poll_s)))
+    raise TimeoutError(
+        f'Forge run {run_id} still {((last or {}).get("status") or "unknown")} '
+        f'after {timeout_s:.0f}s'
+    )
+
+
+def ask(
+    prompt: str,
+    *,
+    cwd: str | None = None,
+    work_item: str | None = None,
+    timeout_s: float = 600.0,
+) -> dict:
+    """Session → Forge → answer join. Fail closed when Gemma/:8081 is down."""
+    text = (prompt or '').strip()
+    if not text:
+        raise ValueError('prompt is required')
+    probe_local_model()
+    root = Path(cwd).expanduser() if cwd else (STATE / 'workspaces' / 'forge')
+    root.mkdir(parents=True, exist_ok=True)
+    run = enqueue(
+        'forge',
+        text,
+        cwd=str(root.resolve()),
+        work_item=work_item or f'ask-forge:{int(time.time())}',
+    )
+    kick()
+    finished = await_run(run['id'], timeout_s=timeout_s)
+    status = str(finished.get('status') or '')
+    answer_path = STATE / 'runs' / finished['id'] / 'answer.md'
+    answer = answer_path.read_text() if answer_path.is_file() else ''
+    model = str(finished.get('model') or '')
+    if model and model != MODEL:
+        raise RuntimeError(
+            f'Forge run used unexpected model {model!r}; expected {MODEL!r}. Reply rejected.'
+        )
+    ok = status == 'succeeded' and bool(answer.strip())
+    return {
+        'ok': ok,
+        'executor': 'forge',
+        'model': MODEL,
+        'run_id': finished['id'],
+        'status': status,
+        'reply': answer if ok else '',
+        'error': '' if ok else (
+            str(finished.get('reason') or '')
+            or f'Forge run ended with status={status!r} and no answer'
+        ),
+        'surface': 'http://127.0.0.1:8768/#forge',
+    }
+
+
 def event(directory, kind, item=None):
     with (directory / 'events.jsonl').open('a') as f:
         f.write(json.dumps({'type': kind, 'item': item or {}}) + '\n')

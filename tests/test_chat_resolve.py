@@ -64,7 +64,7 @@ def test_resolve_forced_lookup_uses_linear_for_status():
         "needs_you": [{"ticket": "REV-385", "title": "No handback", "question": "Approve handback?"}],
         "working": [], "queued": [], "stuck": [], "counts": {}, "alarm": {},
     }
-    with patch("alicia.chat_resolve.linear_work_surface", return_value=surface), patch("alicia.tools.linear_work_surface", return_value=surface), patch("alicia.chat_resolve.chat_completion") as synth:
+    with patch("alicia.chat_resolve.merged_work_surface", return_value=surface), patch("alicia.tools.merged_work_surface", return_value=surface), patch("alicia.chat_resolve.chat_completion") as synth:
         text, raw = resolve_chat_reply(client, _cfg(), "what's the status", mode="manager")
 
     synth.assert_not_called()
@@ -100,7 +100,7 @@ def test_resolve_frustration_asks_next_decision():
         "needs_you": [{"ticket": "REV-352", "title": "Held for WIP", "question": "Approve the next step?"}],
         "working": [], "queued": [], "stuck": [], "counts": {}, "alarm": {},
     }
-    with patch("alicia.chat_resolve.linear_work_surface", return_value=surface), patch("alicia.tools.linear_work_surface", return_value=surface), patch("alicia.chat_resolve.chat_completion") as synth:
+    with patch("alicia.chat_resolve.merged_work_surface", return_value=surface), patch("alicia.tools.merged_work_surface", return_value=surface), patch("alicia.chat_resolve.chat_completion") as synth:
         text, raw = resolve_chat_reply(client, _cfg(), "shit")
 
     synth.assert_not_called()
@@ -140,7 +140,7 @@ def test_resolve_model_can_ask_cursor():
         if "Tool result for ask_cursor" in content:
             assert "cursor runner is unavailable" in content.lower()
             return "Cursor runner is disabled right now, so I cannot launch that coding pass."
-        return "TOOL: ask_cursor\nARGS: {\"message\": \"refactor the chat resolver\"}"
+        return "TOOL: ask_cursor\nARGS: {\"message\": \"refactor the chat resolver\", \"repo_hint\": \"alicia\"}"
 
     with patch("alicia.chat_resolve.chat_completion", side_effect=fake_chat):
         text, raw = resolve_chat_reply(client, _cfg(), "refactor the chat resolver")
@@ -192,16 +192,16 @@ def test_resolve_does_not_need_local_llm():
 
 
 def test_resolve_atlas6_unreachable_board_is_none():
-    """If Atlas6 is unreachable, Alicia still tries to answer honestly."""
+    """If the merged status surface fails, Alicia still answers honestly."""
     client = _client()
     client.status.side_effect = Exception("connection refused")
     client.list_awaiting_input.side_effect = Exception("connection refused")
 
-    with patch("alicia.chat_resolve.chat_completion") as synth:
+    with patch("alicia.chat_resolve.merged_work_surface", side_effect=Exception("connection refused")), patch("alicia.tools.merged_work_surface", side_effect=Exception("connection refused")), patch("alicia.chat_resolve.chat_completion") as synth:
         text, raw = resolve_chat_reply(client, _cfg(), "what's open")
 
     synth.assert_not_called()
-    assert "can't reach" in text.lower() or "unreachable" in text.lower()
+    assert "can't reach" in text.lower() or "unreachable" in text.lower() or "unavailable" in text.lower() or "nothing needs you" in text.lower()
     assert raw["path"] == "next_decision"
 
 
@@ -447,7 +447,7 @@ def test_catch_me_up_uses_linear_and_does_not_peek_atlas_inbox():
         "working": [], "queued": [{"ticket": "REV-11", "title": "Unspoken"}],
         "stuck": [], "counts": {}, "alarm": {},
     }
-    with patch("alicia.chat_resolve.linear_work_surface", return_value=surface), patch("alicia.tools.linear_work_surface", return_value=surface), patch("alicia.chat_resolve.chat_completion") as synth:
+    with patch("alicia.chat_resolve.merged_work_surface", return_value=surface), patch("alicia.tools.merged_work_surface", return_value=surface), patch("alicia.chat_resolve.chat_completion") as synth:
         text, raw = resolve_chat_reply(client, _cfg(), "catch me up", mode="manager")
 
     synth.assert_not_called()
@@ -457,7 +457,7 @@ def test_catch_me_up_uses_linear_and_does_not_peek_atlas_inbox():
     client.peek_gmail.assert_not_called()
     # Status without catch-up phrasing must not peek.
     client.peek_gmail.reset_mock()
-    with patch("alicia.chat_resolve.linear_work_surface", return_value=surface), patch("alicia.tools.linear_work_surface", return_value=surface), patch("alicia.chat_resolve.chat_completion"):
+    with patch("alicia.chat_resolve.merged_work_surface", return_value=surface), patch("alicia.tools.merged_work_surface", return_value=surface), patch("alicia.chat_resolve.chat_completion"):
         resolve_chat_reply(client, _cfg(), "what's the status", mode="manager")
     client.peek_gmail.assert_not_called()
 

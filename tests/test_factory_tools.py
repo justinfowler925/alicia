@@ -60,7 +60,7 @@ def test_work_surface_includes_alarm_and_hides_probes():
     }
     client.list_awaiting_input.return_value = []
     surface = {"needs_you": [{"ticket": "REV-1"}], "working": [], "queued": [], "stuck": [], "counts": {}, "alarm": {}}
-    with patch("alicia.tools.linear_work_surface", return_value=surface):
+    with patch("alicia.tools.merged_work_surface", return_value=surface):
         out = _work_surface(client)
     assert out["atlas_ignored"] is True
     client.status.assert_not_called()
@@ -78,11 +78,20 @@ def test_get_digest_uses_board():
     }
     client.list_awaiting_input.return_value = []
     client.digest.return_value = {"digest_markdown": "# WIP\n" + ("x" * 2000)}
-    surface = {"headline": "1 in review", "needs_you": [], "working": [], "queued": [], "stuck": [], "counts": {}, "alarm": {}}
-    with patch("alicia.tools.linear_work_surface", return_value=surface):
+    surface = {
+        "headline": "1 in review",
+        "needs_you": [],
+        "working": [],
+        "queued": [],
+        "stuck": [],
+        "counts": {},
+        "alarm": {},
+        "source": "linear+canon",
+    }
+    with patch("alicia.tools.merged_work_surface", return_value=surface):
         out = _get_digest(client)
     assert out["ok"] is True
-    assert out["source"] == "linear_direct"
+    assert "linear" in out["source"] or out["source"] == "linear+canon"
     client.digest.assert_not_called()
 
 

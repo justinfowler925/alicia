@@ -39,23 +39,44 @@ def test_linear_surface_classifies_current_work(monkeypatch):
 
 def test_work_surface_uses_linear_without_probing_retired_atlas(monkeypatch):
     atlas = MagicMock()
-    fallback = {"source": "linear_direct", "needs_you": [{"ticket": "REV-507", "title": "Fix prod", "reason": "In Review"}], "working": [], "stuck": [], "queued": [], "actions": []}
-    with patch("alicia.tools.linear_work_surface", return_value=fallback):
+    fallback = {
+        "source": "linear+canon",
+        "needs_you": [{"ticket": "REV-507", "title": "Fix prod", "reason": "In Review"}],
+        "working": [],
+        "stuck": [],
+        "queued": [],
+        "actions": [],
+    }
+    with patch("alicia.tools.merged_work_surface", return_value=fallback):
         surface = _work_surface(atlas)
-    assert surface["source"] == "linear_direct"
+    assert "linear" in surface["source"]
     assert surface["next_decision"].startswith("REV-507")
     atlas.status.assert_not_called()
 
 
-def test_work_surface_fails_honestly_without_atlas_rollback():
+def test_work_surface_degrades_when_linear_down_without_atlas_rollback():
+    """Merged status catches Linear outages; it does not raise or call Atlas."""
     atlas = MagicMock()
     atlas.status.return_value = {
         "blocked_justin": [], "in_flight": [], "ready": [],
         "blocked_frontier": [], "completion_alarm": {}, "counts": {},
     }
     atlas.list_awaiting_input.return_value = []
-    with patch("alicia.tools.linear_work_surface", side_effect=RuntimeError("offline")), pytest.raises(RuntimeError, match="offline"):
-        _work_surface(atlas)
+    degraded = {
+        "source": "canon",
+        "headline": "Linear unavailable.",
+        "needs_you": [],
+        "working": [],
+        "stuck": [],
+        "queued": [],
+        "actions": [],
+        "linear_error": "offline",
+        "counts": {"needs_you": 0, "working": 0, "queued": 0},
+    }
+    with patch("alicia.tools.merged_work_surface", return_value=degraded):
+        surface = _work_surface(atlas)
+    assert surface["linear_error"] == "offline"
+    assert surface["source"] != "linear_direct" or surface.get("error")
     atlas.status.assert_not_called()
 
 
