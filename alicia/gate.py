@@ -53,6 +53,7 @@ GATED = frozenset(
         "delete_note",
         "ask_atlas6",
         "ask_claude",
+        "ask_openai",
         "ask_cursor",
         "ask_cursor_cloud",
         "ask_frontier",
@@ -60,6 +61,9 @@ GATED = frozenset(
         "organize_agent_thread",
         "organize_project",
         "route_specialist",
+        "assign_platform",
+        "intake_manager_work",
+        "backfill_canon_projects",
         # ask_forge is intentionally NOT gated: Q&A join to local Gemma.
     }
 )
@@ -70,7 +74,7 @@ GATED = frozenset(
 # "do not commit or push" instruction is prose to something that can run git,
 # and "prescribe, don't prohibit" says that is how you get the banned action.
 # ask_cursor_cloud is also voice-forbidden (cost + shell-equivalent cloud agent).
-VOICE_FORBIDDEN = frozenset({"ask_cursor", "ask_cursor_cloud"})
+VOICE_FORBIDDEN = frozenset({"ask_cursor", "ask_cursor_cloud", "ask_openai"})
 
 
 @dataclass(frozen=True)

@@ -20,7 +20,7 @@ def test_seed_canon_projects_idempotent(tmp_path):
 def test_merged_surface_includes_canon_and_can_include_forge(tmp_path, monkeypatch):
     store_path = tmp_path / "canon.sqlite"
     monkeypatch.setattr(
-        "alicia.manager_status.canon_db_path", lambda: store_path
+        "alicia.canon_binding.canon_db_path", lambda: store_path
     )
     monkeypatch.setattr(
         "alicia.manager_status.linear_work_surface",
@@ -61,4 +61,5 @@ def test_merged_surface_includes_canon_and_can_include_forge(tmp_path, monkeypat
     assert "canon" in body["source"]
     assert body["counts"]["forge_open"] == 1
     assert body["counts"]["canon_projects"] >= len(SEED_PROJECTS)
+    assert body["counts"]["canon_bound_work_items"] >= 0
     assert any(r.get("source") == "forge" for r in body["working"])

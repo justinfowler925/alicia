@@ -56,6 +56,9 @@ def choose_specialist(task: str, specialist: str | None = None) -> tuple[str, st
 
 
 def org_chart() -> dict[str, Any]:
+    from .platform_registry import registry_snapshot
+
+    snap = registry_snapshot()
     return {
         "manager": "alicia",
         "formerly": "brutus",
@@ -66,7 +69,11 @@ def org_chart() -> dict[str, Any]:
             "scout": "Data scraping and organization",
             "hollywood": "Media studio",
         },
-        "rule": "Alicia manages; specialists execute; one studio-agent at a time",
+        "platforms": snap["platforms"],
+        "rule": (
+            "Alicia manages; platform executors run work; hosted lanes are "
+            "Justin opt-in only; never attribute non-Forge output as Gemma"
+        ),
     }
 
 

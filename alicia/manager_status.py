@@ -12,82 +12,14 @@ from pathlib import Path
 from typing import Any
 
 from .agent_sessions import scan_agent_sessions
-from .canon import CanonStore, Project
+from .canon_binding import SEED_PROJECTS, seed_canon_projects
 from .linear_surface import linear_work_surface
-from .paths import canon_db_path
 
-# Personal streams Justin cares about for the MVP status rollup.
-SEED_PROJECTS: tuple[dict[str, str], ...] = (
-    {
-        "id": "proj-alicia",
-        "name": "Alicia",
-        "objective": "Manager control plane + Forge/Cursor orchestration",
-        "owner": "justin",
-    },
-    {
-        "id": "proj-atlas",
-        "name": "Atlas",
-        "objective": "Salesforce / RevOps specialist (personal atlas-direct)",
-        "owner": "justin",
-    },
-    {
-        "id": "proj-forge",
-        "name": "Forge",
-        "objective": "Local Gemma general worker on Alicia #forge",
-        "owner": "justin",
-    },
-    {
-        "id": "proj-localai",
-        "name": "LocalAI",
-        "objective": "Studio local inference + routing (local-ai-stack)",
-        "owner": "justin",
-    },
-    {
-        "id": "proj-brain",
-        "name": "Fowler Brain",
-        "objective": "Durable policy and learned context",
-        "owner": "justin",
-    },
-    {
-        "id": "proj-scout",
-        "name": "Scout",
-        "objective": "Data scrape / ingest specialist",
-        "owner": "justin",
-    },
-    {
-        "id": "proj-shine",
-        "name": "Shine",
-        "objective": "Design system and UI craft",
-        "owner": "justin",
-    },
-)
+# Re-export for callers/tests that imported from manager_status.
+__all__ = ["SEED_PROJECTS", "seed_canon_projects", "merged_work_surface"]
 
 _FORGE_DB = Path.home() / ".local/share/studio-agents/forge-local.sqlite3"
 _OPEN_FORGE = frozenset({"queued", "running"})
-
-
-def seed_canon_projects(store: CanonStore | None = None) -> dict[str, Any]:
-    """Ensure MVP personal Project rows exist. Idempotent by fixed ids."""
-    own = store is None
-    store = store or CanonStore(canon_db_path())
-    created = 0
-    existing = {p.id for p in store.list(Project)}
-    for row in SEED_PROJECTS:
-        if row["id"] in existing:
-            continue
-        store.save(
-            Project(
-                id=row["id"],
-                name=row["name"],
-                objective=row["objective"],
-                owner=row["owner"],
-            )
-        )
-        created += 1
-    projects = [p.model_dump(mode="json") for p in store.list(Project)]
-    if own:
-        store.close()
-    return {"ok": True, "created": created, "projects": projects, "count": len(projects)}
 
 
 def _forge_open_runs(limit: int = 12) -> list[dict[str, Any]]:
@@ -161,29 +93,12 @@ def _cursor_live_rows(limit: int = 8) -> list[dict[str, Any]]:
 
 
 def _canon_project_rows(store: CanonStore | None = None) -> list[dict[str, Any]]:
-    own = store is None
+    from .canon_binding import project_rollups
+
     try:
-        store = store or CanonStore(canon_db_path())
-        seed_canon_projects(store)
-        projects = list(store.list(Project))
+        return project_rollups(store)
     except Exception:  # noqa: BLE001
         return []
-    finally:
-        if own and store is not None:
-            try:
-                store.close()
-            except Exception:  # noqa: BLE001
-                pass
-    return [
-        {
-            "id": p.id,
-            "name": p.name,
-            "objective": p.objective,
-            "status": getattr(p.status, "value", str(p.status)),
-            "work_item_ids": list(p.work_item_ids or []),
-        }
-        for p in projects
-    ]
 
 
 def merged_work_surface(*, timeout_s: float = 8.0) -> dict[str, Any]:
@@ -213,6 +128,8 @@ def merged_work_surface(*, timeout_s: float = 8.0) -> dict[str, Any]:
     forge_rows = _forge_open_runs()
     cursor_rows = _cursor_live_rows()
     projects = _canon_project_rows()
+    bound = sum(int(p.get("work_item_count") or 0) for p in projects)
+    non_empty = [p for p in projects if int(p.get("work_item_count") or 0) > 0]
 
     working = list(base.get("working") or [])
     working.extend(forge_rows)
@@ -232,7 +149,8 @@ def merged_work_surface(*, timeout_s: float = 8.0) -> dict[str, Any]:
     headline = (
         f"{len(needs)} need you, {len(working)} working "
         f"({len(forge_rows)} Forge, {len(cursor_rows)} Cursor), "
-        f"{len(projects)} Canon projects."
+        f"{len(projects)} Canon projects ({bound} bound work items, "
+        f"{len(non_empty)} with rollups)."
     )
 
     return {
@@ -246,6 +164,8 @@ def merged_work_surface(*, timeout_s: float = 8.0) -> dict[str, Any]:
             "forge_open": len(forge_rows),
             "cursor_live": len(cursor_rows),
             "canon_projects": len(projects),
+            "canon_bound_work_items": bound,
+            "canon_projects_with_work": len(non_empty),
         },
         "source": source,
         "lanes": {
