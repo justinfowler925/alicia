@@ -20,7 +20,7 @@ import httpx
 SITES: list[dict[str, str]] = [
     # --- chatbots & demos -------------------------------------------------
     {
-        "name": "Voicemaker Studio",
+        "name": "Demo Maker",
         "url": "https://justins-mac-studio-1.tailbaa084.ts.net:8790/",
         "what": "TTS demo maker — publishes into the demo library",
         "category": "chatbot",

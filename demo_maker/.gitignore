@@ -1,0 +1,9 @@
+.env
+server/db/studio.sqlite3
+server/db/studio.sqlite3-wal
+server/db/studio.sqlite3-shm
+renders/
+tmp/
+logs/
+.DS_Store
+node_modules

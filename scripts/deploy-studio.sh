@@ -26,3 +26,8 @@ else:
     raise RuntimeError('Studio service could not be registered after the previous service stopped')
 PY
 ssh "$host" /opt/homebrew/bin/tailscale serve --bg --https=8768 http://127.0.0.1:8768
+# Demo Maker (the Alicia #demo-maker tab). Code ships in this repo; state lives
+# in ~/.alicia/state/demo-maker (moved there once by scripts/demo-maker-cutover.sh).
+ssh "$host" 'cd ~/.alicia/app/demo_maker && /opt/homebrew/bin/npm ci --omit=dev --silent'
+ssh "$host" 'python3 ~/.alicia/app/scripts/demo-maker-service.py'
+ssh "$host" /opt/homebrew/bin/tailscale serve --bg --https=8790 http://127.0.0.1:4173

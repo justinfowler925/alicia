@@ -1,0 +1,27 @@
+{
+  "slug": "affinity-insurance",
+  "org": "Affinity Insurance",
+  "region": "United States",
+  "irn": "00034",
+  "summary": "G",
+  "audioSrc": "/demo/audio/affinity-insurance.mp3",
+  "questions": [
+    {
+      "text": "Was the property occupied at the time of loss?",
+      "answer": "Yes.",
+      "result": "G"
+    }
+  ],
+  "timeline": {
+    "intro": 0,
+    "cues": [
+      {
+        "ask": 0,
+        "answer": 3.088,
+        "answerEnd": 3.88,
+        "result": 3.88
+      }
+    ],
+    "end": 3.88
+  }
+}

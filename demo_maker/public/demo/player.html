@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Clearspeed demo</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Jura:wght@500;600;700&family=Roboto:wght@400;500;700&display=swap');
+@font-face{font-family:'Cal Sans';src:url('https://cdn.jsdelivr.net/fontsource/fonts/cal-sans@latest/latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap;}
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--navy:#112578;--navy-deep:#0a1648;--orange:#ed5925;--line:#e7e9f1;--focus:#e6ecfb;
+  --signal1:#2bb8e8;--signal2:#5f8be0;--head:'Cal Sans','Roboto',sans-serif;--display:'Jura',sans-serif;--body:'Roboto',Arial,sans-serif;}
+html,body{background:#0a1648;font-family:var(--body);color:#1c2430;overflow:hidden;}
+@keyframes cs-pop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+
+#stageWrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0a1648;}
+#stage{position:absolute;top:50%;left:50%;transform-origin:center;width:1920px;height:1080px;background:#0a1648;}
+
+.cs-header{height:88px;background:#0a1648;display:flex;align-items:center;gap:22px;padding:0 40px;}
+.cs-header img{height:34px;}
+.cs-header .org{color:#8e97c2;font-family:var(--display);letter-spacing:2px;font-size:15px;text-transform:uppercase;}
+
+.cs-body{display:flex;gap:10px;padding:10px;height:992px;background:#0a1648;}
+.cs-col-left{width:940px;display:flex;flex-direction:column;gap:10px;}
+.cs-col-right{flex:1;min-width:0;}
+.cs-panel{background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.18);}
+.cs-questions{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;}
+.cs-results{height:100%;display:flex;flex-direction:column;}
+
+.cs-app-bar{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--line);}
+.cs-crumb{font-size:19px;font-family:var(--head);} .cs-crumb b{color:#0a1648;font-weight:400;} .cs-crumb .chev{color:#9aa2b4;margin:0 6px;} .cs-crumb .blue{color:#2f6fed;}
+.cs-region{font-size:14px;color:#5b6472;border:1px solid var(--line);border-radius:8px;padding:8px 12px;white-space:nowrap;}
+
+.cs-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 22px;gap:16px;}
+.cs-search{border:1px solid var(--line);border-radius:8px;padding:9px 14px;color:#9aa2b4;font-size:14px;min-width:210px;}
+.cs-q-tools{display:flex;align-items:center;gap:20px;font-size:14px;color:#5b6472;}
+.cs-toggle{display:inline-block;width:34px;height:18px;border-radius:10px;background:#cbd2de;vertical-align:middle;position:relative;}
+.cs-toggle.on{background:#2f6fed;} .cs-toggle::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;} .cs-toggle.on::after{left:18px;}
+.cs-new{background:#3a2a86;color:#fff;padding:9px 16px;border-radius:8px;font-weight:500;font-size:14px;}
+
+table{width:100%;border-collapse:collapse;}
+/* text-align:start, not left: identical in LTR, mirrored for an RTL locale. */
+th{background:#f7f8fa;color:#6b7280;font-size:12.5px;font-weight:500;letter-spacing:.03em;text-align:start;padding:11px 10px;border-bottom:1px solid var(--line);}
+/* The question list scrolls (programmatically only) so any question count fits;
+   the header stays put. overflow:hidden hides the scrollbar but still permits
+   setting scrollTop, which is what keeps rendered frames deterministic. */
+.cs-q-scroll{flex:1 1 auto;min-height:0;overflow:hidden;}
+.cs-q-table thead th{position:sticky;top:0;z-index:2;}
+.cs-q-table td{padding:10px;border-bottom:1px solid var(--line);font-size:15px;vertical-align:middle;transition:background .3s ease,box-shadow .3s ease;}
+.cs-q-table tr.active td{background:var(--navy);color:#fff;}
+.cs-q-table tr.active td:first-child{box-shadow:inset 5px 0 0 var(--orange);}
+.cs-q-table tr.active .q-text{color:#fff;font-weight:500;} .cs-q-table tr.active .q-no{color:#fff;font-weight:700;}
+.cs-q-table tr.active .play-mini{color:#bcd3ff;} .cs-q-table tr.active .kebab{color:#8ea0d6;}
+.q-no{color:#6b7280;width:44px;padding-inline-start:22px;} .q-text{max-width:520px;line-height:1.32;}
+.no-answer{color:#b9bfd0;} .cs-q-table tr.active .no-answer{color:#7f8ab8;}
+.pertinent{background:#2f6fed;color:#fff;font-size:13px;padding:5px 15px;border-radius:16px;white-space:nowrap;}
+.neutral{background:#eef0f5;color:#6b7280;font-size:13px;padding:5px 15px;border-radius:16px;white-space:nowrap;}
+.cs-q-table tr.active .neutral{background:#43508f;color:#e3e8f7;}
+.play-mini{color:#2f6fed;} .kebab{color:#9aa2b4;font-size:20px;width:30px;}
+.cs-q-foot{padding:11px 22px;text-align:end;color:#6b7280;font-size:13px;border-top:1px solid var(--line);} .page{background:#2f6fed;color:#fff;border-radius:50%;padding:2px 8px;}
+
+.cs-results-tools{display:flex;align-items:center;gap:18px;font-size:14px;color:#5b6472;} .testmode{color:#2f6fed;}
+.cs-r-btns{display:flex;align-items:center;gap:10px;font-size:14px;} .obtn{border:1px solid #cfd4dd;border-radius:8px;padding:9px 14px;white-space:nowrap;}
+.cs-r-table td{padding:11px 10px;border-bottom:1px solid #eef0f3;font-size:14.5px;}
+.cs-r-table .mask{letter-spacing:2px;color:#6b7280;} .qc{text-align:center;width:64px;} .chk{width:40px;padding-inline-start:18px;}
+.cbox{display:inline-block;width:18px;height:18px;border:2px solid #9aa2b4;border-radius:3px;vertical-align:middle;}
+.cs-r-table{border-collapse:separate;border-spacing:0;}
+.cs-r-table tr.subject{box-shadow:0 8px 20px -6px rgba(17,37,120,.4);}
+.cs-r-table tr.subject td{background:var(--focus);border-top:2px solid var(--navy);border-bottom:2px solid var(--navy);}
+.cs-r-table tr.subject td:first-child{box-shadow:inset 5px 0 0 var(--orange);border-left:1px solid var(--navy);}
+.cs-r-table tr.subject td:last-child{border-right:1px solid var(--navy);}
+.cs-r-table tr.subject td:nth-child(2){font-weight:700;color:#0a1648;}
+.badge{display:inline-block;min-width:34px;padding:5px 10px;border-radius:7px;font-size:13px;font-weight:700;text-align:center;}
+.badge.pop{animation:cs-pop .45s cubic-bezier(.2,1.3,.5,1) both;}
+
+/* Workflow panel — compact, so the question list gets the room it needs */
+.cs-workflow{flex:0 0 292px;padding:13px 22px;display:flex;flex-direction:column;color:#112578;}
+.wf-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.wf-title{font-family:var(--display);font-weight:600;letter-spacing:.08em;font-size:15px;}
+.wf-sub{font-family:var(--display);font-size:11px;letter-spacing:.06em;color:#8e97c2;margin-left:10px;}
+.wf-pill{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;padding:5px 13px;border-radius:20px;white-space:nowrap;}
+.wf-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
+.wf-signal{display:flex;align-items:center;gap:13px;background:#0a1648;border-radius:8px;padding:11px 14px;margin-bottom:13px;flex:1 1 auto;min-height:0;}
+.wf-siglabel{font-family:var(--display);font-size:11px;letter-spacing:.09em;color:#5f8be0;white-space:nowrap;align-self:flex-start;padding-top:3px;}
+.wf-canvas{flex:1;height:74px;display:block;min-width:0;} .wf-dur{font-family:var(--display);font-size:12px;color:#3a4a80;align-self:flex-start;padding-top:3px;}
+.wf-pipe{display:flex;align-items:center;justify-content:center;margin-bottom:11px;}
+.wf-node{display:flex;align-items:center;}
+.wf-line{width:72px;height:2px;border-radius:2px;margin-top:1px;background:#e7e9f1;}
+.wf-circle{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid #cfd5e6;background:#eceef5;color:#9aa2be;margin:0 7px;transition:all .25s;}
+.wf-circle.done{background:#112578;border:2px solid #112578;color:#fff;} .wf-circle.run{background:#112578;border:3px solid #ed5925;color:#fff;transform:scale(1.16);box-shadow:0 0 0 4px rgba(237,89,37,.18);}
+.wf-circle.skip{background:#f3f4f8;border:2px dashed #cfd5e6;color:#b9bfd0;}
+.wf-label{font-family:var(--display);font-size:12px;color:#6b7280;margin-right:6px;}
+.wf-foot{display:flex;align-items:center;gap:12px;border-top:1px solid #e7e9f1;padding-top:11px;margin-top:auto;}
+.wf-feed{font-family:var(--display);font-size:13px;color:#8e97c2;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wf-result{font-family:var(--display);font-size:14px;font-weight:600;letter-spacing:.05em;padding:6px 16px;border-radius:6px;white-space:nowrap;}
+
+#overlay{position:absolute;inset:0;background:rgba(10,22,72,.55);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;cursor:pointer;color:#fff;border:none;}
+#overlay .pbtn{width:96px;height:96px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;padding-left:6px;}
+#overlay .plabel{font-family:var(--display);letter-spacing:2px;text-transform:uppercase;font-size:18px;}
+body.render #overlay{display:none;}
+/* Deterministic frames: no wall-clock transitions/animations while rendering */
+body.render *{transition:none !important;animation:none !important;}
+
+/* Mixed-direction runs inside an RTL paragraph: "18-Feb-2026" reorders to
+   "Feb-2026-18", and a trailing "…" jumps to the wrong end. Paired with
+   dir="auto" so each run takes its own direction from its first strong
+   character — a Latin date stays LTR, a translated "SUM…" stays RTL. No-op in LTR. */
+.bidi{unicode-bidi:isolate;}
+
+/* RTL locales (Arabic and friends). The stage carries dir="rtl", so the panels,
+   table columns and workflow pipeline mirror on their own; these are the few
+   physical offsets and edge markers that CSS logical properties don't cover. */
+[dir=rtl] .cs-q-table tr.active td:first-child{box-shadow:inset -5px 0 0 var(--orange);}
+[dir=rtl] .cs-r-table tr.subject td:first-child{box-shadow:inset -5px 0 0 var(--orange);border-left:none;border-right:1px solid var(--navy);}
+[dir=rtl] .cs-r-table tr.subject td:last-child{border-right:none;border-left:1px solid var(--navy);}
+[dir=rtl] .wf-sub{margin-left:0;margin-right:10px;}
+[dir=rtl] .wf-label{margin-right:0;margin-left:6px;}
+[dir=rtl] #overlay .pbtn{padding-left:0;padding-right:6px;}
+</style>
+</head>
+<body>
+<div id="stageWrap"><div id="stage"></div></div>
+<audio id="audio" preload="auto"></audio>
+<script>
+const CELL={G:['#eaf8ef','#25a957'],R:['#fff0f0','#ef233c'],DC:['#f0f1f3','#5f6670'],'-':['#f5f6f8','#a2a8b2']};
+const SOLID={G:['#25a957','#fff'],R:['#ef233c','#fff'],DC:['#5f6670','#fff'],'-':['#eef0f3','#a2a8b2']};
+const NAVY='#112578',SIG1='#2bb8e8',SIG2='#5f8be0';
+const GRES='#25a957',RRES='#ef233c',GBG='#eaf8ef',RBG='#fff0f0'; // match the results-table G/R badges
+const FILLER=[
+  ['00035','17-Feb-2026','Incomplete',['-','-','-','-'],'DC'],
+  ['00036','17-Feb-2026','Completed',['G','G','G','G'],'G'],
+  ['00037','17-Feb-2026','Completed',['G','G','G','G'],'G'],
+  ['00038','16-Feb-2026','Completed',['G','G','G','G'],'G'],
+  ['00039','16-Feb-2026','Completed',['G','G','G','G'],'G'],
+  ['00040','16-Feb-2026','Completed',['G','G','G','G'],'G'],
+  ['00041','16-Feb-2026','Completed',['G','G','R','G'],'R'],
+  ['00042','15-Feb-2026','Created',['-','-','-','-'],'DC'],
+  ['00043','15-Feb-2026','Completed',['G','G','R','G'],'R'],
+  ['00044','15-Feb-2026','Completed',['G','G','G','G'],'G'],
+];
+// The player's own language. A config's `ui` block (server/lib/uiLocale.js)
+// overrides any of these; a config without one renders exactly as it always did,
+// which is what keeps every published English demo reproducible.
+const DEFAULT_UI={
+  code:'en-US',dir:'ltr',langLabel:'English',langFlag:'🇺🇸',regionFlag:'🇺🇸',
+  t:{
+    crumbQuestions:'Questions',region:'Region',searchQuestion:'Search by Question',
+    showOnlyPertinent:'Show Only Pertinent',newBtn:'New',
+    thNo:'NO',thQuestion:'QUESTION',thType:'TYPE',thAnswer:'ANSWER',thAudio:'AUDIO',
+    pertinent:'Pertinent',neutral:'Neutral',rowsPerPage:'Rows per page',ofCount:'of',
+    crumbParticipants:'Participants',testMode:'Test Mode',searchIrn:'Search by IRN',
+    filter:'Filter',download:'Download',action:'Action',
+    thIrn:'IRN',thName:'NAME',thCreatedOn:'CREATED ON',thStatus:'STATUS',thUpdatedOn:'UPDATED ON',thSummary:'SUM…',
+    statusInProgress:'In Progress',statusCompleted:'Completed',statusIncomplete:'Incomplete',statusCreated:'Created',
+    wfTitle:'VOICE SIGNAL ANALYSIS',wfCaptured:'CAPTURED RESPONSE',
+    stepRecord:'Record',stepAnalyze:'Analyze',stepScore:'Score',
+    stIdle:'Idle',stRecording:'Recording',stAnalyzing:'Analyzing',stScoring:'Scoring',
+    stCaptured:'Captured',stHighRisk:'High risk',stClear:'Clear',
+    stIteration:'Iteration {n}',stNotScored:'Not scored',
+    resPending:'PENDING',resAnalyzing:'ANALYZING',resScoring:'SCORING',resClear:'CLEAR',
+    resHighRisk:'HIGH RISK',resIteration:'ITERATION {n}',resNotScored:'NOT SCORED',
+    feedAwaiting:'awaiting participant',feedRecording:'recording response…',
+    feedCaptured:'response captured',feedNotScoredIter:'iteration {n} — not scored',
+    feedNotScored:'not scored',feedTranscript:'transcript:',
+    feedAnalyzing:'analyzing voice signal',feedScoring:'computing risk score',
+    feedElevated:'signal elevated — flagged for review',feedExpected:'signal within expected range',
+    subIteration:'ITERATION {n}',subNeutral:'NEUTRAL',subPertinent:'PERTINENT',subScored:'SCORED',
+    playDemo:'Play {org} demo',
+  },
+};
+let UI=DEFAULT_UI;
+/** A chrome string, with {n}/{org} filled in. Falls back to English per key. */
+function T(k,vals){
+  let s=(UI.t&&typeof UI.t[k]==='string'&&UI.t[k])||DEFAULT_UI.t[k]||'';
+  if(vals)for(const p in vals)s=s.split('{'+p+'}').join(vals[p]);
+  return s;
+}
+const STATUS_KEY={'Incomplete':'statusIncomplete','Completed':'statusCompleted','Created':'statusCreated','In Progress':'statusInProgress'};
+const statusText=(s)=>STATUS_KEY[s]?T(STATUS_KEY[s]):s;
+
+const params=new URLSearchParams(location.search);
+const RENDER=params.has('render');
+const PLAY_ICON='<svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+const PLAY_MINI='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+
+let DEMO=null, wfCanvas=null;
+// Question-list geometry, measured once after build so the scroll position is a
+// pure function of which row is active (and so identical across render workers).
+let ROWBOT=[], SCROLLH=0, SCROLLMAX=0;
+
+function badge(v,solid,pop){const m=solid?SOLID:CELL;const[bg,fg]=m[v]||m.G;return `<span class="badge${pop?' pop':''}" style="background:${bg};color:${fg}">${v}</span>`;}
+
+/**
+ * Normalize a demo config to the current shape.
+ *
+ * Configs written before the production format existed have one cue per
+ * question and no columns — every question was its own row and every question
+ * scored. Filling in `qi`/`col`/`post` from the cue's own index reproduces that
+ * exactly, so old demos keep playing untouched.
+ */
+function normalize(d){
+  const cues=d.timeline.cues||[];
+  if(!d.format) d.format='sales';
+  // Locale: English chrome unless the config says otherwise, key by key, so a
+  // partial or older `ui` block can never blank a label.
+  const ui=d.ui||{};
+  d.ui={...DEFAULT_UI,...ui,t:{...DEFAULT_UI.t,...(ui.t||{})}};
+  if(!d.columns){
+    d.columns=d.questions.map((q,i)=>({qi:i,label:'Q'+(i+1),result:q.result==='R'?'R':'G'}));
+  }
+  d.questions.forEach(q=>{ if(!q.type) q.type='PQ'; });
+  cues.forEach((c,i)=>{
+    if(c.qi==null) c.qi=i;
+    if(c.col===undefined) c.col=i<d.columns.length?i:null;
+    if(c.post==null) c.post=c.result!=null?c.result:(c.answerEnd!=null?c.answerEnd:c.ask);
+    // The oldest configs (hmpps) carry only {ask, result}. This reproduces the
+    // pre-production fallback exactly, so their recording phase still spans the
+    // question read instead of collapsing to zero length.
+    if(c.answerEnd==null) c.answerEnd=c.answer!=null?c.answer+0.6:Math.max(c.ask,c.post-2);
+    if(c.answer==null) c.answer=c.answerEnd;
+    // The transcript shown while a response is analyzed belongs to this ask.
+    if(c.answerText==null) c.answerText=(d.questions[c.qi]||{}).answer||'';
+  });
+  return d;
+}
+
+function buildStage(){
+  UI=DEMO.ui||DEFAULT_UI;
+  const q=DEMO.questions;
+  const cols=DEMO.columns;
+  const N=cols.length;
+  const pad=(arr)=>Array.from({length:N},(_,i)=>arr[i]!==undefined?arr[i]:arr[arr.length-1]);
+  const rows=FILLER.map(r=>`<tr><td class="chk"><span class="cbox"></span></td><td>${r[0]}</td><td class="mask">***** *****</td><td><span class="bidi" dir="auto">${r[1]}</span></td><td>${statusText(r[2])}</td><td><span class="bidi" dir="auto">17-Feb-2026</span></td>${pad(r[3]).map(v=>`<td class="qc">${badge(v)}</td>`).join('')}<td>${badge(r[4],true)}</td></tr>`).join('');
+  const qHeaders=cols.map(c=>`<th class="qc">${c.label}</th>`).join('');
+  const subjCells=cols.map((c,i)=>`<td class="qc" id="sq${i}"></td>`).join('');
+  const typePill=(t)=>t==='NQ'?`<span class="neutral">${T('neutral')}</span>`:`<span class="pertinent">${T('pertinent')}</span>`;
+  // Only pertinent questions carry an answer on screen. A neutral question is
+  // never scored, so surfacing its answer would imply it was assessed — and it
+  // also gives away the baseline script. Sales demos are all pertinent, so every
+  // row still shows its answer exactly as before.
+  const answerCell=(qq)=>qq.type==='NQ'?'<span class="no-answer">—</span>':qq.answer;
+  const prod=DEMO.format==='production';
+  // The interface speaks the participant's language, and the language selector
+  // shows that language's flag — an Arabic demo under "🇺🇸 English" gives itself away.
+  const stage=document.getElementById('stage');
+  stage.setAttribute('dir',UI.dir==='rtl'?'rtl':'ltr');
+  stage.setAttribute('lang',UI.code);
+  document.documentElement.setAttribute('lang',UI.code);
+  stage.innerHTML=`
+    <div class="cs-header"><img src="/demo/clearspeed-logo-white.svg" alt="Clearspeed"/><div class="org">${DEMO.org}</div></div>
+    <div class="cs-body">
+      <div class="cs-col-left">
+        <section class="cs-panel cs-questions">
+          <div class="cs-app-bar"><div class="cs-crumb"><b>${DEMO.org}</b><span class="chev">›</span><span class="blue">${T('crumbQuestions')}</span></div><div class="cs-region">${T('region')} ${UI.regionFlag} ${DEMO.region} ▾</div></div>
+          <div class="cs-toolbar"><div class="cs-search">${T('searchQuestion')} ⌕</div><div class="cs-q-tools"><span>${T('showOnlyPertinent')} <span class="cs-toggle"></span></span><span>${UI.langFlag} ${UI.langLabel} ▾</span><span class="cs-new">+ ${T('newBtn')}</span></div></div>
+          <div class="cs-q-scroll" id="qScroll">
+            <table class="cs-q-table"><thead><tr><th>${T('thNo')}</th><th>${T('thQuestion')}</th><th>${T('thType')}</th><th>${T('thAnswer')}</th><th>${T('thAudio')}</th><th></th></tr></thead>
+            <tbody>${q.map((qq,i)=>`<tr data-qi="${i}"><td class="q-no">${i+1}.</td><td class="q-text">${qq.text}</td><td>${typePill(qq.type)}</td><td>${answerCell(qq)}</td><td><span class="play-mini">${PLAY_MINI}</span></td><td class="kebab">⋮</td></tr>`).join('')}</tbody></table>
+          </div>
+          <div class="cs-q-foot">${T('rowsPerPage')} 10 ▾ &nbsp; 1–${q.length} ${T('ofCount')} ${q.length} &nbsp; ‹ <span class="page">1</span> ›</div>
+        </section>
+        <section class="cs-panel cs-workflow">
+          <div class="wf-head"><div style="display:flex;align-items:baseline;min-width:0"><div class="wf-title">${T('wfTitle')}</div><div class="wf-sub" id="wfSub"></div></div><div class="wf-pill" id="wfPill"><span class="wf-dot" id="wfDot"></span><span id="wfStatus">${T('stIdle')}</span></div></div>
+          <div class="wf-signal"><span class="wf-siglabel">${T('wfCaptured').replace(/ /g,'&nbsp;')}</span><canvas id="wfCanvas" width="900" height="200" class="wf-canvas"></canvas><span class="wf-dur" id="wfDur">—</span></div>
+          <div class="wf-pipe" id="wfPipe"></div>
+          <div class="wf-foot"><span class="wf-feed" id="wfFeed">› ${T('feedAwaiting')}</span><span class="wf-result" id="wfResult">${T('resPending')}</span></div>
+        </section>
+      </div>
+      <div class="cs-col-right">
+        <section class="cs-panel cs-results">
+          <div class="cs-app-bar"><div class="cs-crumb"><b>${DEMO.org}</b><span class="chev">›</span><span class="blue">${T('crumbParticipants')}</span></div><div class="cs-results-tools"><span class="testmode">${T('testMode')} <span class="cs-toggle on"></span></span><span>🔔</span><span class="cs-region">${T('region')} ${UI.regionFlag} ${DEMO.region} ▾</span></div></div>
+          <div class="cs-toolbar"><div class="cs-search">${T('searchIrn')} ⌕</div><div class="cs-r-btns"><span class="obtn">${T('filter')} ⚙</span><span class="obtn">${T('download')} ⇩</span><span class="obtn">${T('action')} ▾</span><span class="cs-new">+ ${T('newBtn')}</span></div></div>
+          <table class="cs-r-table"><thead><tr><th class="chk"><span class="cbox"></span></th><th>${T('thIrn')}</th><th>${T('thName')}</th><th>${T('thCreatedOn')}</th><th>${T('thStatus')}</th><th>${T('thUpdatedOn')}</th>${qHeaders}<th><span class="bidi" dir="auto">${T('thSummary')}</span></th></tr></thead>
+          <tbody>
+            <tr class="subject"><td class="chk"><span class="cbox"></span></td><td>${DEMO.irn}</td><td class="mask">***** *****</td><td><span class="bidi" dir="auto">18-Feb-2026</span></td><td>${T('statusInProgress')}</td><td><span class="bidi" dir="auto">18-Feb-2026</span></td>${subjCells}<td id="sSum"></td></tr>
+            ${rows}
+          </tbody></table>
+        </section>
+      </div>
+    </div>
+    ${RENDER?'':'<button id="overlay"><span class="pbtn">'+PLAY_ICON+'</span><span class="plabel">'+T('playDemo',{org:DEMO.org})+'</span></button>'}
+  `;
+  // Workflow pipeline nodes. A production demo's unscored asks stop after
+  // Record, so the panel shows the same three stages either way.
+  const pipe=document.getElementById('wfPipe');
+  [T('stepRecord'),T('stepAnalyze'),T('stepScore')].forEach((s,i)=>{
+    if(i>0){const ln=document.createElement('div');ln.className='wf-line';ln.id='wfLine'+i;pipe.appendChild(ln);}
+    const n=document.createElement('div');n.className='wf-node';
+    n.innerHTML=`<span class="wf-circle" id="wfC${i}">·</span><span class="wf-label">${s}</span>`;pipe.appendChild(n);
+  });
+  wfCanvas=document.getElementById('wfCanvas');
+  measureRows();
+}
+
+// Row extents in the scroll container's content space.
+//
+// offsetTop/offsetHeight, NOT getBoundingClientRect: the stage carries a CSS
+// scale transform to fit the window, so client rects come back in post-transform
+// pixels while scrollTop/clientHeight are layout pixels. Mixing the two makes
+// every offset wrong by the scale factor (and silently correct at 1:1, which is
+// exactly the size the video renders at).
+function measureRows(){
+  const sc=document.getElementById('qScroll');
+  sc.scrollTop=0;
+  SCROLLH=sc.clientHeight;
+  SCROLLMAX=Math.max(0,sc.scrollHeight-sc.clientHeight);
+  ROWBOT=[...document.querySelectorAll('.cs-q-table tbody tr')]
+    .map(tr=>tr.offsetTop+tr.offsetHeight);
+}
+
+// Scroll just far enough that the active row's bottom is visible. Depends only
+// on the row index, so every frame is reproducible and workers never disagree.
+function scrollOffsetFor(row){
+  if(row<0||!ROWBOT.length) return 0;
+  return Math.min(SCROLLMAX,Math.max(0,ROWBOT[row]-SCROLLH));
+}
+
+// The cue being asked right now (the last one whose ask time has passed).
+function cueIndexAt(t){let idx=-1;DEMO.timeline.cues.forEach((c,i)=>{if(t>=c.ask)idx=i;});return idx;}
+
+function renderAt(t){
+  const cues=DEMO.timeline.cues;
+  const ci=cueIndexAt(t);
+  const activeRow=ci>=0?cues[ci].qi:-1;
+
+  // Question highlight + scroll. The second iteration walks the same rows.
+  document.querySelectorAll('.cs-q-table tbody tr').forEach((tr,i)=>tr.classList.toggle('active',i===activeRow));
+  document.getElementById('qScroll').scrollTop=scrollOffsetFor(activeRow);
+
+  // Results badges: a column posts when its own cue's post time passes.
+  const posted=[]; // column index -> true
+  let lastPosted=-1;
+  for(const c of cues){
+    if(c.col==null) continue;
+    if(t>=c.post){ posted[c.col]=true; if(c.col>lastPosted) lastPosted=c.col; }
+  }
+  for(let i=0;i<DEMO.columns.length;i++){
+    const cell=document.getElementById('sq'+i);
+    if(!cell) continue;
+    if(posted[i]){const v=DEMO.columns[i].result;if(cell.dataset.v!==v){cell.dataset.v=v;cell.innerHTML=badge(v,false,i===lastPosted);}}
+    else if(cell.dataset.v){cell.dataset.v='';cell.innerHTML='';}
+  }
+  // The overall verdict lands only once every scored ask has posted.
+  const allPosted=DEMO.columns.every((c,i)=>posted[i]);
+  const sSum=document.getElementById('sSum');
+  if(allPosted){if(!sSum.dataset.done){sSum.dataset.done='1';sSum.innerHTML=badge(DEMO.summary,true,true);}}
+  else if(sSum.dataset.done){sSum.dataset.done='';sSum.innerHTML='';}
+
+  renderWorkflow(t);
+}
+
+// How long a posted CLEAR / HIGH RISK verdict stays on the panel after it lands.
+//
+// PRODUCTION ONLY, deliberately. In a production demo the scoring window runs 4s
+// past the answer, by which point the next question has already started reading —
+// so without this the panel jumps straight from "Scoring" to recording the next
+// ask and the verdict is never seen at all, which is the one moment the format
+// exists to show. Sales demos are spaced so their verdict already lands in the
+// gap between questions, and they keep their existing behaviour untouched.
+const VERDICT_DWELL=1.8;
+
+// The workflow follows the earliest ask that has started but not yet settled, so
+// its analysis can play out fully even once the next question starts reading. In a
+// production demo a scored ask additionally holds its verdict for VERDICT_DWELL
+// after posting, which outranks a newly started ask.
+function workflowCue(t){
+  const cues=DEMO.timeline.cues;
+  if(DEMO.format==='production'){
+    for(let i=0;i<cues.length;i++){
+      const c=cues[i];
+      if(c.col!=null && t>=c.post && t<c.post+VERDICT_DWELL) return i;
+    }
+  }
+  for(let i=0;i<cues.length;i++){ if(t>=cues[i].ask && t<cues[i].post) return i; }
+  let idx=-1; for(let i=0;i<cues.length;i++){ if(t>=cues[i].ask) idx=i; } return idx;
+}
+
+function renderWorkflow(t){
+  const wi=workflowCue(t);
+  const cue=wi>=0?DEMO.timeline.cues[wi]:null;
+  const row=cue?DEMO.questions[cue.qi]:null;
+  const scored=!!cue&&cue.col!=null;
+  const neutral=!!row&&row.type==='NQ';
+  const risk=scored&&DEMO.columns[cue.col].result==='R';
+
+  // phases: idle | record | (scored: transcribe, analyze, score, posted)
+  //                       | (unscored: captured, settled)
+  let phase='idle', anLp=0, durTxt='—', since=0;
+  if(cue){
+    const answerEnd=cue.answerEnd;
+    if(scored){
+      const aStart=answerEnd+0.9;                       // brief transcript beat, then analysis
+      const scoreStart=Math.max(aStart, cue.post-0.8);  // final scoring beat
+      if(t>=cue.post){ phase='posted'; since=t-cue.post; }
+      else if(t>=scoreStart){ phase='score'; }
+      else if(t>=aStart){ phase='analyze'; anLp=(t-aStart)/Math.max(.001,scoreStart-aStart); }
+      else if(t>=answerEnd){ phase='transcribe'; }
+      else { phase='record'; }
+    }else{
+      if(t>=cue.post) phase='settled';
+      else if(t>=answerEnd) phase='captured';
+      else phase='record';
+    }
+    durTxt=(answerEnd-cue.ask).toFixed(1)+'s';
+  }
+  const working=(phase==='transcribe'||phase==='analyze'||phase==='score');
+  const dots=working?'.'.repeat(1+Math.floor((t*2)%3)):'';
+
+  // Pipeline: Record(0) → Analyze(1) → Score(2). Unscored asks complete Record
+  // and mark the other two skipped — nothing is computed for them.
+  const curOrder=phase==='record'?0:(phase==='transcribe'||phase==='analyze')?1:phase==='score'?2:(phase==='posted'?3:-1);
+  for(let i=0;i<3;i++){
+    const c=document.getElementById('wfC'+i);const ln=document.getElementById('wfLine'+i);
+    let st;
+    if(phase==='idle') st='pending';
+    else if(!scored) st=i===0?(phase==='record'?'run':'done'):'skip';
+    else if(phase==='posted') st='done';
+    else st=i<curOrder?'done':i===curOrder?'run':'pending';
+    c.className='wf-circle '+(st==='pending'?'':st);
+    c.textContent=st==='done'?'✓':st==='run'?'◐':st==='skip'?'–':'·';
+    if(ln)ln.style.background=st==='pending'||st==='skip'?'#e7e9f1':st==='done'?NAVY:'#ed5925';
+  }
+
+  const pill=document.getElementById('wfPill'),dot=document.getElementById('wfDot'),status=document.getElementById('wfStatus'),
+        res=document.getElementById('wfResult'),feed=document.getElementById('wfFeed'),durEl=document.getElementById('wfDur'),
+        sub=document.getElementById('wfSub');
+  // An unscored ask is named by the iteration it belongs to — a production demo
+  // reads "Iteration 1 / Iteration 2", never a separate concept of its own. A
+  // sales demo scores every question, so it never reaches these states at all
+  // and its panel is unchanged.
+  const prod=DEMO.format==='production';
+  const iterName=(prod&&cue)?T('stIteration',{n:cue.iter}):T('stNotScored');
+  const map={
+    idle:[T('stIdle'),'#eef0f6','#8e97c2'],
+    record:[T('stRecording'),'#e6f6fd','#0b7fb0'],
+    transcribe:[T('stAnalyzing'),'#ecebff','#4b43c4'],
+    analyze:[T('stAnalyzing'),'#ecebff','#4b43c4'],
+    score:[T('stScoring'),'#fdeee7','#c24a1c'],
+    captured:[T('stCaptured'),'#eef0f6','#5b6472'],
+    settled:[iterName,'#eef0f6','#5b6472'],
+    posted:[risk?T('stHighRisk'):T('stClear'),risk?RBG:GBG,risk?RRES:GRES],
+  };
+  const[stTxt,stBg,stFg]=map[phase];
+  pill.style.background=stBg;pill.style.color=stFg;dot.style.background=stFg;status.textContent=stTxt+dots;
+  dot.style.opacity=working?(0.45+0.55*Math.abs(Math.sin(t*4))):1;
+  durEl.textContent=durTxt;
+
+  // Which pass this is, so a production demo reads clearly on screen. Sales
+  // demos have one pass and show nothing here, exactly as before.
+  sub.textContent=(prod&&cue)
+    ?`${T('subIteration',{n:cue.iter})} · ${neutral?T('subNeutral'):T('subPertinent')}${scored?` · ${T('subScored')}`:''}`:'';
+
+  feed.textContent=phase==='idle'?'› '+T('feedAwaiting')
+    :phase==='record'?'› '+T('feedRecording')
+    :phase==='captured'?'› '+T('feedCaptured')
+    :phase==='settled'?(prod?'› '+T('feedNotScoredIter',{n:cue.iter}):'› '+T('feedNotScored'))
+    :phase==='transcribe'?`› ${T('feedTranscript')} "${cue.answerText}"`
+    :phase==='analyze'?'› '+T('feedAnalyzing')+dots
+    :phase==='score'?'› '+T('feedScoring')+dots
+    :risk?'› '+T('feedElevated'):'› '+T('feedExpected');
+
+  if(phase==='posted'){
+    res.textContent=risk?T('resHighRisk'):T('resClear');
+    res.style.background=risk?RRES:GRES; res.style.color='#fff';
+    const s=Math.min(1,since/0.3);
+    res.style.transform='scale('+(0.72+0.28*s+0.13*Math.sin(s*Math.PI)).toFixed(3)+')';
+  } else if(phase==='captured'||phase==='settled'){
+    // The chip carries its own upper-case form: uppercasing a translation is
+    // wrong (or a no-op) in most scripts, and .toUpperCase() would mangle some.
+    res.textContent=(prod&&cue)?T('resIteration',{n:cue.iter}):T('resNotScored');
+    res.style.background='#eef0f6'; res.style.color='#8e97c2'; res.style.transform='scale(1)';
+  } else if(phase==='score'){
+    res.textContent=T('resScoring')+dots; res.style.background='#fdeee7'; res.style.color='#c24a1c'; res.style.transform='scale(1)';
+  } else if(phase==='analyze'||phase==='transcribe'){
+    res.textContent=T('resAnalyzing')+dots; res.style.background='#ecebff'; res.style.color='#4b43c4'; res.style.transform='scale(1)';
+  } else {
+    res.textContent=T('resPending'); res.style.background='#f0f1f6'; res.style.color='#8e97c2'; res.style.transform='scale(1)';
+  }
+  drawWave(t,phase,anLp,risk);
+}
+
+function drawWave(t,phase,anLp,risk){
+  const cv=wfCanvas,ctx=cv.getContext('2d');const W=cv.width,H=cv.height,mid=H/2,bars=90,bw=W/bars;
+  ctx.clearRect(0,0,W,H);
+  if(phase==='idle'){
+    ctx.fillStyle='#1d4d78';
+    for(let i=0;i<bars;i++){ ctx.fillRect(i*bw+bw*.25, mid-1.5, bw*.5, 3); }
+    return;
+  }
+  const clip=(i)=>Math.abs(Math.sin(i*0.7+0.3))*Math.abs(Math.sin(i*0.23+1))*0.82+0.12;
+  if(phase==='record'){
+    const s=t*9;
+    for(let i=0;i<bars;i++){
+      const n=Math.abs(Math.sin(i*0.55-s))*Math.abs(Math.sin(i*0.19-s*0.5+1))*Math.abs(Math.sin(i*0.9+s*0.3));
+      const h=Math.max(2,(0.22+0.78*n)*H*0.92);
+      ctx.fillStyle=i%2?SIG1:SIG2;
+      ctx.fillRect(i*bw+bw*.2,mid-h/2,bw*.6,h);
+    }
+    return;
+  }
+  if(phase==='analyze'||phase==='score'){
+    // frozen clip being scanned by two sweeping analysis bands; bars brighten + lift near the scan
+    const sp=phase==='score'?0.9:0.5;
+    const sweep=((t*sp)%1)*W, sweep2=(((t*sp)+0.5)%1)*W;
+    for(let i=0;i<bars;i++){
+      const x=i*bw+bw*.2;
+      const d=Math.min(Math.abs(x-sweep),Math.abs(x-sweep2));
+      const bright=Math.max(0,1-d/130);
+      const h=Math.max(2,clip(i)*H*0.92*(1+0.22*bright));
+      ctx.fillStyle=bright>0.55?'#cbeeff':bright>0.25?SIG1:'#2a5c8a';
+      ctx.fillRect(x,mid-h/2,bw*.6,h);
+    }
+    ctx.fillStyle='rgba(180,230,255,0.55)'; ctx.fillRect(sweep-1,0,2,H); ctx.fillRect(sweep2-1,0,2,H);
+    ctx.fillStyle='rgba(120,150,255,0.28)'; ctx.fillRect(0,H-4,W*(phase==='score'?1:Math.min(1,anLp)),4);
+    return;
+  }
+  // captured / settled / transcribe / posted: the frozen captured clip. Unscored
+  // asks stay muted — no verdict colour, because nothing was scored.
+  const muted=(phase==='captured'||phase==='settled');
+  for(let i=0;i<bars;i++){
+    const h=Math.max(2,clip(i)*H*0.92);
+    ctx.fillStyle=muted?'#2a4a72':phase==='posted'?(risk?RRES:GRES):(i%2?SIG1:SIG2);
+    ctx.fillRect(i*bw+bw*.2,mid-h/2,bw*.6,h);
+  }
+  if(phase==='transcribe'){ const scan=((t*1.4)%1)*W; ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillRect(scan,0,2,H); }
+}
+
+function fitStage(){const s=Math.min(innerWidth/1920,innerHeight/1080);document.getElementById('stage').style.transform=`translate(-50%,-50%) scale(${s})`;}
+addEventListener('resize',fitStage);
+
+async function loadDemo(){
+  const slug=params.get('demo')||'hmpps';
+  const r=await fetch(`/demo/data/${slug}.json`);
+  DEMO=normalize(await r.json());
+  buildStage();fitStage();
+  const audio=document.getElementById('audio');audio.src=DEMO.audioSrc;
+  if(RENDER){
+    document.body.classList.add('render');
+    try{await document.fonts.ready;}catch(e){}
+    // Fonts can change row heights, so the geometry is measured after they land.
+    measureRows();
+    renderAt(0);
+    window.__demoEnd=DEMO.timeline.end;
+    window.__renderAt=(t)=>{renderAt(t);};
+    window.__ready=true;
+  }else{
+    renderAt(0);
+    let raf=0;const tick=()=>{renderAt(audio.currentTime);raf=requestAnimationFrame(tick);};
+    audio.addEventListener('timeupdate',()=>renderAt(audio.currentTime));
+    audio.addEventListener('seeked',()=>renderAt(audio.currentTime));
+    const start=()=>{const o=document.getElementById('overlay');if(o)o.style.display='none';audio.play();cancelAnimationFrame(raf);tick();};
+    const ov=document.getElementById('overlay');if(ov)ov.addEventListener('click',start);
+    addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();audio.paused?start():audio.pause();}});
+  }
+}
+loadDemo();
+</script>
+</body>
+</html>

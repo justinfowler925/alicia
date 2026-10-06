@@ -1,0 +1,38 @@
+{
+  "slug": "ita-analysis",
+  "org": "ITA Analysis",
+  "region": "United States",
+  "irn": "00034",
+  "summary": "R",
+  "audioSrc": "/demo/audio/ita-analysis.mp3",
+  "questions": [
+    {
+      "text": "Since your last certification, have you had any undisclosed contact with players or their representatives?",
+      "answer": "No.",
+      "result": "G"
+    },
+    {
+      "text": "Have you placed any wager on a professional tennis match in the past twelve months?",
+      "answer": "No.",
+      "result": "R"
+    }
+  ],
+  "timeline": {
+    "intro": 3.616,
+    "cues": [
+      {
+        "ask": 3.616,
+        "answer": 9.8,
+        "answerEnd": 10.496,
+        "result": 14.496
+      },
+      {
+        "ask": 10.896,
+        "answer": 15.688,
+        "answerEnd": 16.384,
+        "result": 19.952
+      }
+    ],
+    "end": 19.952
+  }
+}
