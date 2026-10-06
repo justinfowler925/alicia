@@ -196,6 +196,8 @@ fi
 
 echo "==> state lives at $STATE (outside every checkout)"
 mkdir -p "$STATE"
+chmod 700 "$STATE" 2>/dev/null || true
+chmod 600 "$STATE"/*.sqlite "$STATE"/*.token "$STATE"/*.proof 2>/dev/null || true
 
 echo "==> updating the service worktree at $APP"
 # A fetch that cannot reach the remote used to print `Repository not found` and

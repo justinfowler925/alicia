@@ -104,18 +104,20 @@ class OutboxItem:
         return OUTBOX_DIR / f"{self.id}.json"
 
     def write(self) -> None:
+        from .redact import gate_text
+
         ensure_state_dirs()
         self.path().write_text(
             json.dumps(
                 {
                     "id": self.id,
                     "session_id": self.session_id,
-                    "message": self.message,
+                    "message": gate_text(self.message),
                     "channel": self.channel,
                     "created_at": self.created_at,
                     "status": self.status,
-                    "error": self.error,
-                    "reply": self.reply,
+                    "error": gate_text(self.error),
+                    "reply": gate_text(self.reply),
                 },
                 indent=2,
             )

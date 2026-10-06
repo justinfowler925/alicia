@@ -14,12 +14,15 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from alicia.canon import CanonStore, Evidence, IdentityRegistry, WorkItem
 from alicia.config import AliciaCfg
 from alicia.github_evidence import GitHubEvidenceReceiver
 from alicia.server import create_app
+
+pytestmark = pytest.mark.no_auto_owner
 
 
 def _client(tmp_path: Path, monkeypatch) -> TestClient:

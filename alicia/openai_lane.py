@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 from .config import AliciaCfg, OpenAICfg
 from .platform_registry import assert_honest_attribution
+from .redact import gate_text
 
 EXECUTOR = "openai"
 FORBIDDEN = frozenset({"forge", "gemma", "scout", "alicia", "cursor_cloud"})
@@ -114,7 +115,7 @@ def _default_http(message: str, oai: OpenAICfg) -> dict[str, Any]:
         "ok": True,
         "executor": EXECUTOR,
         "attribution": "OpenAI",
-        "reply": reply[:6000],
+        "reply": gate_text(reply[:6000]),
         "model": str(data.get("model") or oai.model),
         "http_attempted": True,
     }

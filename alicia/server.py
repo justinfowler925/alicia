@@ -10,6 +10,7 @@ import os
 import re
 import secrets
 import urllib.parse
+from urllib.parse import urlsplit
 import shutil
 import tempfile
 from contextlib import asynccontextmanager
@@ -19,7 +20,7 @@ from typing import Any
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -63,9 +64,15 @@ from .refine import refine_todo
 from .security import (
     OWNER_SESSION_COOKIE,
     authenticate_owner_token,
+    consume_pair_ticket,
     issue_owner_session,
+    mint_pair_ticket,
+    owner_auth_via,
+    owner_session_csrf,
+    require_owner_action,
     verify_github_signature,
 )
+from .studio_access import funnel_exposes_alicia_port
 from .session import SessionStore
 from .session_bus import SessionEventBus, sse
 from .sites import check_sites
@@ -607,6 +614,11 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             (os.environ.get("CURSOR_API_KEY") or os.environ.get("CURSOR_APIKEY") or "").strip()
         )
         cursor_sdk_importable = importlib.util.find_spec("cursor_sdk") is not None
+        funnel_hit = (
+            funnel_exposes_alicia_port(8768)
+            if os.environ.get("ALICIA_PUBLIC_ORIGIN", "").strip()
+            else None
+        )
         return {
             "service": "alicia",
             "mode": "standalone",
@@ -642,23 +654,72 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             "canon": {
                 "db_path": str(canon_db_path()),
             },
+            "funnel": {
+                # Alicia must stay tailnet-only on :8768 — Funnel here is a misconfig.
+                "exposes_alicia_8768": funnel_hit,
+                "warning": (
+                    "Alicia :8768 appears under Tailscale Funnel — disable Funnel for that port"
+                    if funnel_hit
+                    else None
+                ),
+            },
         }
 
-    @app.post("/api/auth/session")
-    async def owner_session(body: OwnerSessionRequest, response: Response) -> dict[str, Any]:
-        if not authenticate_owner_token(body.token):
-            raise HTTPException(status_code=401, detail="invalid owner token")
-        cookie, csrf = issue_owner_session()
+    def _set_owner_cookie(request: Request, response: Response, cookie: str) -> None:
+        public = (os.environ.get("ALICIA_PUBLIC_ORIGIN") or "").rstrip("/")
+        host = request.headers.get("host", "")
+        secure = bool(public and host == urlsplit(public).netloc)
         response.set_cookie(
             OWNER_SESSION_COOKIE,
             cookie,
             httponly=True,
             samesite="strict",
-            secure=False,  # loopback HTTP; never expose Alicia on a non-loopback bind
+            secure=secure,
             max_age=8 * 3600,
             path="/",
         )
+
+    @app.get("/api/auth/status")
+    async def owner_auth_status(request: Request) -> dict[str, Any]:
+        via = owner_auth_via(request, x_alicia_csrf=request.headers.get("x-alicia-csrf"))
+        csrf = owner_session_csrf(request)
+        return {
+            "authenticated": via is not None,
+            "via": via,
+            "csrf": csrf if via in {"csrf", "studio_owner"} or csrf else None,
+            "studio_owner": bool(getattr(request.state, "studio_owner", False)),
+        }
+
+    @app.post("/api/auth/session")
+    async def owner_session(body: OwnerSessionRequest, request: Request, response: Response) -> dict[str, Any]:
+        if not authenticate_owner_token(body.token):
+            raise HTTPException(status_code=401, detail="invalid owner token")
+        cookie, csrf = issue_owner_session()
+        _set_owner_cookie(request, response, cookie)
         return {"ok": True, "csrf": csrf, "expires_in": 8 * 3600}
+
+    @app.post("/api/auth/pair", dependencies=[Depends(require_owner_action)])
+    async def owner_pair_ticket() -> dict[str, Any]:
+        """Mint a one-time ticket for open-operator browser pairing."""
+        return {"ok": True, "ticket": mint_pair_ticket(), "expires_in": 120}
+
+    @app.post("/api/auth/redeem")
+    async def owner_redeem_ticket(body: dict, request: Request, response: Response) -> dict[str, Any]:
+        ticket = str(body.get("ticket") or "").strip()
+        if not consume_pair_ticket(ticket):
+            raise HTTPException(status_code=401, detail="invalid or expired pair ticket")
+        cookie, csrf = issue_owner_session()
+        _set_owner_cookie(request, response, cookie)
+        return {"ok": True, "csrf": csrf, "expires_in": 8 * 3600}
+
+    @app.post("/api/auth/studio-session")
+    async def owner_studio_session(request: Request, response: Response) -> dict[str, Any]:
+        """Mint CSRF cookie when Tailscale Serve identity is already proven."""
+        if not getattr(request.state, "studio_owner", False):
+            raise HTTPException(status_code=401, detail="studio owner identity required")
+        cookie, csrf = issue_owner_session()
+        _set_owner_cookie(request, response, cookie)
+        return {"ok": True, "csrf": csrf, "expires_in": 8 * 3600, "via": "studio_owner"}
 
     @app.get("/version")
     async def version() -> dict[str, Any]:
@@ -834,12 +895,12 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
     async def scout_import_status() -> dict[str, Any]:
         return scout_import.status()
 
-    @app.post("/api/scout/import")
+    @app.post("/api/scout/import", dependencies=[Depends(require_owner_action)])
     async def scout_import_now() -> dict[str, Any]:
         """Pull from Scout now (the same pass the board triggers), and wait for it."""
         return await asyncio.to_thread(scout_import.import_once, cfg=cfg, todos=todos, zoom_store=zoom_store)
 
-    @app.post("/api/todos")
+    @app.post("/api/todos", dependencies=[Depends(require_owner_action)])
     async def todos_add(body: dict, request: Request) -> dict[str, Any]:
         text = str(body.get("text") or "").strip()
         if not text:
@@ -855,7 +916,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         _publish_idea(request, action="upsert", note=note)
         return note
 
-    @app.patch("/api/todos/{todo_id}")
+    @app.patch("/api/todos/{todo_id}", dependencies=[Depends(require_owner_action)])
     async def todos_update(todo_id: str, body: dict, request: Request) -> dict[str, Any]:
         try:
             t = todos.update(
@@ -877,7 +938,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         _publish_idea(request, action="upsert", note=note)
         return note
 
-    @app.post("/api/todos/{todo_id}/refine")
+    @app.post("/api/todos/{todo_id}/refine", dependencies=[Depends(require_owner_action)])
     async def todos_refine(todo_id: str, request: Request) -> dict[str, Any]:
         """Re-draft one item now, ahead of the sweeper."""
         if not todos.get(todo_id):
@@ -889,7 +950,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         _publish_idea(request, action="upsert", note=note)
         return note
 
-    @app.delete("/api/todos/{todo_id}")
+    @app.delete("/api/todos/{todo_id}", dependencies=[Depends(require_owner_action)])
     async def todos_delete(todo_id: str, request: Request) -> dict[str, Any]:
         existing = todos.get(todo_id)
         deleted = todos.delete(todo_id)
@@ -902,7 +963,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             )
         return {"deleted": deleted}
 
-    @app.post("/api/todos/{todo_id}/promote")
+    @app.post("/api/todos/{todo_id}/promote", dependencies=[Depends(require_owner_action)])
     async def todos_promote(todo_id: str, request: Request) -> dict[str, Any]:
         """Graduate a note into the real work ledger as a manual thread."""
         current = {t.id: t for t in todos.list(include_done=True)}.get(todo_id)
@@ -933,7 +994,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         """Which Zoom meetings have been ingested, newest first."""
         return {"meetings": zoom_store.meetings(limit=limit)}
 
-    @app.post("/api/zoom/ingest")
+    @app.post("/api/zoom/ingest", dependencies=[Depends(require_owner_action)])
     async def zoom_ingest(body: dict, request: Request) -> dict[str, Any]:
         """Ingest Zoom AI Companion notes as captures.
 
@@ -1001,7 +1062,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             "errors": errors,
         }
 
-    @app.post("/api/zoom/poll")
+    @app.post("/api/zoom/poll", dependencies=[Depends(require_owner_action)])
     async def zoom_poll(body: dict, request: Request) -> dict[str, Any]:
         """Fetch new Zoom meeting summaries and ingest them. No Claude involved.
 
@@ -1136,7 +1197,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             f"<p>Authorized as {email}. You can close this tab.</p></main>"
         )
 
-    @app.post("/api/zoom/my-notes/poll")
+    @app.post("/api/zoom/my-notes/poll", dependencies=[Depends(require_owner_action)])
     async def zoom_my_notes_poll(body: dict, request: Request) -> dict[str, Any]:
         """Ingest Justin's personal My Notes, including transcript-only notes.
 
@@ -1255,7 +1316,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             raise HTTPException(status_code=404, detail="unknown project")
         return project
 
-    @app.patch("/api/nucleus/projects/{project_id:path}")
+    @app.patch("/api/nucleus/projects/{project_id:path}", dependencies=[Depends(require_owner_action)])
     async def nucleus_project_update(project_id: str, body: dict, request: Request) -> dict[str, Any]:
         """Local organization only; GitHub and Linear remain source-owned."""
         allowed = {"pinned", "archived", "objective", "notes"}
@@ -1282,7 +1343,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         """Alicia's own launchd services: loaded, running, and restartable."""
         return {"services": await asyncio.to_thread(process_control.list_services)}
 
-    @app.post("/api/services/{label}/{action}")
+    @app.post("/api/services/{label}/{action}", dependencies=[Depends(require_owner_action)])
     async def services_control(label: str, action: str) -> dict[str, Any]:
         """start | stop | restart one Alicia service."""
         try:
@@ -1290,7 +1351,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         except process_control.ControlError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    @app.post("/api/agents/{agent_id:path}/cancel")
+    @app.post("/api/agents/{agent_id:path}/cancel", dependencies=[Depends(require_owner_action)])
     async def agents_cancel(agent_id: str) -> dict[str, Any]:
         """Signal one running agent thread.
 
@@ -1334,7 +1395,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         """One evidence-backed intervention across Claude, Cursor, and Codex."""
         return await asyncio.to_thread(request.app.state.supervisor.snapshot, force=force)
 
-    @app.patch("/api/agents/{agent_id:path}")
+    @app.patch("/api/agents/{agent_id:path}", dependencies=[Depends(require_owner_action)])
     async def agents_update(agent_id: str, body: dict) -> dict[str, Any]:
         """Keep / park / hide overlay — does not touch transcript files."""
         try:
@@ -1352,7 +1413,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         invalidate_nucleus_cache()
         return overlay
 
-    @app.post("/api/agents/{agent_id:path}/promote")
+    @app.post("/api/agents/{agent_id:path}/promote", dependencies=[Depends(require_owner_action)])
     async def agents_promote(agent_id: str, body: dict, request: Request) -> dict[str, Any]:
         """Graduate an agent thread into local Notes."""
         dest = str(body.get("to") or "notes").strip().lower()
@@ -1416,7 +1477,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             out["error"] = str(exc)
         return out
 
-    @app.post("/api/answer_input")
+    @app.post("/api/answer_input", dependencies=[Depends(require_owner_action)])
     async def answer_input(req: AnswerInputBody, request: Request) -> dict[str, Any]:
         if not req.ticket_id or not req.body.strip():
             raise HTTPException(status_code=400, detail="ticket_id and body required")
@@ -1430,7 +1491,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    @app.post("/api/steer_retriage")
+    @app.post("/api/steer_retriage", dependencies=[Depends(require_owner_action)])
     async def steer_retriage(req: SteerRetriageBody, request: Request) -> dict[str, Any]:
         """Restart Atlas5 rows parked on obsolete scoping questions (steering, not requeue)."""
         tickets = [t.strip() for t in req.ticket_ids if (t or "").strip()]
@@ -1455,7 +1516,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         return {"ok": True, "min_attempts": min_attempts, "count": len(rows), "rows": rows}
 
-    @app.post("/api/capped_attempts/reset")
+    @app.post("/api/capped_attempts/reset", dependencies=[Depends(require_owner_action)])
     async def capped_attempts_reset(
         req: ResetAttemptsBody, request: Request
     ) -> dict[str, Any]:
@@ -1478,7 +1539,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    @app.post("/api/requeue_stale")
+    @app.post("/api/requeue_stale", dependencies=[Depends(require_owner_action)])
     async def requeue_stale(req: RequeueRequest, request: Request) -> dict[str, Any]:
         if not req.thread_ids:
             raise HTTPException(status_code=400, detail="thread_ids required")
@@ -1489,7 +1550,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    @app.post("/api/frontier/apply")
+    @app.post("/api/frontier/apply", dependencies=[Depends(require_owner_action)])
     async def frontier_apply(req: FrontierApplyBody, request: Request) -> dict[str, Any]:
         c: AtlasClient = request.app.state.client
         results = []
@@ -1524,7 +1585,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         return {"ok": True, "applied": len(results), "results": results[:20]}
 
-    @app.post("/api/cursor/apply")
+    @app.post("/api/cursor/apply", dependencies=[Depends(require_owner_action)])
     async def cursor_apply(req: CursorApplyBody, request: Request) -> dict[str, Any]:
         try:
             return request.app.state.client.cursor_apply(
@@ -1538,7 +1599,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    @app.post("/api/cursor/run")
+    @app.post("/api/cursor/run", dependencies=[Depends(require_owner_action)])
     async def cursor_run(request: Request) -> dict[str, Any]:
         """Drain the cursor queue once, on demand.
 
@@ -1584,6 +1645,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             "session.css": "text/css",
             "overview.css": "text/css",
             "session.js": "application/javascript",
+            "owner-auth.js": "application/javascript",
             "live-voice.js": "application/javascript",
             "operations.js": "application/javascript",
             "shine-tokens.css": "text/css",
@@ -1598,7 +1660,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
 
     # --- conversation sessions -------------------------------------------
 
-    @app.post("/api/session/open")
+    @app.post("/api/session/open", dependencies=[Depends(require_owner_action)])
     async def session_open(req: SessionOpenRequest, request: Request) -> dict[str, Any]:
         store: SessionStore = request.app.state.sessions
         sid = store.open_session(title=req.title, kind=req.kind)
@@ -1616,7 +1678,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             raise HTTPException(status_code=404, detail="unknown session")
         return snap
 
-    @app.post("/api/session/{session_id}/attachments")
+    @app.post("/api/session/{session_id}/attachments", dependencies=[Depends(require_owner_action)])
     async def session_upload(session_id: str, request: Request, name: str):
         from .chat_attachments import directory, save, MAX_BYTES
         directory(request.app.state.sessions, session_id)
@@ -1627,7 +1689,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             data.extend(chunk)
         return await asyncio.to_thread(save, request.app.state.sessions, session_id, name, bytes(data))
 
-    @app.post("/api/session/{session_id}/say")
+    @app.post("/api/session/{session_id}/say", dependencies=[Depends(require_owner_action)])
     async def session_say(
         session_id: str, req: SessionSayRequest, request: Request
     ) -> dict[str, Any]:
@@ -1717,7 +1779,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
     def voice_ready(request: Request) -> dict[str, Any]:
         return request.app.state.voice_readiness.check()
 
-    @app.post("/api/session/{session_id}/convai-token")
+    @app.post("/api/session/{session_id}/convai-token", dependencies=[Depends(require_owner_action)])
     async def session_convai_token(session_id: str, request: Request) -> dict[str, Any]:
         """William-style ElevenLabs ConvAI signed URL. Prefer over LiveKit when configured."""
         from . import resilience
@@ -1903,7 +1965,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
-    @app.post("/api/session/{session_id}/voice-token")
+    @app.post("/api/session/{session_id}/voice-token", dependencies=[Depends(require_owner_action)])
     async def session_voice_token(session_id: str, request: Request) -> dict[str, Any]:
         """Mint a short-lived, room-scoped token for the local LiveKit voice transport."""
         store: SessionStore = request.app.state.sessions
@@ -1949,7 +2011,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         identity: VoiceIdentity = request.app.state.voice_identity
         return identity.status()
 
-    @app.post("/api/voice-enrollment")
+    @app.post("/api/voice-enrollment", dependencies=[Depends(require_owner_action)])
     async def voice_enroll(
         request: Request,
         samples: list[UploadFile] = File(...),
@@ -1975,7 +2037,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             log.exception("voice enrollment failed")
             raise HTTPException(status_code=503, detail="Voice enrollment could not start. Try again shortly.") from exc
 
-    @app.post("/api/session/{session_id}/artifact/{artifact_id}/{decision}")
+    @app.post("/api/session/{session_id}/artifact/{artifact_id}/{decision}", dependencies=[Depends(require_owner_action)])
     async def session_artifact(
         session_id: str, artifact_id: str, decision: str, request: Request
     ) -> dict[str, Any]:
@@ -2003,7 +2065,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         result = await asyncio.to_thread(mgr.execute_artifact, session_id, artifact_id)
         return result.as_dict()
 
-    @app.post("/api/session/{session_id}/close")
+    @app.post("/api/session/{session_id}/close", dependencies=[Depends(require_owner_action)])
     async def session_close(session_id: str, request: Request) -> dict[str, Any]:
         request.app.state.sessions.close_session(session_id)
         return {"ok": True}
@@ -2050,7 +2112,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
         )
 
-    @app.post("/api/chat")
+    @app.post("/api/chat", dependencies=[Depends(require_owner_action)])
     async def chat(req: ChatRequest, request: Request) -> dict[str, Any]:
         try:
             # Keep slow MLX/Studio inference off the async event loop so the
@@ -2137,7 +2199,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
                 tmp_path.unlink(missing_ok=True)
         return {"ok": True, "text": text or ""}
 
-    @app.post("/api/speak")
+    @app.post("/api/speak", dependencies=[Depends(require_owner_action)])
     async def speak(req: SpeakBody) -> Response:
         """Return legacy TTS only when it is the selected speech path."""
         # Enforce this in the actor too: stale/secondary tabs must never silently
@@ -2192,7 +2254,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
             raise HTTPException(status_code=404, detail="no such conversation")
         return c.to_dict()
 
-    @app.post("/api/working_notes")
+    @app.post("/api/working_notes", dependencies=[Depends(require_owner_action)])
     async def working_note_add(req: WorkingNoteBody) -> dict[str, Any]:
         if not req.topic.strip():
             raise HTTPException(status_code=400, detail="topic required")
@@ -2213,14 +2275,14 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         lessons = memory.search_lessons(q) if q.strip() else memory.list_lessons()
         return {"lessons": [les.to_dict() for les in lessons]}
 
-    @app.post("/api/lessons")
+    @app.post("/api/lessons", dependencies=[Depends(require_owner_action)])
     async def lessons_add(req: LessonBody) -> dict[str, Any]:
         try:
             return memory.add_lesson(req.title, req.body, tags=req.tags).to_dict()
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    @app.post("/api/approve/{thread_id}")
+    @app.post("/api/approve/{thread_id}", dependencies=[Depends(require_owner_action)])
     async def approve(thread_id: str, req: ApproveRequest, request: Request) -> dict[str, Any]:
         try:
             decision = "reject" if req.reject else "approve"
@@ -2228,7 +2290,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    @app.post("/api/dispatch")
+    @app.post("/api/dispatch", dependencies=[Depends(require_owner_action)])
     async def dispatch(req: DispatchRequest, request: Request) -> dict[str, Any]:
         try:
             return request.app.state.client.dispatch_tick(
@@ -2237,7 +2299,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    @app.post("/api/reconcile")
+    @app.post("/api/reconcile", dependencies=[Depends(require_owner_action)])
     async def reconcile(request: Request) -> dict[str, Any]:
         try:
             return request.app.state.client.reconcile()
@@ -2287,12 +2349,12 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
                 state[key] = result
         return state
 
-    @app.post("/api/avatar/apply")
+    @app.post("/api/avatar/apply", dependencies=[Depends(require_owner_action)])
     async def avatar_apply(body: AvatarApply) -> dict[str, Any]:
         return await avatar_ctl.apply_config(body.face, body.tier, body.transport,
                                              body.replace_id, body.redeploy)
 
-    @app.post("/api/avatar/stage")
+    @app.post("/api/avatar/stage", dependencies=[Depends(require_owner_action)])
     async def avatar_stage(req: AvatarStage) -> dict[str, Any]:
         """Copy an mflux draft into faces/looks so Apply can enroll it."""
         staged = await asyncio.to_thread(
@@ -2308,7 +2370,7 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
                 "steps": [{"step": "stage", "ok": True, "detail": staged.get("face")}]
                           + list(applied.get("steps") or [])}
 
-    @app.post("/api/avatar/cursor-pass")
+    @app.post("/api/avatar/cursor-pass", dependencies=[Depends(require_owner_action)])
     async def avatar_cursor_pass(req: AvatarCursorPass, request: Request) -> dict[str, Any]:
         """Pass 3 of a face job: Cursor tries a different image, kept only if better.
 
@@ -2323,11 +2385,11 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
         )
         return result
 
-    @app.post("/api/avatar/configs")
+    @app.post("/api/avatar/configs", dependencies=[Depends(require_owner_action)])
     async def avatar_save(body: AvatarConfig) -> dict[str, Any]:
         return {"configs": avatar_ctl.save_config(body.name, body.face, body.tier, body.transport)}
 
-    @app.delete("/api/avatar/configs/{name}")
+    @app.delete("/api/avatar/configs/{name}", dependencies=[Depends(require_owner_action)])
     async def avatar_delete(name: str) -> dict[str, Any]:
         return {"configs": avatar_ctl.delete_config(name)}
     return app

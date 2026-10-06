@@ -86,10 +86,35 @@ def default_state_dir() -> Path:
     return SHARED_STATE_DIR
 
 
+def harden_state_permissions(target: Path | None = None) -> Path:
+    """Ensure the state directory is 0700 and sensitive files are not world-readable."""
+    target = target or default_state_dir()
+    target.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(target, 0o700)
+    except OSError:
+        pass
+    for path in target.iterdir() if target.is_dir() else ():
+        name = path.name
+        if not path.is_file():
+            continue
+        if (
+            name.endswith((".sqlite", ".sqlite-wal", ".sqlite-shm", ".db", ".json"))
+            or name.endswith(".token")
+            or name.endswith(".proof")
+            or name in _STATEFUL
+        ):
+            try:
+                os.chmod(path, 0o600)
+            except OSError:
+                pass
+    return target
+
+
 def state_dir() -> Path:
     """The state directory, created if needed, migrated from the repo once."""
     target = default_state_dir()
-    target.mkdir(parents=True, exist_ok=True)
+    harden_state_permissions(target)
     _migrate_once(target)
     return target
 

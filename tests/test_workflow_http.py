@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -6,6 +7,8 @@ from alicia.canon.models import InboxItem, WorkItem
 from alicia.canon.store import CanonStore
 from alicia.config import AliciaCfg
 from alicia.server import create_app
+
+pytestmark = pytest.mark.no_auto_owner
 
 
 def test_adapter_event_endpoint_is_authenticated_idempotent_and_non_authoritative(tmp_path, monkeypatch):

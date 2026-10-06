@@ -17,11 +17,30 @@ from .paths import state_path
 
 OWNER_TOKEN_FILE = "owner.token"
 ADAPTER_TOKEN_FILE = "adapter.token"
+SERVE_PROOF_FILE = "serve.proof"
 OWNER_SESSION_COOKIE = "alicia_owner_session"
+SERVE_PROOF_HEADER = "x-alicia-serve-proof"
+
+# Short-lived one-time tickets for open-operator browser pairing.
+_PAIR_TICKETS: dict[str, float] = {}
+_PAIR_TTL_SECONDS = 120
 
 
 def owner_token_path() -> Path:
     return state_path(OWNER_TOKEN_FILE)
+
+
+def _mint_secret_file(path: Path) -> str:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(path.parent, 0o700)
+    except OSError:
+        pass
+    token = secrets.token_urlsafe(48)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(token + "\n")
+    return token
 
 
 def configured_owner_token() -> str:
@@ -39,14 +58,42 @@ def configured_owner_token() -> str:
     try:
         token = path.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        token = secrets.token_urlsafe(48)
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(token + "\n")
+        token = _mint_secret_file(path)
     if not token:
         raise RuntimeError(f"owner token is empty: {path}")
     return token
+
+
+def serve_proof_path() -> Path:
+    return state_path(SERVE_PROOF_FILE)
+
+
+def configured_serve_proof() -> str:
+    """Shared secret proving a request crossed the Tailscale Serve proxy.
+
+    Client-supplied ``tailscale-user-login`` headers are forgeable on loopback.
+    Serve terminates TLS and proxies as 127.0.0.1; only the local Serve proxy
+    (see ``scripts/alicia-serve-proxy.py``) injects this proof header.
+    """
+
+    token = os.environ.get("ALICIA_SERVE_PROOF", "").strip()
+    if token:
+        return token
+    path = serve_proof_path()
+    try:
+        token = path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        token = _mint_secret_file(path)
+    if not token:
+        raise RuntimeError(f"serve proof is empty: {path}")
+    return token
+
+
+def verify_serve_proof(presented: str | None) -> bool:
+    expected = configured_serve_proof()
+    if not presented or not expected:
+        return False
+    return hmac.compare_digest(presented.strip(), expected)
 
 
 def configured_adapter_token() -> str:
@@ -59,11 +106,7 @@ def configured_adapter_token() -> str:
     try:
         token = path.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        token = secrets.token_urlsafe(48)
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(token + "\n")
+        token = _mint_secret_file(path)
     if not token:
         raise RuntimeError(f"adapter token is empty: {path}")
     return token
@@ -114,24 +157,102 @@ def _session_csrf(cookie: str) -> str | None:
         return None
 
 
+def owner_session_csrf(request: Request) -> str | None:
+    return _session_csrf(request.cookies.get(OWNER_SESSION_COOKIE, ""))
+
+
+def mint_pair_ticket() -> str:
+    """Single-use ticket for browser pairing (open-operator)."""
+    now = time.time()
+    expired = [k for k, exp in _PAIR_TICKETS.items() if exp < now]
+    for key in expired:
+        _PAIR_TICKETS.pop(key, None)
+    ticket = secrets.token_urlsafe(24)
+    _PAIR_TICKETS[ticket] = now + _PAIR_TTL_SECONDS
+    return ticket
+
+
+def consume_pair_ticket(ticket: str) -> bool:
+    exp = _PAIR_TICKETS.pop((ticket or "").strip(), None)
+    return exp is not None and exp >= time.time()
+
+
+def _presented_owner_token(
+    authorization: str | None,
+    x_alicia_owner_token: str | None,
+) -> str:
+    presented = (x_alicia_owner_token or "").strip()
+    if not presented and authorization and authorization.startswith("Bearer "):
+        presented = authorization[7:].strip()
+    return presented
+
+
+def owner_auth_via(
+    request: Request,
+    *,
+    authorization: str | None = None,
+    x_alicia_owner_token: str | None = None,
+    x_alicia_csrf: str | None = None,
+) -> str | None:
+    """Return how the request is authorized, or None."""
+
+    presented = _presented_owner_token(authorization, x_alicia_owner_token)
+    if authenticate_owner_token(presented):
+        return "token"
+    session_csrf = owner_session_csrf(request)
+    if session_csrf is not None and x_alicia_csrf and hmac.compare_digest(x_alicia_csrf, session_csrf):
+        return "csrf"
+    if getattr(request.state, "studio_owner", False):
+        return "studio_owner"
+    return None
+
+
 def require_owner_token(
     request: Request,
     authorization: str | None = Header(default=None),
     x_alicia_owner_token: str | None = Header(default=None),
     x_alicia_csrf: str | None = Header(default=None),
 ) -> None:
-    """FastAPI dependency for consequential local owner actions."""
+    """FastAPI dependency for consequential local owner actions (token or CSRF).
 
-    presented = (x_alicia_owner_token or "").strip()
-    if not presented and authorization and authorization.startswith("Bearer "):
-        presented = authorization[7:].strip()
+    Does **not** accept Tailscale ``studio_owner`` alone — Canon / workflow keep
+    the stricter token-or-cookie bar.
+    """
+
+    presented = _presented_owner_token(authorization, x_alicia_owner_token)
     if authenticate_owner_token(presented):
         return
-    session_csrf = _session_csrf(request.cookies.get(OWNER_SESSION_COOKIE, ""))
+    session_csrf = owner_session_csrf(request)
     if session_csrf is None:
         raise HTTPException(status_code=401, detail="owner authentication required")
     if not x_alicia_csrf or not hmac.compare_digest(x_alicia_csrf, session_csrf):
         raise HTTPException(status_code=403, detail="owner CSRF token required")
+
+
+def require_owner_action(
+    request: Request,
+    authorization: str | None = Header(default=None),
+    x_alicia_owner_token: str | None = Header(default=None),
+    x_alicia_csrf: str | None = Header(default=None),
+) -> str:
+    """Owner proof for conversation / spend / approve surfaces.
+
+    Accepts (1) owner token, (2) cookie + CSRF, or (3) Serve-proven
+    ``studio_owner``. Raw loopback without proof is rejected.
+    """
+
+    via = owner_auth_via(
+        request,
+        authorization=authorization,
+        x_alicia_owner_token=x_alicia_owner_token,
+        x_alicia_csrf=x_alicia_csrf,
+    )
+    if via:
+        return via
+    session_csrf = owner_session_csrf(request)
+    if session_csrf is not None and not x_alicia_csrf:
+        raise HTTPException(status_code=403, detail="owner CSRF token required")
+    raise HTTPException(status_code=401, detail="owner authentication required")
 
 
 def verify_github_signature(body: bytes, signature: str | None) -> bool:

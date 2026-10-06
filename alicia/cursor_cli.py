@@ -58,4 +58,6 @@ def complete(prompt: str, *, timeout: float = 90, model: str | None = None) -> s
     answer = str(result.get('result') or '').strip()
     if result.get('is_error') or not answer:
         raise CursorError('Cursor returned no successful answer', str(result.get('error') or result.get('result') or stderr or ''))
-    return answer
+    from .redact import gate_text
+
+    return gate_text(answer)

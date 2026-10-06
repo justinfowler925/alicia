@@ -14,12 +14,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from .security import require_owner_action
+
 
 def require_local_chat(request: Request):
     """Same local typed-input trust boundary as Alicia, with explicit CSRF checks.
 
     Never accept remote clients, foreign Host/Origin, or a simple cross-site
-    form. No CORS grants are made. This does not change owner-token routes.
+    form. No CORS grants are made. Owner proof is still required for spend.
     """
     if not request.client or request.client.host not in {"127.0.0.1", "::1"}:
         raise HTTPException(403, "Forge chat is available only on this Mac")
@@ -32,7 +34,10 @@ def require_local_chat(request: Request):
         raise HTTPException(403, "Chat request header required")
 
 
-router = APIRouter(prefix="/api/forge", dependencies=[Depends(require_local_chat)])
+router = APIRouter(
+    prefix="/api/forge",
+    dependencies=[Depends(require_local_chat), Depends(require_owner_action)],
+)
 
 
 class ChatRequest(BaseModel):

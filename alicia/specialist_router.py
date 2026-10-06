@@ -102,6 +102,7 @@ def route_specialist(
     cwd: str = "",
     work_item: str = "",
     read_only: bool = False,
+    requester: str = "anonymous",
 ) -> dict[str, Any]:
     task = (task or "").strip()
     if not task or len(task) > 100_000:
@@ -125,6 +126,7 @@ def route_specialist(
         "cwd": cwd or "",
         "work_item": work_item or "",
         "read_only": bool(read_only),
+        "requester": requester,
         "launched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "result": result,
         "accepted": False,
@@ -206,9 +208,12 @@ def _launch_studio_agent(
 
 
 def _write_receipt(receipt: dict[str, Any], *, path: Path | None = None) -> Path:
+    from .redact import gate_value
+
     _RECEIPTS.mkdir(parents=True, exist_ok=True, mode=0o700)
     target = path or (_RECEIPTS / f"{int(time.time())}-{receipt['specialist']}.json")
-    target.write_text(json.dumps(receipt, indent=2) + "\n")
+    safe = gate_value(receipt)
+    target.write_text(json.dumps(safe, indent=2) + "\n")
     target.chmod(0o600)
     return target
 
