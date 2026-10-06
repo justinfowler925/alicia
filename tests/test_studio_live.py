@@ -7,20 +7,25 @@ from alicia import brain, live_voice
 from alicia.config import AliciaCfg
 from alicia.studio_access import install
 
+OWNER_HEADERS = {'X-Alicia-Owner-Token': 'live-test-owner'}
+
 
 def test_private_studio_identity_and_origin(monkeypatch):
     monkeypatch.setenv('ALICIA_PUBLIC_ORIGIN','https://studio.example:8768')
     monkeypatch.setenv('ALICIA_TAILSCALE_OWNER','owner@example.com')
+    monkeypatch.setenv('ALICIA_SERVE_PROOF','serve-proof-test')
     app=FastAPI()
     install(app)
     @app.post('/write')
     def write():return {'ok':True}
     client=TestClient(app,client=('127.0.0.1',4567),base_url='https://studio.example:8768')
     assert client.post('/write').status_code==403
-    headers={'tailscale-user-login':'owner@example.com','origin':'https://studio.example:8768'}
+    headers={'tailscale-user-login':'owner@example.com','origin':'https://studio.example:8768','X-Alicia-Serve-Proof':'serve-proof-test'}
     assert client.post('/write',headers=headers).status_code==200
     assert client.post('/write',headers={**headers,'origin':'https://evil.example'}).status_code==403
     assert client.post('/write',headers={**headers,'tailscale-user-login':'other@example.com'}).status_code==403
+    # Forged identity without Serve proof must not pass.
+    assert client.post('/write',headers={'tailscale-user-login':'owner@example.com','origin':'https://studio.example:8768'}).status_code==403
 
 
 def test_cursor_selected_never_calls_claude(monkeypatch):
@@ -36,6 +41,7 @@ def test_cursor_selected_never_calls_claude(monkeypatch):
 
 def test_delegation_does_not_run_twice(monkeypatch,tmp_path):
     monkeypatch.setenv('ALICIA_STATE_DIR',str(tmp_path))
+    monkeypatch.setenv('ALICIA_OWNER_TOKEN','live-test-owner')
     app=FastAPI();app.include_router(live_voice.router)
     app.state.sessions=SimpleNamespace(get_session=lambda _:True)
     app.state.live_voice_jobs=set()
@@ -43,9 +49,9 @@ def test_delegation_does_not_run_twice(monkeypatch,tmp_path):
     app.state.conversation=SimpleNamespace(handle=handle)
     with TestClient(app) as client:
         body={'id':'delegation1','message':'Remember the test'}
-        assert client.post('/api/session/session1/live-delegation',json=body).json()['reply']=='Saved.'
-        assert client.post('/api/session/session1/live-delegation',json=body).json()['replayed'] is True
-        assert client.post('/api/session/session1/live-delegation',json={**body,'message':'different'}).status_code==409
+        assert client.post('/api/session/session1/live-delegation',headers=OWNER_HEADERS,json=body).json()['reply']=='Saved.'
+        assert client.post('/api/session/session1/live-delegation',headers=OWNER_HEADERS,json=body).json()['replayed'] is True
+        assert client.post('/api/session/session1/live-delegation',headers=OWNER_HEADERS,json={**body,'message':'different'}).status_code==409
     handle.assert_called_once()
     assert handle.call_args.kwargs['owner_verified'] is False
 
@@ -127,6 +133,7 @@ def test_reviewer_model_override_reaches_cli_without_changing_conversation(monke
 def test_delegation_reuses_saved_voice_turn_and_rejects_mismatches(monkeypatch, tmp_path):
     from alicia.session import SessionStore
     monkeypatch.setenv('ALICIA_STATE_DIR', str(tmp_path))
+    monkeypatch.setenv('ALICIA_OWNER_TOKEN', 'live-test-owner')
     store = SessionStore(tmp_path / 'sessions.sqlite')
     sid = store.open_session()
     first = store.append_live_turn(sid, 'user', 'Check ', 'part-1')
@@ -143,9 +150,9 @@ def test_delegation_reuses_saved_voice_turn_and_rejects_mismatches(monkeypatch, 
     app.state.conversation = SimpleNamespace(handle=handle)
     with TestClient(app) as client:
         body = {'id': 'new-work', 'message': 'Wrong', 'transcript_ids': ['part-1', 'part-2']}
-        assert client.post(f'/api/session/{sid}/live-delegation', json=body).status_code == 409
+        assert client.post(f'/api/session/{sid}/live-delegation', headers=OWNER_HEADERS, json=body).status_code == 409
         body['message'] = 'Check again.'
-        assert client.post(f'/api/session/{sid}/live-delegation', json=body).status_code == 200
+        assert client.post(f'/api/session/{sid}/live-delegation', headers=OWNER_HEADERS, json=body).status_code == 200
     assert handle.call_args.kwargs['live_turn_ids'] == ['part-1', 'part-2']
     assert [t.id for t in store.transcript(sid)] == [first.id, last.id]
 
@@ -214,6 +221,7 @@ def test_live_result_provenance_and_previous_instruction_reach_real_manager(monk
     from alicia.session import SessionStore
     from alicia.conversation import ConversationManager
     monkeypatch.setenv('ALICIA_STATE_DIR', str(tmp_path))
+    monkeypatch.setenv('ALICIA_OWNER_TOKEN', 'live-test-owner')
     store = SessionStore(tmp_path/'sessions.sqlite'); sid=store.open_session()
     first=store.append_live_turn(sid,'user','Review the complete Orchard design and its acceptance criteria. ','u-first')
     store.append_live_turn(sid,'alicia','I am listening.','a-interleaved')
@@ -228,10 +236,10 @@ def test_live_result_provenance_and_previous_instruction_reach_real_manager(monk
     app=FastAPI();app.include_router(live_voice.router)
     app.state.sessions=store;app.state.conversation=manager;app.state.live_voice_jobs=set();app.state.bus=Mock()
     with TestClient(app) as client:
-        result=client.post(f'/api/session/{sid}/live-delegation',json={'id':'delegated-1','message':last.text,'transcript_ids':['u-last']})
+        result=client.post(f'/api/session/{sid}/live-delegation',headers=OWNER_HEADERS,json={'id':'delegated-1','message':last.text,'transcript_ids':['u-last']})
         assert result.status_code==200
         assert result.json()['reply']=='The second requirement passes.'
-        spoken=client.post(f'/api/session/{sid}/live-transcript',json={'id':'a-result','role':'assistant','text':'That requirement is good.','event_ids':['provider-1','provider-2'],'start_ms':2100,'end_ms':2800})
+        spoken=client.post(f'/api/session/{sid}/live-transcript',headers=OWNER_HEADERS,json={'id':'a-result','role':'assistant','text':'That requirement is good.','event_ids':['provider-1','provider-2'],'start_ms':2100,'end_ms':2800})
         assert spoken.status_code==200
     assert observed[0][0]==last.text
     assert any(first.text==message['content'] for message in observed[0][1])
@@ -251,10 +259,11 @@ def test_live_result_provenance_and_previous_instruction_reach_real_manager(monk
 
 def test_zero_turn_live_reply_does_not_become_a_false_failure(monkeypatch,tmp_path):
     monkeypatch.setenv('ALICIA_STATE_DIR',str(tmp_path))
+    monkeypatch.setenv('ALICIA_OWNER_TOKEN','live-test-owner')
     app=FastAPI();app.include_router(live_voice.router)
     app.state.sessions=SimpleNamespace(get_session=lambda _:True)
     app.state.conversation=SimpleNamespace(handle=Mock(return_value=SimpleNamespace(reply='',turn_id=0)))
     app.state.live_voice_jobs=set()
     with TestClient(app) as client:
-        response=client.post('/api/session/session1/live-delegation',json={'id':'silence','message':'give me a moment'})
+        response=client.post('/api/session/session1/live-delegation',headers=OWNER_HEADERS,json={'id':'silence','message':'give me a moment'})
         assert response.json()['reply']==''

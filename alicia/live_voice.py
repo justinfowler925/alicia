@@ -6,11 +6,16 @@ import sqlite3
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from .paths import state_path
+from .security import require_owner_action
 
-router = APIRouter(prefix='/api/session', tags=['live-voice'])
+router = APIRouter(
+    prefix='/api/session',
+    tags=['live-voice'],
+    dependencies=[Depends(require_owner_action)],
+)
 
 INSTRUCTIONS = '''You are Alicia, Justin's assistant. Speak naturally, warmly, directly and briefly.
 You can listen while speaking. Do not announce technical details. Delegate ALL requests for facts

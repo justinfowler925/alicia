@@ -19,6 +19,32 @@ export ALICIA_STUDIO_SSH=jfstudio@100.102.92.119
 export CREDENTIAL_CONTRACT="$ALICIA_APP_DIR/credentials/studio.json"
 export ALICIA_PUBLIC_ORIGIN=https://justins-mac-studio-1.tailbaa084.ts.net:8768
 export ALICIA_TAILSCALE_OWNER=justin@justinfowler.com
+export ALICIA_SERVE_PROXY_PORT="${ALICIA_SERVE_PROXY_PORT:-8767}"
+export ALICIA_SERVE_UPSTREAM="${ALICIA_SERVE_UPSTREAM:-http://127.0.0.1:8768}"
 cd "$ALICIA_APP_DIR"
+
+# State dir must not be group/world readable (sessions, DBs, tokens).
+mkdir -p "$ALICIA_STATE_DIR"
+chmod 700 "$ALICIA_STATE_DIR" 2>/dev/null || true
+chmod 600 "$ALICIA_STATE_DIR"/*.sqlite "$ALICIA_STATE_DIR"/*.token "$ALICIA_STATE_DIR"/*.proof 2>/dev/null || true
+
+# Mint/load Serve proof, then front Alicia with the proof-injecting proxy.
+# Tailscale Serve targets the proxy port; forged headers on :8768 alone fail.
+PROOF="$("$ALICIA_APP_DIR/.venv/bin/python" -c 'from alicia.security import configured_serve_proof; print(configured_serve_proof())')"
+export ALICIA_SERVE_PROOF="$PROOF"
+PROXY_PID_FILE="$ALICIA_STATE_DIR/serve-proxy.pid"
+if [[ -f "$PROXY_PID_FILE" ]]; then
+  old_pid=$(cat "$PROXY_PID_FILE" 2>/dev/null || true)
+  if [[ -n "${old_pid:-}" ]] && kill -0 "$old_pid" 2>/dev/null; then
+    kill "$old_pid" 2>/dev/null || true
+    sleep 0.2
+  fi
+fi
+"$ALICIA_APP_DIR/.venv/bin/python" "$ALICIA_APP_DIR/scripts/alicia-serve-proxy.py" \
+  --listen "$ALICIA_SERVE_PROXY_PORT" \
+  --upstream "$ALICIA_SERVE_UPSTREAM" \
+  >>"$ALICIA_HOME/logs/serve-proxy.log" 2>&1 &
+echo $! >"$PROXY_PID_FILE"
+
 if (( $# == 0 )); then set -- serve; fi
 exec "$HOME/.config/fowler-credentials/scripts/credential-run" alicia-studio -- "$ALICIA_APP_DIR/.venv/bin/alicia" "$@"

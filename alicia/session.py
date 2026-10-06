@@ -212,6 +212,10 @@ class SessionStore:
         channel: Channel = "text",
         meta: dict[str, Any] | None = None,
     ) -> Turn:
+        from .redact import gate_text, gate_value
+
+        text = gate_text(text)
+        meta = gate_value(meta or {}) if meta else {}
         at = _now()
         with self._connect() as conn:
             cur = conn.execute(

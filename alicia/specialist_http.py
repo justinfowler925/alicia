@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from .security import require_owner_action
 from .specialist_router import latest_receipts, org_chart, preview, route_specialist
 
 router = APIRouter(prefix="/api/specialists", tags=["specialists"])
@@ -38,7 +39,17 @@ def post_preview(body: PreviewBody) -> dict[str, Any]:
 
 
 @router.post("/route")
-def post_route(body: RouteBody) -> dict[str, Any]:
+def post_route(body: RouteBody, request: Request) -> dict[str, Any]:
+    """Dry-run stays open; live launch requires owner proof and names the requester."""
+    requester = "anonymous"
+    if not body.dry_run:
+        via = require_owner_action(
+            request,
+            authorization=request.headers.get("authorization"),
+            x_alicia_owner_token=request.headers.get("x-alicia-owner-token"),
+            x_alicia_csrf=request.headers.get("x-alicia-csrf"),
+        )
+        requester = via
     try:
         return route_specialist(
             body.task,
@@ -47,6 +58,7 @@ def post_route(body: RouteBody) -> dict[str, Any]:
             cwd=body.cwd,
             work_item=body.work_item,
             read_only=body.read_only,
+            requester=requester,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
