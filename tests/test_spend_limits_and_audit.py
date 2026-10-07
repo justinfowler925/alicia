@@ -107,14 +107,14 @@ def test_auth_audit_records_and_endpoint_reads(tmp_path, monkeypatch):
 
 
 def test_node_allowlist_rejects_unknown_peer(monkeypatch):
-    monkeypatch.setenv("ALICIA_TAILSCALE_ALLOWED_NODES", "JFMacM5,hyper")
+    monkeypatch.setenv("ALICIA_TAILSCALE_ALLOWED_NODES", "DevLaptop,hyper")
     monkeypatch.delenv("ALICIA_TAILSCALE_ALLOWED_TAGS", raising=False)
 
     def fake_whois(ip):
         return {"Node": {"HostName": "stranger", "Addresses": [ip]}}
 
     with patch("alicia.studio_access._whois", side_effect=fake_whois):
-        allowed, reason, label = peer_allowed({"x-forwarded-for": "100.90.100.85"})
+        allowed, reason, label = peer_allowed({"x-forwarded-for": "203.0.113.50"})
     assert allowed is False
     assert reason == "node_not_allowlisted"
     assert label == "stranger"
@@ -123,39 +123,39 @@ def test_node_allowlist_rejects_unknown_peer(monkeypatch):
 def test_node_allowlist_matches_live_whois_shape(monkeypatch):
     """Real ``tailscale whois --json`` uses ComputedName + Name, not HostName."""
 
-    monkeypatch.setenv("ALICIA_TAILSCALE_ALLOWED_NODES", "jfmacm5,hyper")
+    monkeypatch.setenv("ALICIA_TAILSCALE_ALLOWED_NODES", "dev-laptop,hyper")
     monkeypatch.delenv("ALICIA_TAILSCALE_ALLOWED_TAGS", raising=False)
 
     def fake_whois(ip):
         return {
             "Node": {
-                "Name": "jfmacm5.tailbaa084.ts.net.",
-                "ComputedName": "jfmacm5",
-                "Hostinfo": {"Hostname": "JFMacM5"},
+                "Name": "dev-laptop.example.test.",
+                "ComputedName": "dev-laptop",
+                "Hostinfo": {"Hostname": "DevLaptop"},
                 "Addresses": [f"{ip}/32"],
             }
         }
 
     with patch("alicia.studio_access._whois", side_effect=fake_whois):
-        allowed, reason, label = peer_allowed({"x-forwarded-for": "100.90.100.85"})
+        allowed, reason, label = peer_allowed({"x-forwarded-for": "203.0.113.50"})
     assert allowed is True
     assert reason == "peer_ok"
-    assert label == "jfmacm5"
+    assert label == "dev-laptop"
 
     def stale_whois(ip):
         return {
             "Node": {
-                "Name": "fowler-macbook-pro.tailbaa084.ts.net.",
-                "ComputedName": "fowler-macbook-pro",
+                "Name": "stale-laptop.example.test.",
+                "ComputedName": "stale-laptop",
                 "Addresses": [f"{ip}/32"],
             }
         }
 
     with patch("alicia.studio_access._whois", side_effect=stale_whois):
-        allowed, reason, label = peer_allowed({"x-forwarded-for": "100.98.147.100"})
+        allowed, reason, label = peer_allowed({"x-forwarded-for": "203.0.113.51"})
     assert allowed is False
     assert reason == "node_not_allowlisted"
-    assert label == "fowler-macbook-pro"
+    assert label == "stale-laptop"
 
 
 def test_node_allowlist_accepts_tagged_peer(monkeypatch):
@@ -163,20 +163,20 @@ def test_node_allowlist_accepts_tagged_peer(monkeypatch):
     monkeypatch.setenv("ALICIA_TAILSCALE_ALLOWED_TAGS", "tag:owner")
 
     def fake_whois(ip):
-        return {"Node": {"HostName": "JFMacM5", "Tags": ["tag:owner"], "Addresses": [ip]}}
+        return {"Node": {"HostName": "DevLaptop", "Tags": ["tag:owner"], "Addresses": [ip]}}
 
     with patch("alicia.studio_access._whois", side_effect=fake_whois):
-        allowed, reason, label = peer_allowed({"x-forwarded-for": "100.90.100.85"})
+        allowed, reason, label = peer_allowed({"x-forwarded-for": "203.0.113.50"})
     assert allowed is True
     assert reason == "peer_ok"
-    assert label == "jfmacm5"
+    assert label == "devlaptop"
 
 
 def test_middleware_enforces_node_allowlist(monkeypatch):
     monkeypatch.setenv("ALICIA_PUBLIC_ORIGIN", "https://studio.example:8768")
     monkeypatch.setenv("ALICIA_TAILSCALE_OWNER", "owner@example.com")
     monkeypatch.setenv("ALICIA_SERVE_PROOF", "real-proof")
-    monkeypatch.setenv("ALICIA_TAILSCALE_ALLOWED_NODES", "JFMacM5")
+    monkeypatch.setenv("ALICIA_TAILSCALE_ALLOWED_NODES", "DevLaptop")
     app = FastAPI()
     install(app)
 
@@ -189,15 +189,15 @@ def test_middleware_enforces_node_allowlist(monkeypatch):
         "tailscale-user-login": "owner@example.com",
         "origin": "https://studio.example:8768",
         "X-Alicia-Serve-Proof": "real-proof",
-        "X-Forwarded-For": "100.1.1.1",
+        "X-Forwarded-For": "203.0.113.10",
     }
     with patch(
         "alicia.studio_access._whois",
-        return_value={"Node": {"HostName": "bad-device", "Addresses": ["100.1.1.1"]}},
+        return_value={"Node": {"HostName": "bad-device", "Addresses": ["203.0.113.10"]}},
     ):
         assert client.get("/who", headers=headers).status_code == 403
     with patch(
         "alicia.studio_access._whois",
-        return_value={"Node": {"HostName": "JFMacM5", "Addresses": ["100.1.1.1"]}},
+        return_value={"Node": {"HostName": "DevLaptop", "Addresses": ["203.0.113.10"]}},
     ):
         assert client.get("/who", headers=headers).json()["studio_owner"] is True

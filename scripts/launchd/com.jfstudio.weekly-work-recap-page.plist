@@ -13,7 +13,7 @@
 		<string>http.server</string>
 		<string>8377</string>
 		<string>--bind</string>
-		<string>100.102.92.119</string>
+		<string>127.0.0.1</string>
 		<string>--directory</string>
 		<string>/Users/jfstudio/.local/share/workflow-efficiency/reports/work</string>
 	</array>

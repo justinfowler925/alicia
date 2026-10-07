@@ -30,7 +30,7 @@ def _forget_reachability():
 def _unreachable():
     return subprocess.CompletedProcess(
         args=[], returncode=255, stdout="",
-        stderr="ssh: connect to host 100.93.125.5 port 22: Operation timed out",
+        stderr="ssh: connect to host 203.0.113.10 port 22: Operation timed out",
     )
 
 

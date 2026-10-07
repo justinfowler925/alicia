@@ -1,7 +1,7 @@
 #!/bin/bash
 # Deploy the committed source. State and config are deliberately outside it.
 set -euo pipefail
-host=jfstudio@100.102.92.119
+host="${ALICIA_STUDIO_SSH:?set ALICIA_STUDIO_SSH to the Studio SSH target}"
 root=$(cd "$(dirname "$0")/.." && pwd)
 sha=$(git -C "$root" rev-parse HEAD)
 git -C "$root" archive "$sha" | ssh "$host" 'mkdir -p ~/.alicia/app ~/.alicia/state ~/.alicia/logs; tar xf - -C ~/.alicia/app'

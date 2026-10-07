@@ -81,7 +81,8 @@ def test_remote_cli_quotes_arguments_and_does_not_run_second_server(monkeypatch,
     monkeypatch.delenv('ALICIA_STATE_DIR',raising=False)
     monkeypatch.delenv('ALICIA_LOCAL_CLI',raising=False)
     (tmp_path/'.alicia').mkdir()
-    (tmp_path/'.alicia/remote.json').write_text(json.dumps({'host':'jfstudio@100.102.92.119','url':'https://studio/'}))
+    monkeypatch.setenv('ALICIA_STUDIO_SSH', 'studio@example.test')
+    (tmp_path/'.alicia/remote.json').write_text(json.dumps({'host':'studio@example.test','url':'https://studio/'}))
     called=Mock(return_value=0)
     monkeypatch.setattr(remote_cli.subprocess,'call',called)
     assert remote_cli.forward(['chat','hello; touch /tmp/no'])==0

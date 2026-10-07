@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd -P)
-STUDIO_TARGET=${ALICIA_STUDIO_SSH:-jfstudio@100.102.92.119}
+STUDIO_TARGET="${ALICIA_STUDIO_SSH:?set ALICIA_STUDIO_SSH}"
 REMOTE_DIR=/Users/jfstudio/.local/share/workflow-efficiency
 REMOTE_PLIST=/Users/jfstudio/Library/LaunchAgents/com.jfstudio.weekly-workflow-efficiency.plist
 LABEL=com.jfstudio.weekly-workflow-efficiency

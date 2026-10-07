@@ -5,7 +5,7 @@ set -euo pipefail
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
-ATLAS_HOST="${ATLAS_SSH_HOST:-jfstudio@100.93.125.5}"
+ATLAS_HOST="${ATLAS_SSH_HOST:-${ALICIA_STUDIO_SSH:?set ATLAS_SSH_HOST or ALICIA_STUDIO_SSH}}"
 LOCAL_PORT="${ALICIA_LOCAL_PORT:-8767}"
 REMOTE_PORT="${ALICIA_REMOTE_PORT:-8767}"
 HEALTH_URL="${ALICIA_HEALTH_URL:-http://127.0.0.1:${LOCAL_PORT}/api/healthz}"

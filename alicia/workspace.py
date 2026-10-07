@@ -1,6 +1,7 @@
 """Read-only, bounded projections for Alicia's project workspace."""
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter
@@ -9,9 +10,9 @@ from .studio_runs import snapshot
 
 router = APIRouter(prefix='/api/workspace', tags=['workspace'])
 APPLICATIONS = [
- {'id':'demo-maker','name':'Demo Maker','description':'Create voice demos and publish them to the demo library.','url':'https://justins-mac-studio-1.tailbaa084.ts.net:8790/','category':'Create'},
+ {'id':'demo-maker','name':'Demo Maker','description':'Create voice demos and publish them to the demo library.','url':os.environ.get('DEMO_MAKER_URL',''),'category':'Create'},
  {'id':'clearspeed-demos','name':'Clearspeed Demos','description':'Insurance, banking and voice verification experiences.','url':'https://www.clearspeeddemos.com/','category':'Present'},
- {'id':'hollywood','name':'Hollywood','description':'Studio media production, assets and render jobs.','url':'https://justins-mac-studio-1.tailbaa084.ts.net:8960/','category':'Create'},
+ {'id':'hollywood','name':'Hollywood','description':'Studio media production, assets and render jobs.','url':os.environ.get('HOLLYWOOD_URL',''),'category':'Create'},
 ]
 
 def read_json(path: Path):

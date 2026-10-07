@@ -54,7 +54,7 @@ PY="$ROOT/.venv/bin/python"
 [ -x "$PY" ] || PY="python3"
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
-STUDIO_HOST="jfstudio@100.93.125.5"
+STUDIO_HOST="${ALICIA_STUDIO_SSH:?set ALICIA_STUDIO_SSH}"
 ALICIA_URL="${ALICIA_URL:-http://127.0.0.1:8768}"
 ANAM_MIN_PX=1152
 SIZE=1152          # square at the floor, so any crop Anam applies still clears
