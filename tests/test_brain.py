@@ -98,6 +98,7 @@ def test_every_offered_tool_has_a_valid_object_schema():
 
 def test_proposable_matches_the_gate():
     assert set(PROPOSABLE) == {
+        "cro_nudge_send",
         "organize_agent_thread",
         "organize_project",
         "delete_note",
