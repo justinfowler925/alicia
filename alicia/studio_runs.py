@@ -28,7 +28,7 @@ _error = ""
 
 
 def remote(*args):
-    host = os.environ.get("ALICIA_STUDIO_SSH", "100.102.92.119")
+    host = os.environ.get("ALICIA_STUDIO_SSH", "")
     if not re.fullmatch(r"[a-zA-Z0-9_.@-]+", host) or host.startswith("-"):
         raise ValueError("Invalid Studio SSH target")
     command = list(args) if Path.home() == Path("/Users/jfstudio") else [
@@ -164,7 +164,7 @@ def control(job_id: str, action: str):
     jobs = (snapshot() or {}).get("jobs") or []
     try:
         return process_control.studio_job_action(
-            job_id, action, jobs, os.environ.get("ALICIA_STUDIO_SSH", "100.102.92.119")
+            job_id, action, jobs, os.environ.get("ALICIA_STUDIO_SSH", "")
         )
     except process_control.ControlError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

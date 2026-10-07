@@ -16,7 +16,7 @@ Three things in one app:
 
 | Where | What |
 |---|---|
-| **Live app** | `https://justins-mac-studio.tailbaa084.ts.net:8790` — **tailnet-only**, deliberately not public |
+| **Live app** | `$DEMO_MAKER_URL` / Tailscale Serve on Studio — **tailnet-only**, deliberately not public |
 | **Host** | Mac Studio; code ships with Alicia (`demo_maker/` in the alicia repo, deployed to `~/.alicia/app/demo_maker`), state in `~/.alicia/state/demo-maker` (`DEMO_MAKER_STATE`) |
 | **Process** | launchd `com.jfstudio.alicia-demo-maker` via `scripts/deploy-studio.sh`; logs `~/.alicia/logs/demo-maker*.log`; `tailscale serve --https=8790 → 127.0.0.1:4173`, embedded as the Alicia `#demo-maker` tab |
 | **Deploy** | `scripts/deploy-studio.sh` from the alicia repo (first time only: `scripts/demo-maker-cutover.sh`) |
@@ -203,13 +203,13 @@ rsync -avn --delete \
   --exclude node_modules --exclude 'server/db/studio.sqlite3*' \
   --exclude renders/ --exclude tmp/ --exclude logs/ --exclude .env --exclude .git/ \
   --exclude public/library/videos/ --exclude public/demo/audio/ --exclude public/demo/data/ \
-  ./ jfstudio@100.93.125.5:voicemaker-studio/
+  ./ "$ALICIA_STUDIO_SSH:voicemaker-studio/"
 ```
 
 **⚠ ALWAYS dry-run first (`-n`) and read every `deleting …` line before the real run.** `public/demo/{data,audio}/` and `public/library/videos/` are **host-generated per render/publish** — Atlas5 holds one config+mp3 per published demo while the laptop only has whatever it last rendered locally. A `--delete` sync without those excludes would destroy the live demo configs (nearly happened 2026-07-28).
 
 ```bash
-ssh jfstudio@100.93.125.5 'launchctl kickstart -k gui/$(id -u)/com.jfstudio.voicemaker-studio'
+ssh "$ALICIA_STUDIO_SSH" 'launchctl kickstart -k gui/$(id -u)/com.jfstudio.voicemaker-studio'
 ```
 
 New dependencies need `npm install` on the box (rsync excludes node_modules); Playwright needs a one-time `npx playwright install chromium` there (~80MB, `~/Library/Caches/ms-playwright`).

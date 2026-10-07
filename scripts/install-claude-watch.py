@@ -43,6 +43,6 @@ def install(home, source, host, url):
 if __name__=='__main__':
     parser=argparse.ArgumentParser()
     parser.add_argument('--host',required=True)
-    parser.add_argument('--url',default='https://justins-mac-studio-1.tailbaa084.ts.net:8768')
+    parser.add_argument('--url',default='')
     args=parser.parse_args()
     print(json.dumps(install(Path.home(),Path(__file__).with_name('alicia-claude-watch.py'),args.host,args.url)))

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shlex
 import struct
 import subprocess
@@ -78,7 +79,10 @@ sys.path.insert(0,str(root))
 def studio_command(bootstrap):
     if Path.home() == Path("/Users/jfstudio"):
         return ["/opt/homebrew/bin/python3", "-c", bootstrap]
-    return ["/usr/bin/ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "jfstudio@100.102.92.119", "/opt/homebrew/bin/python3 -c " + shlex.quote(bootstrap)]
+    host = (os.environ.get("ALICIA_STUDIO_SSH") or "").strip()
+    if not host:
+        raise RuntimeError("Set ALICIA_STUDIO_SSH to reach Forge on Studio")
+    return ["/usr/bin/ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, "/opt/homebrew/bin/python3 -c " + shlex.quote(bootstrap)]
 
 
 def remote(request: dict):

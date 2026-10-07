@@ -424,8 +424,8 @@ def test_catch_me_up_uses_linear_and_does_not_peek_atlas_inbox():
     client.peek_gmail.return_value = {
         "ok": True,
         "items": [
-            {"from": "marcus@clearspeed.com", "title": "SOW review"},
-            {"from": "allison@clearspeed.com", "title": "QBR notes"},
+            {"from": "ae@example.test", "title": "SOW review"},
+            {"from": "csm@example.test", "title": "QBR notes"},
         ],
     }
     client.peek_slack.return_value = {"ok": True, "items": []}

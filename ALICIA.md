@@ -6,7 +6,7 @@
 > organizes data. Hollywood is media. Fowler Brain SSOT:
 > `~/fowler-brain/contexts/org-chart.md`.
 
-> **Current deployment (2026-09-30):** Mac Studio owns the service and durable state. Private URL: https://justins-mac-studio-1.tailbaa084.ts.net:8768/. GPT-Live handles voice, Cursor Pro handles conversation tools and work. Anthropic is not selected in Studio mode. Deploy committed source with `scripts/deploy-studio.sh`; source lives at `~/.alicia/app`, state at `~/.alicia/state`, config at `~/.alicia/config.yaml` on Studio. Laptop localhost redirects to Studio and its CLI forwards there. Earlier laptop/Claude descriptions below are historical. Spoken Cursor handoffs produce an on-screen approval; the work checkout is separate from the service.
+> **Current deployment (2026-09-30):** Mac Studio owns the service and durable state. Private URL: set `ALICIA_PUBLIC_ORIGIN` on Studio (tailnet-only; not committed). GPT-Live handles voice, Cursor Pro handles conversation tools and work. Anthropic is not selected in Studio mode. Deploy committed source with `scripts/deploy-studio.sh`; source lives at `~/.alicia/app`, state at `~/.alicia/state`, config at `~/.alicia/config.yaml` on Studio. Laptop localhost redirects to Studio and its CLI forwards there. Earlier laptop/Claude descriptions below are historical. Spoken Cursor handoffs produce an on-screen approval; the work checkout is separate from the service.
 
 > **Current replacement direction (2026-09-07):** [Apple accessibility reset plan](docs/APPLE_ACCESSIBILITY_RESET_PLAN.md). Continuous Voice Control input and native Apple output; Siri excluded. **Gate 0 Mac proof app:** `native/Gate0Proof/` — run `./scripts/run-mac.sh`. Physical VC samples + iPhone (needs Xcode) still open. Older architecture and completion claims below are historical where they conflict.
 
@@ -246,7 +246,7 @@ all scraping and ingestion. Scout on Studio (fowler-brain
 `scripts/scout-routines`) fetches Zoom meeting summaries (hourly), Zoom My Notes
 (every 5 minutes, token held on Studio), Salesforce `Meeting_Notes__c` action
 items (hourly) and GitHub Canon facts (every 5 minutes), and serves them from its
-private service (`http://100.102.92.119:8973/v1/routines/records`, owner bearer
+private service (`ALICIA_SCOUT_URL`, owner bearer
 token in `~/.alicia/state/scout-service-token`). Alicia imports them through the
 same ingestion code at startup and, throttled to once every five minutes, when
 the board loads; `GET|POST /api/scout/import` shows or forces a pass. The five
