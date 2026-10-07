@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node server/index.js",
-    "test": "node scripts/test-public-sync-routing.js && node scripts/test-publish-pipeline.js"
+    "test": "node scripts/test-access-gate.js && node scripts/test-public-sync-routing.js && node scripts/test-publish-pipeline.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",

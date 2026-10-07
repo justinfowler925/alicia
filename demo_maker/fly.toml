@@ -1,0 +1,43 @@
+# Fowler Demo Maker. One machine, one volume, no scale-out:
+# the SQLite database and the render directory are local files, so a second
+# instance would corrupt them. min_machines_running = 0 lets it sleep when
+# nobody is building a demo, which is most of the time.
+#
+# App name is a placeholder until Clearspeed owns the Fly org — create the app
+# under that org, then set `app = "..."` to match.
+app = "clspd-demo-maker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  DATA_DIR = "/data"
+  PORT = "4173"
+  HOST = "0.0.0.0"
+  PUBLIC_SITE_URL = "https://demo.clearspeed.com"
+  NODE_ENV = "production"
+
+[[mounts]]
+  source = "demo_maker_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 4173
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    method = "GET"
+    path = "/healthz"
+    timeout = "5s"
+
+[[vm]]
+  # ffmpeg transcodes and headless Chromium both want real memory; 512MB OOMs
+  # mid-render. One shared CPU is enough for a single-user tool.
+  size = "shared-cpu-2x"
+  memory = "4gb"

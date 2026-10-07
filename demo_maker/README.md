@@ -12,6 +12,8 @@ Three things in one app:
 
 ## Hosting & topology
 
+**Off-Studio rehost:** container packaging + Nucleus embed gate live in-tree (`Dockerfile`, `fly.toml`, `docs/REHOST.md`, `DEMO_MAKER_ACCESS_SECRET`). Do not publish a public origin without the secret set on Demo Maker and Nucleus. Cutover still needs a Clearspeed-owned Fly/Render/ECS account.
+
 | Where | What |
 |---|---|
 | **Live app** | `$DEMO_MAKER_URL` / Tailscale Serve on Studio — **tailnet-only**, deliberately not public |

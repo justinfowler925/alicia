@@ -1,0 +1,15 @@
+.git
+.github
+node_modules
+.env
+.env.*
+tmp
+renders
+logs
+library
+*.log
+.DS_Store
+docs
+scripts/smoke*
+scripts/rerender*
+scripts/test-*

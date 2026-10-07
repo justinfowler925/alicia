@@ -45,6 +45,12 @@ function segmentParams(seg, projectId, position) {
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
+
+// Gate before static + APIs. When DEMO_MAKER_ACCESS_SECRET is unset (Studio /
+// tailnet), this is a no-op except /healthz. When set, Nucleus must mint an
+// embed URL — do not put a public origin in front of an ungated process.
+require('./lib/access-gate').install(app);
+
 app.use('/library/videos', express.static(require('./lib/paths').LIBRARY_DIR));
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   // Never serve a stale app shell / script — always revalidate so a cached
@@ -1076,6 +1082,9 @@ app.post('/api/library/event', (req, res) => {
 });
 
 const PORT = process.env.PORT || 4173;
-app.listen(PORT, () => {
+// 0.0.0.0 so a container's port mapping can reach it; localhost-only binding
+// makes the process unreachable from outside the container.
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
   console.log(`Fowler Demo Maker running at http://localhost:${PORT}`);
 });
