@@ -428,6 +428,16 @@ for SRC in "$APP"/launchd/*.plist; do
   fi
 done
 
+# Install / refresh the Nucleus CRO nudge skill for Forge enable_capability.
+SKILL_SRC="$APP/skills/nucleus-nudge"
+SKILL_DST="$HOME/.agents/skills/nucleus-nudge"
+if [ -f "$SKILL_SRC/SKILL.md" ]; then
+  mkdir -p "$HOME/.agents/skills"
+  rm -rf "$SKILL_DST"
+  cp -R "$SKILL_SRC" "$SKILL_DST"
+  echo "==> nucleus-nudge skill -> $SKILL_DST"
+fi
+
 echo "==> restarting"
 # kickstart only works on a service that is already loaded. If it is not — say
 # a previous deploy booted it out and then skipped bootstrap because the plist

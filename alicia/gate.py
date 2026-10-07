@@ -45,6 +45,7 @@ FREE_WRITES = frozenset(
 # not free to erase without a confirm.
 GATED = frozenset(
     {
+        "cro_nudge_send",
         "approve_gate",
         "dispatch_tick",
         "answer_steering",
@@ -143,6 +144,21 @@ def describe(tool: str, args: dict[str, Any]) -> tuple[str, str]:
     what you are shown and what runs, and that includes the description.
     """
     a = args or {}
+    if tool == "cro_nudge_send":
+        count = 1
+        if a.get("all_open"):
+            who = "every open Deal Desk nudge"
+        elif a.get("opportunity_ids"):
+            ids = a.get("opportunity_ids") or []
+            count = len(ids) if isinstance(ids, list) else 1
+            who = f"{count} selected opportunities"
+        else:
+            who = f"opportunity {a.get('opportunity_id') or '?'}"
+        msg = _short(a.get("message"), 120)
+        return (
+            f"Send identical Deal Desk nudge to {who}: “{msg}”",
+            f"Send that identical nudge to {who}?",
+        )
     if tool == "approve_gate":
         decision = str(a.get("decision") or "approve")
         ticket = a.get("ticket") or "?"
