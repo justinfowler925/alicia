@@ -13,7 +13,10 @@ def forward(args):
     if not marker.exists():
         return None
     data=json.loads(marker.read_text())
-    if data.get('host') != 'jfstudio@100.102.92.119':
+    expected=(os.environ.get('ALICIA_STUDIO_SSH') or '').strip()
+    if not expected:
+        raise RuntimeError('Set ALICIA_STUDIO_SSH to forward the CLI to Studio')
+    if data.get('host') != expected:
         raise RuntimeError('Unrecognized Alicia remote host')
     if args and args[0] in ('serve','ear'):
         raise RuntimeError('Alicia runs on Studio. Open '+data['url'])

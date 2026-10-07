@@ -15,14 +15,19 @@ export ALICIA_CURSOR_MODEL=auto
 export AGENT_CLI_CREDENTIAL_STORE=file
 # Keep the real loopback proxy peer for the Tailscale identity boundary.
 export FORWARDED_ALLOW_IPS=""
-export ALICIA_STUDIO_SSH=jfstudio@100.102.92.119
+# Public repo: Studio SSH target, public origin, and peer allowlist live in
+# ~/.alicia/studio-env.sh (not committed) or the process environment.
+if [[ -f "$ALICIA_HOME/studio-env.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$ALICIA_HOME/studio-env.sh"
+fi
+export ALICIA_STUDIO_SSH="${ALICIA_STUDIO_SSH:-}"
 export CREDENTIAL_CONTRACT="$ALICIA_APP_DIR/credentials/studio.json"
-export ALICIA_PUBLIC_ORIGIN=https://justins-mac-studio-1.tailbaa084.ts.net:8768
-export ALICIA_TAILSCALE_OWNER=justin@justinfowler.com
+export ALICIA_PUBLIC_ORIGIN="${ALICIA_PUBLIC_ORIGIN:-}"
+export ALICIA_TAILSCALE_OWNER="${ALICIA_TAILSCALE_OWNER:-}"
 # Per-device allowlist via ComputedName / short hostname / Tailscale IP.
-# Active without ACL tags (tag:owner still preferred later). Override to empty to disable.
-# Deliberately omits stale peers: fowler-macbook-pro, justins-mac-studio (old).
-export ALICIA_TAILSCALE_ALLOWED_NODES="${ALICIA_TAILSCALE_ALLOWED_NODES:-jfmacm5,hyper,iphone-15-pro,iphone-15-pro-1,justins-mac-studio-1,100.90.100.85,100.92.141.37,100.106.29.103,100.114.156.93,100.102.92.119}"
+# Active without ACL tags (tag:owner still preferred later). Empty disables.
+export ALICIA_TAILSCALE_ALLOWED_NODES="${ALICIA_TAILSCALE_ALLOWED_NODES:-}"
 # Leave tags empty until Machines UI tags exist — setting tag:owner before tags bricks Serve.
 export ALICIA_TAILSCALE_ALLOWED_TAGS="${ALICIA_TAILSCALE_ALLOWED_TAGS:-}"
 export ALICIA_SERVE_PROXY_PORT="${ALICIA_SERVE_PROXY_PORT:-8767}"

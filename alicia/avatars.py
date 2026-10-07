@@ -23,12 +23,17 @@ import re
 import subprocess
 import time
 from pathlib import Path
+import os
 from typing import Any
 
 import httpx
 
-STUDIO = "https://justins-mac-studio.tailbaa084.ts.net:8930"
-STUDIO_HOST = "jfstudio@100.93.125.5"
+# This repo is public. A tailnet hostname and a tailnet SSH target are
+# infrastructure detail about a private machine, so they are read from the
+# environment rather than committed. The defaults are deliberately empty:
+# unset, the Studio calls fail loudly instead of pointing somewhere wrong.
+STUDIO = os.environ.get("ALICIA_STUDIO_URL", "")
+STUDIO_HOST = os.environ.get("ALICIA_STUDIO_SSH", "")
 VERCEL_PROJECT = "clearspeed-demos"
 CONFIG_PATH = state_path("avatar_configs.json")
 # mflux writes to ~/mflux-out/faces (make-face.sh). The live Studio daemon

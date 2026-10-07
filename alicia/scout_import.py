@@ -31,7 +31,7 @@ from .paths import alicia_home, canon_db_path, state_dir
 
 log = logging.getLogger(__name__)
 
-SCOUT_URL = os.environ.get("ALICIA_SCOUT_URL", "http://100.102.92.119:8973").rstrip("/")
+SCOUT_URL = os.environ.get("ALICIA_SCOUT_URL", "").rstrip("/")
 KINDS = ("zoom-summary", "zoom-my-note", "sf-meeting-note", "github-canon")
 OWNERS = ["justin"]
 JUSTIN_EMAIL = "justin.fowler@clearspeed.com"
