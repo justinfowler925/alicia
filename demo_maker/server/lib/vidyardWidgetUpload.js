@@ -5,6 +5,13 @@
  * widget is a Fine Uploader page with input[name=qqfile]; Playwright feeds the
  * local mp4, then we read the share.vidyard.com/watch/<uuid> the widget shows
  * (available immediately, before encoding finishes / webhook fires).
+ *
+ * Domain allowlist: Vidyard only embeds the widget on owner-approved hosts.
+ * clearspeeddemos.com 308s to demo.clearspeed.com, which is NOT allowlisted, so
+ * loading the public upload page leaves an empty iframe ("cannot be embedded on
+ * this domain") and publish fails with "did not expose a file input". Fix: open
+ * the widget URL directly with Referer set to the allowlisted
+ * www.clearspeeddemos.com upload path (the Referer alone is enough for Vidyard).
  */
 const crypto = require('crypto');
 const fs = require('fs');
@@ -17,10 +24,13 @@ const { chromium } = require('playwright');
 // (`n3KIDJVi737WcPIbYh2q1g`) is the Clearspeed ROOT folder's widget.
 const WIDGET_ID = process.env.VIDYARD_UPLOADER_WIDGET_ID || 'MpWxjM6h_gYSzlY13AicUQ';
 const PLAYER_PATTERN = /^[A-Za-z0-9_-]{16,}$/;
-const UPLOAD_PAGE_BASE = process.env.VIDYARD_UPLOAD_PAGE_URL
+// Allowlisted parent used only as Referer — the live site redirects to
+// demo.clearspeed.com, which Vidyard rejects as an embed host.
+const WIDGET_REFERER = process.env.VIDYARD_UPLOAD_REFERER
   || 'https://www.clearspeeddemos.com/vidyard-upload/';
 const CALLBACK_BASE = process.env.VIDYARD_UPLOAD_CALLBACK_URL
   || 'https://www.clearspeeddemos.com/api/vidyard-upload';
+const DOMAIN_BLOCK = /cannot be embedded on this domain/i;
 
 function configured() {
   return Boolean(WIDGET_ID);
@@ -28,6 +38,13 @@ function configured() {
 
 function createTag() {
   return 'fdm' + crypto.randomBytes(16).toString('hex');
+}
+
+function widgetUploadUrl(tag) {
+  const uploader = new URL(`https://secure.vidyard.com/uploader_widgets/${WIDGET_ID}`);
+  uploader.searchParams.append('options[]', 'upload');
+  uploader.searchParams.set('tags', tag);
+  return uploader;
 }
 
 /**
@@ -85,9 +102,19 @@ function parsePlayerUuid(text) {
   return m ? m[1] : '';
 }
 
+async function frameBodyText(frame) {
+  try {
+    return await frame.evaluate(() => document.body?.innerText || '');
+  } catch {
+    return '';
+  }
+}
+
 async function scrapePlayerUuid(page) {
-  for (const frame of page.frames()) {
-    if (!frame.url().includes('secure.vidyard.com')) continue;
+  const frames = page.frames();
+  for (const frame of frames) {
+    const url = frame.url();
+    if (!url.includes('secure.vidyard.com') && frame !== page.mainFrame()) continue;
     try {
       const found = await frame.evaluate(() => {
         const values = [];
@@ -129,6 +156,37 @@ async function pollCallback(tag, timeoutMs) {
   return null;
 }
 
+async function findFileInput(page) {
+  // Direct widget page (current path) — input lives on the main document.
+  const onPage = await page.$('input[type="file"][name="qqfile"]')
+    || await page.$('input[type="file"]');
+  if (onPage) return onPage;
+
+  for (const frame of page.frames()) {
+    if (!frame.url().includes('secure.vidyard.com')) continue;
+    const handle = await frame.$('input[type="file"][name="qqfile"]')
+      || await frame.$('input[type="file"]');
+    if (handle) return handle;
+  }
+  return null;
+}
+
+async function assertNotDomainBlocked(page) {
+  const texts = [];
+  for (const frame of page.frames()) {
+    const body = await frameBodyText(frame);
+    if (body) texts.push(body);
+  }
+  const joined = texts.join('\n');
+  if (DOMAIN_BLOCK.test(joined)) {
+    throw new Error(
+      'Vidyard widget refused this host (domain allowlist). '
+      + 'Upload must send Referer from an allowlisted clearspeeddemos.com path; '
+      + 'demo.clearspeed.com is not allowlisted.',
+    );
+  }
+}
+
 /**
  * Upload a local video file through the Vidyard uploader widget.
  * @returns {{ uuid: string, shareUrl: string, tag: string, via: 'scrape'|'webhook' }}
@@ -139,34 +197,22 @@ async function uploadFile({ filePath, name, timeoutMs = 10 * 60 * 1000 } = {}) {
 
   const tag = createTag();
   const title = name || path.basename(filePath, path.extname(filePath));
-  const uploadUrl = new URL(UPLOAD_PAGE_BASE);
-  uploadUrl.searchParams.set('tag', tag);
-  uploadUrl.searchParams.set('name', title);
-  // A widget belongs to the Vidyard FOLDER it was created in and cannot deposit
-  // anywhere else, so the widget id is the destination. Until 2026-08-08 this
-  // was never sent and the upload page's own hardcoded id won — which is how
-  // every upload since the headless path shipped landed in the Clearspeed root
-  // instead of RevOps › Demos, where the demo library actually lives.
-  uploadUrl.searchParams.set('widget', WIDGET_ID);
-
   const named = stageNamedCopy(filePath, title);
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
-    await page.goto(uploadUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForSelector('#uploader[src*="vidyard.com"]', { timeout: 20000 });
+    // Referer must be an allowlisted host — not demo.clearspeed.com (redirect target).
+    await page.setExtraHTTPHeaders({ Referer: WIDGET_REFERER });
+    await page.goto(widgetUploadUrl(tag).toString(), {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    });
 
     let fileInput = null;
     const findDeadline = Date.now() + 30000;
     while (!fileInput && Date.now() < findDeadline) {
-      for (const frame of page.frames()) {
-        if (!frame.url().includes('secure.vidyard.com')) continue;
-        const handle = await frame.$('input[type="file"][name="qqfile"]');
-        if (handle) {
-          fileInput = handle;
-          break;
-        }
-      }
+      await assertNotDomainBlocked(page);
+      fileInput = await findFileInput(page);
       if (!fileInput) await page.waitForTimeout(400);
     }
     if (!fileInput) throw new Error('Vidyard widget did not expose a file input');
@@ -211,5 +257,12 @@ async function uploadFile({ filePath, name, timeoutMs = 10 * 60 * 1000 } = {}) {
 }
 
 module.exports = {
-  configured, uploadFile, createTag, parsePlayerUuid, stageNamedCopy, canonicalPlayerUuid,
+  configured,
+  uploadFile,
+  createTag,
+  parsePlayerUuid,
+  stageNamedCopy,
+  canonicalPlayerUuid,
+  widgetUploadUrl,
+  WIDGET_REFERER,
 };
