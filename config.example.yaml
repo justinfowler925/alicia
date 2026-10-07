@@ -46,12 +46,15 @@ cursor_runner:
     - "~/.alicia/reasoning"
 
 # Cursor Cloud Agents — opt-in only. Never a Forge/Scout/Alicia fallback.
+# Spend caps apply even when enabled (0 = unlimited for that window).
 cursor_cloud:
   enabled: false
   timeout_s: 900
   model: "composer-2.5"
   default_repo_url: "https://github.com/justinfowler925/alicia"
   default_starting_ref: "main"
+  max_per_hour: 3
+  max_per_day: 10
 
 # Claude supplies structured session judgment. It is never an implicit fallback
 # for conversation, frontier, or builder profiles.
@@ -66,11 +69,14 @@ claude:
   platform_lane: false
 
 # Hosted OpenAI / Codex platform lane — Justin opt-in only. Never a Forge fallback.
+# Spend caps apply even when enabled (0 = unlimited for that window).
 openai:
   enabled: false
   model: "gpt-4.1-mini"
   timeout_s: 120
   base_url: "https://api.openai.com/v1"
+  max_per_hour: 10
+  max_per_day: 40
 
 # Earned autonomy for local/Studio-safe classes only. Hosted never earns.
 earned_autonomy:

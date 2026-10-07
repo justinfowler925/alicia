@@ -143,10 +143,26 @@ def run_openai(
             "error": "message is required",
             "http_attempted": False,
         }
+    from .spend_limits import check_and_record
+
+    cap = check_and_record(
+        EXECUTOR,
+        max_per_hour=int(getattr(oai, "max_per_hour", 0) or 0),
+        max_per_day=int(getattr(oai, "max_per_day", 0) or 0),
+    )
+    if not cap.get("ok"):
+        return {
+            "ok": False,
+            "executor": EXECUTOR,
+            "error": str(cap.get("error") or "spend cap exceeded"),
+            "http_attempted": False,
+            "spend_cap": cap,
+        }
     if prompt_fn is not None:
         payload = prompt_fn(body, oai)
     else:
         payload = _default_http(body, oai)
+
     if not isinstance(payload, dict):
         payload = {"ok": False, "error": "invalid openai payload", "executor": EXECUTOR}
     payload.setdefault("executor", EXECUTOR)

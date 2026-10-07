@@ -19,6 +19,10 @@ export ALICIA_STUDIO_SSH=jfstudio@100.102.92.119
 export CREDENTIAL_CONTRACT="$ALICIA_APP_DIR/credentials/studio.json"
 export ALICIA_PUBLIC_ORIGIN=https://justins-mac-studio-1.tailbaa084.ts.net:8768
 export ALICIA_TAILSCALE_OWNER=justin@justinfowler.com
+# Optional per-device allowlist (comma-separated hostnames/IPs and/or tags).
+# Leave empty until Tailscale ACL tags devices as tag:owner (see security docs).
+export ALICIA_TAILSCALE_ALLOWED_NODES="${ALICIA_TAILSCALE_ALLOWED_NODES:-}"
+export ALICIA_TAILSCALE_ALLOWED_TAGS="${ALICIA_TAILSCALE_ALLOWED_TAGS:-}"
 export ALICIA_SERVE_PROXY_PORT="${ALICIA_SERVE_PROXY_PORT:-8767}"
 export ALICIA_SERVE_UPSTREAM="${ALICIA_SERVE_UPSTREAM:-http://127.0.0.1:8768}"
 cd "$ALICIA_APP_DIR"

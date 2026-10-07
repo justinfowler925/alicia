@@ -241,6 +241,8 @@ def require_owner_action(
     ``studio_owner``. Raw loopback without proof is rejected.
     """
 
+    from .auth_audit import record as audit_record
+
     via = owner_auth_via(
         request,
         authorization=authorization,
@@ -248,10 +250,29 @@ def require_owner_action(
         x_alicia_csrf=x_alicia_csrf,
     )
     if via:
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            audit_record(
+                "owner_action",
+                ok=True,
+                via=via,
+                path=str(request.url.path),
+            )
         return via
     session_csrf = owner_session_csrf(request)
     if session_csrf is not None and not x_alicia_csrf:
+        audit_record(
+            "owner_action",
+            ok=False,
+            detail="csrf_required",
+            path=str(request.url.path),
+        )
         raise HTTPException(status_code=403, detail="owner CSRF token required")
+    audit_record(
+        "owner_action",
+        ok=False,
+        detail="auth_required",
+        path=str(request.url.path),
+    )
     raise HTTPException(status_code=401, detail="owner authentication required")
 
 

@@ -118,8 +118,25 @@ def run_cursor_cloud(
             "cloud_http_attempted": False,
         }
 
+    from .spend_limits import check_and_record
+
+    cap = check_and_record(
+        EXECUTOR,
+        max_per_hour=int(getattr(cloud_cfg, "max_per_hour", 0) or 0),
+        max_per_day=int(getattr(cloud_cfg, "max_per_day", 0) or 0),
+    )
+    if not cap.get("ok"):
+        return {
+            "ok": False,
+            "executor": EXECUTOR,
+            "error": str(cap.get("error") or "spend cap exceeded"),
+            "cloud_http_attempted": False,
+            "spend_cap": cap,
+        }
+
     started = time.monotonic()
     _CLOUD_HTTP = True
+
     try:
         if prompt_fn is not None:
             raw = prompt_fn(

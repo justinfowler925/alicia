@@ -4,16 +4,25 @@ Serve terminates TLS and proxies as 127.0.0.1, so ``tailscale-user-login`` alone
 is forgeable by any local process. Trusted remote identity requires the Serve
 proxy proof header (``X-Alicia-Serve-Proof``) that only
 ``scripts/alicia-serve-proxy.py`` injects.
+
+Optional per-device allowlists (env):
+- ``ALICIA_TAILSCALE_ALLOWED_NODES`` — comma-separated hostnames and/or Tailscale IPs
+- ``ALICIA_TAILSCALE_ALLOWED_TAGS`` — comma-separated tags (e.g. ``tag:owner``)
+
+When either list is non-empty, Serve-proven requests must also match a peer from
+``tailscale whois`` on ``X-Forwarded-For`` / ``X-Real-IP``.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from urllib.parse import urlsplit
 
 from starlette.responses import JSONResponse
 
+from .auth_audit import record as audit_record
 from .security import SERVE_PROOF_HEADER, verify_serve_proof
 
 
@@ -51,6 +60,74 @@ def funnel_exposes_alicia_port(port: int = 8768) -> bool | None:
     return False
 
 
+def _csv_env(name: str) -> list[str]:
+    raw = os.environ.get(name, "") or ""
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _client_ip(headers) -> str:
+    for key in ("x-forwarded-for", "x-real-ip"):
+        raw = (headers.get(key) or "").strip()
+        if not raw:
+            continue
+        # First hop is the Tailscale client when Serve proxies.
+        return raw.split(",")[0].strip()
+    return ""
+
+
+def _whois(ip: str) -> dict:
+    if not ip:
+        return {}
+    try:
+        result = subprocess.run(
+            ["tailscale", "whois", "--json", ip],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return {}
+    if result.returncode != 0 or not (result.stdout or "").strip():
+        return {}
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def peer_allowed(headers) -> tuple[bool, str, str]:
+    """Return (allowed, reason, peer_label) for optional node/tag allowlists."""
+
+    nodes = {n.lower() for n in _csv_env("ALICIA_TAILSCALE_ALLOWED_NODES")}
+    tags = {t if t.startswith("tag:") else f"tag:{t}" for t in _csv_env("ALICIA_TAILSCALE_ALLOWED_TAGS")}
+    tags = {t.lower() for t in tags}
+    if not nodes and not tags:
+        return True, "allowlist_unset", ""
+
+    ip = _client_ip(headers)
+    info = _whois(ip)
+    node = info.get("Node") if isinstance(info.get("Node"), dict) else {}
+    host = str(node.get("HostName") or node.get("Name") or "").strip()
+    dns = str(node.get("DNSName") or "").strip().rstrip(".")
+    ips = [str(x) for x in (node.get("Addresses") or node.get("IPs") or []) if x]
+    peer_tags = {
+        str(t).lower()
+        for t in (node.get("Tags") or info.get("Tags") or [])
+        if t
+    }
+    label = host or dns or ip or "unknown"
+
+    candidates = {host.lower(), dns.lower(), ip.lower(), *[a.split("/")[0].lower() for a in ips]}
+    candidates.discard("")
+    if nodes and candidates.isdisjoint(nodes):
+        return False, "node_not_allowlisted", label
+    if tags and peer_tags.isdisjoint(tags):
+        return False, "tag_not_allowlisted", label
+    return True, "peer_ok", label
+
+
 def install(app):
     origin = os.environ.get("ALICIA_PUBLIC_ORIGIN", "").rstrip("/")
     owner = os.environ.get("ALICIA_TAILSCALE_OWNER", "")
@@ -73,7 +150,30 @@ def install(app):
             and login == owner
             and proof_ok
         )
+        peer_label = ""
+        if trusted:
+            allowed, reason, peer_label = peer_allowed(request.headers)
+            if not allowed:
+                audit_record(
+                    "studio_access",
+                    ok=False,
+                    detail=reason,
+                    path=str(request.url.path),
+                    login=login,
+                    peer=peer_label,
+                )
+                return JSONResponse(
+                    {"detail": f"Tailscale device not allowlisted ({reason})"},
+                    status_code=403,
+                )
         if not (loopback and local_host) and not trusted:
+            audit_record(
+                "studio_access",
+                ok=False,
+                detail="identity_required",
+                path=str(request.url.path),
+                login=login,
+            )
             return JSONResponse(
                 {"detail": "Your private Tailscale identity is required"},
                 status_code=403,
@@ -81,8 +181,32 @@ def install(app):
         supplied = request.headers.get("origin")
         expected_origin = origin if trusted else f"{request.url.scheme}://{host}"
         if supplied and supplied.rstrip("/") != expected_origin.rstrip("/"):
+            audit_record(
+                "studio_access",
+                ok=False,
+                detail="origin_mismatch",
+                path=str(request.url.path),
+                login=login,
+            )
             return JSONResponse({"detail": "Same-origin request required"}, status_code=403)
         if request.method not in ("GET", "HEAD", "OPTIONS") and trusted and not supplied:
+            audit_record(
+                "studio_access",
+                ok=False,
+                detail="origin_required",
+                path=str(request.url.path),
+                login=login,
+            )
             return JSONResponse({"detail": "Origin header required"}, status_code=403)
         request.state.studio_owner = trusted
+        if trusted and request.method not in ("GET", "HEAD", "OPTIONS"):
+            audit_record(
+                "studio_access",
+                ok=True,
+                detail="trusted",
+                via="studio_owner",
+                path=str(request.url.path),
+                login=login,
+                peer=peer_label,
+            )
         return await call_next(request)

@@ -83,6 +83,9 @@ class CursorCloudCfg:
     model: str = "composer-2.5"
     default_repo_url: str = "https://github.com/justinfowler925/alicia"
     default_starting_ref: str = "main"
+    # Hard ceilings even when opted in. 0 = unlimited for that window.
+    max_per_hour: int = 3
+    max_per_day: int = 10
 
 
 @dataclass
@@ -139,6 +142,9 @@ class OpenAICfg:
     model: str = "gpt-4.1-mini"
     timeout_s: float = 120.0
     base_url: str = "https://api.openai.com/v1"
+    # Hard ceilings even when opted in. 0 = unlimited for that window.
+    max_per_hour: int = 10
+    max_per_day: int = 40
 
 
 @dataclass
@@ -245,6 +251,8 @@ def _parse_cursor_cloud(data: dict) -> CursorCloudCfg:
             block.get("default_repo_url") or "https://github.com/justinfowler925/alicia"
         ),
         default_starting_ref=str(block.get("default_starting_ref") or "main"),
+        max_per_hour=int(block.get("max_per_hour", 3)),
+        max_per_day=int(block.get("max_per_day", 10)),
     )
 
 
@@ -315,6 +323,8 @@ def _parse_openai(data: dict) -> OpenAICfg:
         model=str(block.get("model") or "gpt-4.1-mini"),
         timeout_s=float(block.get("timeout_s") or 120),
         base_url=str(block.get("base_url") or "https://api.openai.com/v1"),
+        max_per_hour=int(block.get("max_per_hour", 10)),
+        max_per_day=int(block.get("max_per_day", 40)),
     )
 
 

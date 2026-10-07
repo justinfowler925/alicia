@@ -61,6 +61,7 @@ from .nucleus import (
 from .paths import canon_db_path
 from .projects import scan_projects
 from .refine import refine_todo
+from .auth_audit import read_recent as read_auth_audit
 from .security import (
     OWNER_SESSION_COOKIE,
     authenticate_owner_token,
@@ -702,6 +703,12 @@ def create_app(cfg: AliciaCfg | None = None, *, start_watchdog: bool = True) -> 
     async def owner_pair_ticket() -> dict[str, Any]:
         """Mint a one-time ticket for open-operator browser pairing."""
         return {"ok": True, "ticket": mint_pair_ticket(), "expires_in": 120}
+
+    @app.get("/api/auth/audit", dependencies=[Depends(require_owner_action)])
+    async def owner_auth_audit(limit: int = 100) -> dict[str, Any]:
+        """Recent auth successes/failures (JSONL under state/auth-audit.jsonl)."""
+        rows = read_auth_audit(limit=limit)
+        return {"ok": True, "count": len(rows), "events": rows}
 
     @app.post("/api/auth/redeem")
     async def owner_redeem_ticket(body: dict, request: Request, response: Response) -> dict[str, Any]:
