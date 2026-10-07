@@ -38,6 +38,7 @@ browser. Optional packs stay out of the model context until Forge calls
 - `hollywood`: loads `~/.agents/skills/studio-media/SKILL.md` and, when the Studio
   media MCP is present, enables its allowlisted media tools.
 - `strike-package`: loads `~/.codex/skills/strike-package/SKILL.md` as guidance
+- `nucleus-nudge`: loads `~/.agents/skills/nucleus-nudge/SKILL.md` for Deal Desk one/many/all-open nudges
   text (bounded); does not add tool schemas.
 
 Skill bodies are returned in the tool result for that turn. They are not pasted

@@ -319,6 +319,8 @@ def _parse_cursor_tool_call(text: str) -> tuple[str, dict[str, Any]] | None:
 # they exist only behind propose_action.
 BRAIN_READS = (
     "get_nucleus",
+    "cro_nudge_list",
+    "cro_nudge_draft",
     "get_work_surface",
     "get_digest",
     "list_notes",
@@ -338,6 +340,7 @@ BRAIN_FREE_WRITES = ("capture_note", "update_note", "save_working_note", "draft_
 
 # Gated tools the brain may PROPOSE (drafts an artifact; Justin approves).
 PROPOSABLE = (
+    "cro_nudge_send",
     "organize_agent_thread",
     "organize_project",
     "delete_note",

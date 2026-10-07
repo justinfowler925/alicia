@@ -92,6 +92,7 @@ def skill_home(name: str) -> Path:
         'shine': home / '.agents' / 'skills' / 'shine' / 'SKILL.md',
         'hollywood': home / '.agents' / 'skills' / 'studio-media' / 'SKILL.md',
         'strike-package': home / '.codex' / 'skills' / 'strike-package' / 'SKILL.md',
+        'nucleus-nudge': home / '.agents' / 'skills' / 'nucleus-nudge' / 'SKILL.md',
     }
     return mapping[name]
 
@@ -123,6 +124,11 @@ CAPABILITIES = {
         'kind': 'skill',
         'description': 'Evidence-backed professional meeting brief skill. Loads SKILL.md on enable.',
         'skill': 'strike-package',
+    },
+    'nucleus-nudge': {
+        'kind': 'skill',
+        'description': 'Nucleus CRO Deal Desk nudge: draft/confirm one, many, or all-open identical nudges.',
+        'skill': 'nucleus-nudge',
     },
 }
 

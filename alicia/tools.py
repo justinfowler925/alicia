@@ -28,6 +28,7 @@ from .linear_surface import (
 from .manager_status import merged_work_surface
 from .memory import MemoryStore
 from .model_gateway import judge_with_profile, run_profile
+from .cro_nudge import draft_nudge, list_open_nudges, send_nudge
 from .nucleus import build_nucleus_snapshot, invalidate_nucleus_cache, nucleus_view
 from .supervisor_runtime import SupervisorRuntime
 from .todos import STATUSES, Todo, TodoStore
@@ -998,6 +999,43 @@ def build_default_registry(
     )
     reg.register(
         Tool(
+            name="cro_nudge_list",
+            description=(
+                "List open Nucleus Deal Desk nudge targets with follow-through "
+                "(not_nudged | sent | corrected). Use before drafting or when Justin "
+                "asks who still needs a forecast nudge."
+            ),
+            parameters={"type": "object", "properties": {}},
+            fn=lambda: list_open_nudges(),
+        )
+    )
+    reg.register(
+        Tool(
+            name="cro_nudge_draft",
+            description=(
+                "Draft an identical Nucleus Deal Desk nudge for one opportunity, many "
+                "opportunity ids, or all_open=true (every open nudgeable row). Returns "
+                "recipients and message; nothing is delivered."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "opportunity_id": {"type": "string"},
+                    "opportunity_ids": {"type": "array", "items": {"type": "string"}},
+                    "all_open": {"type": "boolean", "description": "Every open nudgeable Deal Desk row"},
+                    "message": {"type": "string", "description": "Optional override draft (≥20 chars)"},
+                },
+            },
+            fn=lambda **kwargs: draft_nudge(
+                opportunity_id=str(kwargs.get("opportunity_id") or ""),
+                opportunity_ids=list(kwargs.get("opportunity_ids") or []) or None,
+                all_open=bool(kwargs.get("all_open")),
+                message=str(kwargs.get("message") or ""),
+            ),
+        )
+    )
+    reg.register(
+        Tool(
             name="get_work_surface",
             description=(
                 "Return the current work surface (probe-filtered): what needs Justin, "
@@ -1032,6 +1070,32 @@ def build_default_registry(
         )
     )
     if not read_only:
+        reg.register(
+            Tool(
+                name="cro_nudge_send",
+                description=(
+                    "Send one identical Nucleus Deal Desk nudge. Gated: propose first unless "
+                    "Justin already confirmed. Bulk uses the same message for every recipient. "
+                    "all_open=true means every open nudgeable row; those then show Sent."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "opportunity_id": {"type": "string"},
+                        "opportunity_ids": {"type": "array", "items": {"type": "string"}},
+                        "all_open": {"type": "boolean"},
+                        "message": {"type": "string", "description": "Final identical message (≥20 chars)"},
+                    },
+                    "required": ["message"],
+                },
+                fn=lambda **kwargs: send_nudge(
+                    opportunity_id=str(kwargs.get("opportunity_id") or ""),
+                    opportunity_ids=list(kwargs.get("opportunity_ids") or []) or None,
+                    all_open=bool(kwargs.get("all_open")),
+                    message=str(kwargs.get("message") or ""),
+                ),
+            )
+        )
         reg.register(
             Tool(
                 name="ask_atlas6",
