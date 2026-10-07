@@ -97,30 +97,72 @@ def _whois(ip: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _normalize_peer_token(value: object) -> str:
+    return str(value or "").strip().rstrip(".").lower()
+
+
+def _peer_identity(node: dict, ip: str) -> tuple[set[str], str]:
+    """Build match candidates from real ``tailscale whois --json`` shape.
+
+    Live whois often omits ``HostName`` / ``DNSName`` and puts the MagicDNS
+    name in ``Name`` (trailing dot) plus ``ComputedName`` / ``Hostinfo.Hostname``.
+    """
+
+    candidates: set[str] = set()
+    hostinfo = node.get("Hostinfo") if isinstance(node.get("Hostinfo"), dict) else {}
+    for raw in (
+        node.get("HostName"),
+        node.get("Name"),
+        node.get("DNSName"),
+        node.get("ComputedName"),
+        node.get("ComputedNameWithHost"),
+        hostinfo.get("Hostname"),
+        ip,
+    ):
+        token = _normalize_peer_token(raw)
+        if not token:
+            continue
+        candidates.add(token)
+        if "." in token:
+            candidates.add(token.split(".", 1)[0])
+    for addr in node.get("Addresses") or node.get("IPs") or []:
+        token = _normalize_peer_token(str(addr).split("/", 1)[0])
+        if token:
+            candidates.add(token)
+    candidates.discard("")
+    label = (
+        _normalize_peer_token(node.get("ComputedName"))
+        or _normalize_peer_token(hostinfo.get("Hostname"))
+        or _normalize_peer_token(node.get("HostName"))
+        or _normalize_peer_token(node.get("Name"))
+        or ip
+        or "unknown"
+    )
+    return candidates, label
+
+
 def peer_allowed(headers) -> tuple[bool, str, str]:
     """Return (allowed, reason, peer_label) for optional node/tag allowlists."""
 
-    nodes = {n.lower() for n in _csv_env("ALICIA_TAILSCALE_ALLOWED_NODES")}
+    nodes = {_normalize_peer_token(n) for n in _csv_env("ALICIA_TAILSCALE_ALLOWED_NODES")}
+    nodes.discard("")
     tags = {t if t.startswith("tag:") else f"tag:{t}" for t in _csv_env("ALICIA_TAILSCALE_ALLOWED_TAGS")}
-    tags = {t.lower() for t in tags}
+    tags = {_normalize_peer_token(t) for t in tags}
+    tags.discard("")
     if not nodes and not tags:
         return True, "allowlist_unset", ""
 
     ip = _client_ip(headers)
     info = _whois(ip)
     node = info.get("Node") if isinstance(info.get("Node"), dict) else {}
-    host = str(node.get("HostName") or node.get("Name") or "").strip()
-    dns = str(node.get("DNSName") or "").strip().rstrip(".")
-    ips = [str(x) for x in (node.get("Addresses") or node.get("IPs") or []) if x]
+    candidates, label = _peer_identity(node, ip)
     peer_tags = {
-        str(t).lower()
+        _normalize_peer_token(t)
         for t in (node.get("Tags") or info.get("Tags") or [])
         if t
     }
-    label = host or dns or ip or "unknown"
+    peer_tags.discard("")
 
-    candidates = {host.lower(), dns.lower(), ip.lower(), *[a.split("/")[0].lower() for a in ips]}
-    candidates.discard("")
     if nodes and candidates.isdisjoint(nodes):
         return False, "node_not_allowlisted", label
     if tags and peer_tags.isdisjoint(tags):

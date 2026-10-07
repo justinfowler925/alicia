@@ -120,6 +120,44 @@ def test_node_allowlist_rejects_unknown_peer(monkeypatch):
     assert label == "stranger"
 
 
+def test_node_allowlist_matches_live_whois_shape(monkeypatch):
+    """Real ``tailscale whois --json`` uses ComputedName + Name, not HostName."""
+
+    monkeypatch.setenv("ALICIA_TAILSCALE_ALLOWED_NODES", "jfmacm5,hyper")
+    monkeypatch.delenv("ALICIA_TAILSCALE_ALLOWED_TAGS", raising=False)
+
+    def fake_whois(ip):
+        return {
+            "Node": {
+                "Name": "jfmacm5.tailbaa084.ts.net.",
+                "ComputedName": "jfmacm5",
+                "Hostinfo": {"Hostname": "JFMacM5"},
+                "Addresses": [f"{ip}/32"],
+            }
+        }
+
+    with patch("alicia.studio_access._whois", side_effect=fake_whois):
+        allowed, reason, label = peer_allowed({"x-forwarded-for": "100.90.100.85"})
+    assert allowed is True
+    assert reason == "peer_ok"
+    assert label == "jfmacm5"
+
+    def stale_whois(ip):
+        return {
+            "Node": {
+                "Name": "fowler-macbook-pro.tailbaa084.ts.net.",
+                "ComputedName": "fowler-macbook-pro",
+                "Addresses": [f"{ip}/32"],
+            }
+        }
+
+    with patch("alicia.studio_access._whois", side_effect=stale_whois):
+        allowed, reason, label = peer_allowed({"x-forwarded-for": "100.98.147.100"})
+    assert allowed is False
+    assert reason == "node_not_allowlisted"
+    assert label == "fowler-macbook-pro"
+
+
 def test_node_allowlist_accepts_tagged_peer(monkeypatch):
     monkeypatch.delenv("ALICIA_TAILSCALE_ALLOWED_NODES", raising=False)
     monkeypatch.setenv("ALICIA_TAILSCALE_ALLOWED_TAGS", "tag:owner")
@@ -131,7 +169,7 @@ def test_node_allowlist_accepts_tagged_peer(monkeypatch):
         allowed, reason, label = peer_allowed({"x-forwarded-for": "100.90.100.85"})
     assert allowed is True
     assert reason == "peer_ok"
-    assert label == "JFMacM5"
+    assert label == "jfmacm5"
 
 
 def test_middleware_enforces_node_allowlist(monkeypatch):
