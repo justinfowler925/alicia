@@ -42,8 +42,21 @@ const TEMPLATE_COUNTS = { sales: [3, 4, 5], production: [3, 4] };
 
 const el = (id) => document.getElementById(id);
 
+// Optional path prefix when Nucleus same-origin proxies this app
+// (window.__DM_BASE__ = "/revops/demo-maker"). Empty string on Studio direct.
+function dmBase() {
+  const raw = typeof window !== 'undefined' ? window.__DM_BASE__ : '';
+  const base = String(raw || '').replace(/\/+$/, '');
+  return base;
+}
+function dmUrl(path) {
+  if (!path || path.startsWith('http://') || path.startsWith('https://')) return path;
+  if (!path.startsWith('/')) return path;
+  return `${dmBase()}${path}`;
+}
+
 async function api(path, opts = {}) {
-  const res = await fetch(path, {
+  const res = await fetch(dmUrl(path), {
     headers: { 'Content-Type': 'application/json' },
     ...opts,
   });
