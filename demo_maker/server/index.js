@@ -1082,9 +1082,18 @@ app.post('/api/library/event', (req, res) => {
 });
 
 const PORT = process.env.PORT || 4173;
-// 0.0.0.0 so a container's port mapping can reach it; localhost-only binding
-// makes the process unreachable from outside the container.
-const HOST = process.env.HOST || '0.0.0.0';
+// Studio: bind loopback only — Tailscale Serve fronts :8790 → :4173 (tailnet).
+// Container / explicit public bind: set HOST=0.0.0.0 (see Dockerfile / .env.example).
+function resolveListenHost() {
+  const configured = (process.env.HOST || '').trim();
+  if (configured) return configured;
+  // DEMO_MAKER_STATE is the Studio data root; prefer localhost there.
+  if (process.env.DEMO_MAKER_STATE) return '127.0.0.1';
+  // DATA_DIR is the container volume — port mapping needs 0.0.0.0.
+  if (process.env.DATA_DIR) return '0.0.0.0';
+  return '127.0.0.1';
+}
+const HOST = resolveListenHost();
 app.listen(PORT, HOST, () => {
-  console.log(`Fowler Demo Maker running at http://localhost:${PORT}`);
+  console.log(`Fowler Demo Maker listening on http://${HOST}:${PORT}`);
 });

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>DEMO_MAKER_STATE</key>
+		<string>/Users/jfstudio/.alicia/state/demo-maker</string>
+		<key>HOST</key>
+		<string>127.0.0.1</string>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/bin:/bin</string>
+		<key>PORT</key>
+		<string>4173</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.jfstudio.alicia-demo-maker</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/node</string>
+		<string>server/index.js</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>SoftResourceLimits</key>
+	<dict>
+		<key>NumberOfFiles</key>
+		<integer>4096</integer>
+	</dict>
+	<key>StandardErrorPath</key>
+	<string>/Users/jfstudio/.alicia/logs/demo-maker.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/jfstudio/.alicia/logs/demo-maker.log</string>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/jfstudio/.alicia/app/demo_maker</string>
+</dict>
+</plist>

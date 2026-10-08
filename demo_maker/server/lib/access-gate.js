@@ -1,17 +1,15 @@
 /**
- * Access gate for a public (or Clearspeed-managed) Demo Maker host.
+ * Access gate for Demo Maker when DEMO_MAKER_ACCESS_SECRET is set.
  *
- * On the Mac Studio the tailnet was the authentication — there was none in
- * the app. A public origin without a gate would expose the whole render and
- * publish pipeline. When DEMO_MAKER_ACCESS_SECRET is set, every route except
- * /healthz requires a short-lived embed session minted by Nucleus (HMAC over
- * exp + email). Unset keeps Studio/tailnet behaviour unchanged.
+ * Nucleus mints a short-lived HMAC embed URL. The query string carries an
+ * opaque subject (HMAC of the email), never the email itself. Unset secret
+ * keeps Studio/tailnet behaviour (network was the auth).
  */
 const crypto = require('crypto');
 
 const COOKIE = 'dm_embed';
-const MAX_TTL_SEC = 60 * 60 * 12; // 12h hard cap
-const DEFAULT_TTL_SEC = 60 * 60; // 1h
+const MAX_TTL_SEC = 60 * 60; // 1h hard cap
+const DEFAULT_TTL_SEC = 15 * 60; // 15m
 
 function accessSecret() {
   return (process.env.DEMO_MAKER_ACCESS_SECRET || '').trim();
@@ -36,24 +34,31 @@ function fromB64url(s) {
   );
 }
 
-function sign(exp, email) {
+/** Opaque subject derived from email — never put email in URLs or cookies. */
+function subjectForEmail(email) {
   const secret = accessSecret();
   if (!secret) return '';
-  return b64url(
-    crypto.createHmac('sha256', secret).update(`v1|${exp}|${email}`).digest(),
-  );
-}
-
-function mintToken(email, ttlSec = DEFAULT_TTL_SEC) {
   const clean = String(email || '')
     .trim()
     .toLowerCase();
-  if (!clean || !clean.includes('@')) return null;
+  if (!clean || !clean.includes('@')) return '';
+  return b64url(crypto.createHmac('sha256', secret).update(`sub|${clean}`).digest());
+}
+
+function sign(exp, sub) {
+  const secret = accessSecret();
+  if (!secret) return '';
+  return b64url(crypto.createHmac('sha256', secret).update(`v2|${exp}|${sub}`).digest());
+}
+
+function mintToken(email, ttlSec = DEFAULT_TTL_SEC) {
+  const sub = subjectForEmail(email);
+  if (!sub) return null;
   const ttl = Math.min(Math.max(Number(ttlSec) || DEFAULT_TTL_SEC, 60), MAX_TTL_SEC);
   const exp = Math.floor(Date.now() / 1000) + ttl;
-  const sig = sign(exp, clean);
+  const sig = sign(exp, sub);
   if (!sig) return null;
-  return { exp, email: clean, sig, token: `${exp}.${b64url(clean)}.${sig}` };
+  return { exp, sub, sig, token: `${exp}.${sub}.${sig}` };
 }
 
 function parseToken(raw) {
@@ -61,23 +66,18 @@ function parseToken(raw) {
   if (parts.length !== 3) return null;
   const exp = Number(parts[0]);
   if (!Number.isFinite(exp)) return null;
-  let email;
-  try {
-    email = fromB64url(parts[1]).trim().toLowerCase();
-  } catch {
-    return null;
-  }
-  if (!email || !email.includes('@')) return null;
+  const sub = parts[1];
+  if (!sub || sub.length < 16) return null;
   const sig = parts[2];
-  const expected = sign(exp, email);
+  const expected = sign(exp, sub);
   if (!expected || sig.length !== expected.length) return null;
   if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
   if (exp < Math.floor(Date.now() / 1000)) return null;
-  return { exp, email, sig, token: `${exp}.${parts[1]}.${sig}` };
+  return { exp, sub, sig, token: `${exp}.${sub}.${sig}` };
 }
 
-function verifyParts(exp, email, sig) {
-  return parseToken(`${exp}.${b64url(String(email || '').trim().toLowerCase())}.${sig}`);
+function verifyParts(exp, sub, sig) {
+  return parseToken(`${exp}.${String(sub || '').trim()}.${sig}`);
 }
 
 function readCookie(req) {
@@ -129,9 +129,9 @@ function install(app) {
       return res.redirect(302, '/');
     }
     const exp = req.query.exp;
-    const email = req.query.email;
+    const sub = req.query.sub;
     const sig = req.query.sig;
-    const session = verifyParts(exp, email, sig);
+    const session = verifyParts(exp, sub, sig);
     if (!session) {
       res.status(401).type('html').send(deniedHtml());
       return;
@@ -146,7 +146,8 @@ function install(app) {
     if (req.path === '/healthz' || req.path === '/auth/embed') return next();
     const session = parseToken(readCookie(req));
     if (session) {
-      req.demoMakerSession = session;
+      // Opaque only — never attach email to the request for logs/handlers.
+      req.demoMakerSession = { exp: session.exp, sub: session.sub };
       return next();
     }
     if (req.path.startsWith('/api/')) {
@@ -161,9 +162,11 @@ module.exports = {
   COOKIE,
   accessSecret,
   gatingEnabled,
+  subjectForEmail,
   mintToken,
   parseToken,
   verifyParts,
   sign,
   install,
+  DEFAULT_TTL_SEC,
 };
