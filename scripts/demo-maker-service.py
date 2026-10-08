@@ -13,7 +13,12 @@ plist.write_bytes(plistlib.dumps({
     'ProgramArguments': ['/opt/homebrew/bin/node', 'server/index.js'],
     'RunAtLoad': True, 'KeepAlive': True, 'ThrottleInterval': 30,
     'WorkingDirectory': str(root / 'app/demo_maker'),
-    'EnvironmentVariables': {'PATH': '/opt/homebrew/bin:/usr/bin:/bin', 'PORT': '4173', 'DEMO_MAKER_STATE': str(state)},
+    'EnvironmentVariables': {
+        'PATH': '/opt/homebrew/bin:/usr/bin:/bin',
+        'HOST': '127.0.0.1',
+        'PORT': '4173',
+        'DEMO_MAKER_STATE': str(state),
+    },
     'SoftResourceLimits': {'NumberOfFiles': 4096},
     'StandardOutPath': str(root / 'logs/demo-maker.log'),
     'StandardErrorPath': str(root / 'logs/demo-maker.err.log'),
