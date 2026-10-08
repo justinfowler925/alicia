@@ -112,6 +112,17 @@ def test_discover_is_files_only_by_default(tmp_path, monkeypatch):
     session.close()
 
 
+def test_knowledge_server_uses_local_share_milvus():
+    """Forge knowledge MCP must use ~/.local/share/milvus, not SSD-2TB."""
+    session = ToolSession(Path('/tmp'), Path('/tmp'))
+    cmd, tools = session._server_specs()['knowledge']
+    assert tools == KNOWLEDGE_TOOLS
+    assert cmd[0].endswith('/.local/share/milvus/sdk/python/.venv/bin/python')
+    assert '/.local/share/milvus/pipelines/project-knowledge/project_knowledge.py' in cmd[1]
+    assert 'SSD-2TB' not in ''.join(cmd)
+    assert cmd[2] == 'serve'
+
+
 def test_enable_knowledge_and_browser_allowlist(tmp_path, monkeypatch):
     instances = []
     class FakeClient:

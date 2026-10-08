@@ -421,10 +421,11 @@ class ToolSession:
         browser_output = self.directory / 'browser'
         browser_output.mkdir(exist_ok=True, mode=0o700)
         hollywood_script = Path.home() / '.agents' / 'skills' / 'studio-media' / 'scripts' / 'studio.py'
+        milvus = Path.home() / '.local' / 'share' / 'milvus'
         return {
             'knowledge': ([
-                '/Volumes/SSD-2TB/milvus/sdk/python/.venv/bin/python',
-                '/Volumes/SSD-2TB/milvus/pipelines/project-knowledge/project_knowledge.py', 'serve'], KNOWLEDGE_TOOLS),
+                str(milvus / 'sdk' / 'python' / '.venv' / 'bin' / 'python'),
+                str(milvus / 'pipelines' / 'project-knowledge' / 'project_knowledge.py'), 'serve'], KNOWLEDGE_TOOLS),
             'browser': ([
                 '/opt/homebrew/bin/node', str(Path.home() / '.local/share/shine/current/node_modules/playwright/cli.js'),
                 'mcp', '--headless', '--isolated', '--block-service-workers', '--image-responses', 'omit',
